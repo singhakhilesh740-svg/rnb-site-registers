@@ -1,3 +1,7 @@
+<!doctype html>
+<html lang="hi">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>R&amp;B Site Registers</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="manifest" href="manifest.json">
@@ -94,9 +98,23 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 .fld label{font-size:12.5px;color:var(--muted);line-height:1.3}
 .fld input,.fld select,.fld textarea{padding:7px 9px;border:1px solid var(--rule-strong);border-radius:5px;background:var(--surface);width:100%}
 .fld .calcv{padding:7px 9px;border:1px dashed var(--rule-strong);border-radius:5px;color:var(--accent);font-family:var(--f-num);font-size:13px;min-height:36px}
+.offrow{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
 .grpttl{grid-column:1/-1;font-weight:600;font-size:13px;border-bottom:1px solid var(--rule);padding-bottom:3px;margin-top:4px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 .toast{position:fixed;bottom:calc(18px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);background:var(--ink);color:var(--surface);padding:8px 16px;border-radius:6px;font-size:14px;z-index:50}
 #printArea{display:none}
+#gate{position:fixed;inset:0;z-index:40;background:var(--bg);display:grid;place-items:center;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+#gate[hidden]{display:none}
+.gcard{background:var(--surface);border:1px solid var(--rule-strong);border-radius:10px;padding:26px 24px;max-width:420px;width:100%;display:flex;flex-direction:column;gap:14px}
+.gbody{display:flex;flex-direction:column;gap:14px;align-items:flex-start}
+.chatlog{background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:12px;min-height:280px;max-height:62vh;overflow:auto;display:flex;flex-direction:column;gap:10px}
+.msg{display:flex}.msg.user{justify-content:flex-end}
+.msg .bub{max-width:min(720px,92%);padding:9px 12px;border-radius:10px;background:var(--head);min-width:0;overflow-wrap:anywhere}
+.msg.user .bub{background:var(--accent-soft)}
+table.kv{border-collapse:collapse;margin:6px 0}table.kv td{padding:3px 10px 3px 0;vertical-align:top}
+.composer{display:flex;flex-direction:column;gap:8px}.crow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.crow textarea{flex:1;min-width:0;padding:8px 10px;border:1px solid var(--rule-strong);border-radius:6px;background:var(--surface)}
+.crow select{padding:7px 9px;border:1px solid var(--rule-strong);border-radius:6px;background:var(--surface)}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
 .mbpages{display:flex;flex-direction:column;gap:18px}
 .mbsheet{background:var(--surface);border:1px solid var(--rule-strong);border-radius:3px;padding:18px 20px;font-size:13px;min-width:0}
 .mbsheet .tablewrap{border:0}
@@ -183,8 +201,9 @@ table.ln td{padding:2px}table.ln input,table.ln select{padding:4px 5px;border:1p
 
 <div id="printArea"></div>
 <div class="toast" id="toast" hidden></div>
+<div id="gate" hidden><div class="gcard"><div class="brand"><i>R&amp;B</i> Site Registers</div><div class="gbody"></div></div></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script>
 /* =====================================================================
    FIREBASE (optional). Apni Firebase project ki config yahan paste karo.
@@ -250,13 +269,13 @@ const REGS=[
  note:'Har RA bill par ek line. Bill date daalke "Patrak-4 se bharo" dabao, Patrak-4 (roj vapras) ka jod apne aap aa jayega. Unit: bags.',
  sortKey:'billDate',
  cols:[C('_sr','અ.નં.','sr'),
-  C('opening','ખુલતી સિલક','carry',{fn:carryPrev('opening','closing'),dp:0}),
+  C('opening','ખુલતી સિલક','carry',{fn:carryPrev('opening','closing'),dp:0,xf:x=>x.prevRow?x.R('closing',-1):'0'}),
   C('rcvDate','આવકની તારીખ','date'),
   C('qty','જથ્થો','num',{dp:0}),
   C('supplier','કંપનીનો સિમેન્ટ આવ્યો, સપ્લાયરના બિલ નં. / તારીખ'),
   C('billDate','RA બિલ તારીખ','date',{formOnly:true}),
   C('cons','પત્રક-૨ મુજબ બિલ બનાવ્યા તારીખે વપરાશનો જથ્થો','num',{dp:0,fill:'cementP4'}),
-  C('closing','બિલ રજૂ કર્યા તારીખે બંધ સિલક (જથ્થો)','calc',{dp:0,fn:r=>(+r.opening||0)+(+r.qty||0)-(+r.cons||0)}),
+  C('closing','બિલ રજૂ કર્યા તારીખે બંધ સિલક (જથ્થો)','calc',{dp:0,fn:r=>(+r.opening||0)+(+r.qty||0)-(+r.cons||0),xf:x=>`${x.R('opening')}+N(${x.R('qty')})-N(${x.R('cons')})`}),
   C('remarks','વિશેષ નોંધ')],
  flag:r=>r.closing<0?['bad','Bandh silak minus']:null},
 
@@ -265,19 +284,19 @@ const REGS=[
  note:'Ek din mein jitne item, utni line. Khulti silak aur kul jaththo din ki pehli line par, roj ka kul vapras aur baki silak din ki aakhri line par apne aap. Unit: bags.',
  sortKey:'date',
  cols:[C('_sr','અ.નં.','sr'),C('date','તારીખ','date'),
-  C('opening','ખુલતી સિલક','carry',{dp:0,only:'first'}),
+  C('opening','ખુલતી સિલક','carry',{dp:0,only:'first',xf:x=>x.gS>x.first?x.L.closing+(x.gS-1):'0'}),
   C('receipt','નવી આવક','num',{dp:0}),
-  C('total','કુલ જથ્થો','calc',{dp:0,only:'first'}),
+  C('total','કુલ જથ્થો','calc',{dp:0,only:'first',xf:x=>`${x.R('opening')}+SUM(${x.L.receipt}${x.gS}:${x.L.receipt}${x.gE})`}),
   C('itemNo','આઈટમ નંબર','text',{grpH:'વપરાશની વિગત'}),C('item','આઈટમની વિગત','text',{grpH:'વપરાશની વિગત'}),
   C('workQty','દિવસ દરમિયાન થયેલ કામનો જથ્થો','text',{grpH:'વપરાશની વિગત'}),C('used','વપરાયેલ સિમેન્ટ','num',{dp:0,grpH:'વપરાશની વિગત'}),
-  C('dayTotal','સવાલ હેઠળનો રોજનો વપરાયેલ કુલ સિમેન્ટ','calc',{dp:0,only:'last'}),
-  C('closing','બાકી રહેલ સિલક','calc',{dp:0,only:'last'}),
+  C('dayTotal','સવાલ હેઠળનો રોજનો વપરાયેલ કુલ સિમેન્ટ','calc',{dp:0,only:'last',xf:x=>`SUM(${x.L.used}${x.gS}:${x.L.used}${x.gE})`}),
+  C('closing','બાકી રહેલ સિલક','calc',{dp:0,only:'last',xf:x=>`${x.L.total}${x.gS}-${x.R('dayTotal')}`}),
   S('sgCon','ઠેકેદારની સહી'),S('sgSup','સુપરવાઈઝરની સહી'),S('sgChk','ચેકીંગ કરનારની સહી'),C('remarks','વિશેષ નોંધ')],
  compute(rows){let prevClose=0;const out=[];let i=0;
   while(i<rows.length){let j=i;while(j<rows.length&&rows[j].date===rows[i].date)j++;const g=rows.slice(i,j);
    const o=num(g[0].opening);const opening=o!=null?o:prevClose;const rec=g.reduce((a,r)=>a+(+r.receipt||0),0);const used=g.reduce((a,r)=>a+(+r.used||0),0);
    const total=opening+rec,closing=total-used;
-   g.forEach((r,k)=>out.push({...r,receipt:num(r.receipt),used:num(r.used),opening,total,dayTotal:used,closing,_first:k===0,_last:k===g.length-1}));
+   g.forEach((r,k)=>out.push({...r,__raw:r,receipt:num(r.receipt),used:num(r.used),opening,total,dayTotal:used,closing,_first:k===0,_last:k===g.length-1}));
    prevClose=closing;i=j}
   return out.map((c,k)=>({...c,_sr:k+1}))},
  flag:r=>r._last&&r.closing<0?['bad','Baki silak minus']:null},
@@ -298,13 +317,13 @@ const REGS=[
  note:'Roz ka vapras dia-wise metric ton mein. Kul vapras aur bandh silak apne aap.',
  sortKey:'date',
  cols:[C('_sr','ક્રમ','sr'),C('date','તારીખ','date'),
-  C('opening','ઉઘડતી સિલક મે.ટનમાં','carry',{fn:carryPrev('opening','closing'),dp:3}),
+  C('opening','ઉઘડતી સિલક મે.ટનમાં','carry',{fn:carryPrev('opening','closing'),dp:3,xf:x=>x.prevRow?x.R('closing',-1):'0'}),
   C('receipt','આવક મે. ટનમાં','num',{dp:3}),
-  C('total','કુલ જથ્થો મે.ટનમાં','calc',{dp:3,fn:r=>(+r.opening||0)+(+r.receipt||0)}),
+  C('total','કુલ જથ્થો મે.ટનમાં','calc',{dp:3,fn:r=>(+r.opening||0)+(+r.receipt||0),xf:x=>`${x.R('opening')}+N(${x.R('receipt')})`}),
   C('item','વાપરેલ સ્ટીલની કામની ટેન્ડર આઈટમનું વર્ણન'),
   ...DIAS.map(d=>C('d'+d,d+'ø','num',{dp:3,grpH:'કેટેગરીવાઈઝ સ્ટીલનો વપરાશ મે. ટનમાં'})),
-  C('cons','કુલ વપરાશ મે.ટનમાં','calc',{dp:3,fn:r=>DIAS.reduce((s,d)=>s+(+r['d'+d]||0),0)}),
-  C('closing','બંધ સિલક','calc',{dp:3,fn:r=>r.total-r.cons}),
+  C('cons','કુલ વપરાશ મે.ટનમાં','calc',{dp:3,fn:r=>DIAS.reduce((s,d)=>s+(+r['d'+d]||0),0),xf:x=>`SUM(${x.L.d6}${x.row}:${x.L.d36}${x.row})`}),
+  C('closing','બંધ સિલક','calc',{dp:3,fn:r=>r.total-r.cons,xf:x=>`${x.R('total')}-${x.R('cons')}`}),
   S('sgCon','ઈજારદારની સહી'),S('sgWr','રજીસ્ટર ખતવનારની સહી'),S('sgChk','ચકાસણી અધિકારીની સહી'),
   C('remarks','વિશેષ નોંધ')],
  flag:r=>r.closing<-1e-9?['bad','Bandh silak minus']:null},
@@ -338,7 +357,7 @@ const REGS=[
   C('days','Kitne din ka test','sel',{options:['28','7','3'],formOnly:true}),C('sv','Strength N/mm²','num',{dp:1,formOnly:true}),
   C('strength','દિવસ અંતે મળેલ સ્ટ્રેન્થ કિલો/ચો.મી.','calc',{fn:r=>r.sv!=null?`${r.days||28} દિવસ: ${fmt(r.sv*KGF,0)} kg/cm² (${fmt(r.sv,1)} N/mm²)`:''}),
   C('water','પાણીનો જથ્થો (સી.સી.)','num',{dp:0}),
-  C('waterPct','પાણીની ટકાવારી','carry',{dp:1,fn:r=>num(r.water)!=null?r.water/400*100:null}),
+  C('waterPct','પાણીની ટકાવારી','carry',{dp:1,fn:r=>num(r.water)!=null?r.water/400*100:null,xf:x=>`IF(${x.R('water')}="","",${x.R('water')}/400*100)`}),
   C('vicat','વાઈકટ સાધન ઉપરનું રીડીંગ (mm)','num',{dp:0}),C('consist','કન્સીસ્ટન્સી ટકા','num',{dp:1}),C('remarks','રીમાર્કસ')],
  flag:r=>{const mins={'OPC 53':{3:27,7:37,28:53},'OPC 43':{3:23,7:33,28:43},'OPC 33':{3:16,7:22,28:33},'PPC':{3:16,7:22,28:33},'PSC':{3:16,7:22,28:33}};
   const m=mins[r.ctype||'OPC 53']?.[r.days||28];
@@ -421,7 +440,7 @@ const REGS=[
  cols:[C('_sr','Sr. No.','sr'),C('date','Date','date'),
   C('b1','Bucket No-1','text',{grpH:'Description of Materials'}),C('b2','Bucket No-2','text',{grpH:'Description of Materials'}),C('b3','Bucket No-3','text',{grpH:'Description of Materials'}),
   C('actual','Weight Actual During Calibration in Kg or Lit','num',{dp:2}),C('dial','Weight As per dial Reading of Wt. in Kg or Lit','num',{dp:2}),
-  C('var','Variation (in %)','calc',{dp:2,fn:r=>num(r.actual)&&num(r.dial)!=null?(r.dial-r.actual)/r.actual*100:null}),
+  C('var','Variation (in %)','calc',{dp:2,fn:r=>num(r.actual)&&num(r.dial)!=null?(r.dial-r.actual)/r.actual*100:null,xf:x=>`IF(OR(${x.R('actual')}="",${x.R('dial')}=""),"",(${x.R('dial')}-${x.R('actual')})/${x.R('actual')}*100)`}),
   C('mat','Kis cheez ka maap','sel',{options:['Cement','Aggregate','Water','Admixture'],formOnly:true}),
   C('allow','Allowable Variation as per tender (%)','carry',{dp:1,fn:r=>(r.mat||'Cement')==='Cement'?2:3}),
   C('sgAeQ','Q.C','sign',{grpH:'Sign of A.E/A.A.E'}),C('sgAeC','Const','sign',{grpH:'Sign of A.E/A.A.E'}),
@@ -445,7 +464,7 @@ const REGS=[
  note:'Slump Required (IS 456 cl. 7.1): halka reinforced slab/beam/column, footing – 25-75 mm; bhaari reinforced slab/beam/column – 50-100 mm; pump concrete – 75-100 mm; pile – 100-150 mm. Admixture/RMC ho to mix design ka slump. Avg range se bahar ho to laal.',sortKey:'date',
  cols:[C('_sr','Sr No.','sr'),C('date','Date of Concrete','date'),C('grade','Grade of Concrete','sel',{options:['',...GRADES]}),C('structure','Structure Details'),
   C('s1','1','num',{dp:0,grpH:'Slump Observed at Site'}),C('s2','2','num',{dp:0,grpH:'Slump Observed at Site'}),C('s3','3','num',{dp:0,grpH:'Slump Observed at Site'}),
-  C('avg','Slump in mm (Avg)','calc',{dp:0,fn:r=>avg([num(r.s1),num(r.s2),num(r.s3)])}),
+  C('avg','Slump in mm (Avg)','calc',{dp:0,fn:r=>avg([num(r.s1),num(r.s2),num(r.s3)]),xf:x=>`IF(COUNT(${x.L.s1}${x.row}:${x.L.s3}${x.row})=0,"",ROUND(AVERAGE(${x.L.s1}${x.row}:${x.L.s3}${x.row}),0))`}),
   C('req','Slump Required','text',{list:['25-75','50-100','75-100','100-150']}),C('remarks','Remarks')],
  flag:r=>{if(r.avg==null)return null;const m=/(\d+)\s*[-–to]+\s*(\d+)/.exec(r.req||'');if(!m)return null;return r.avg<+m[1]||r.avg>+m[2]?['bad','Range se bahar']:['ok','OK']}},
 
@@ -457,7 +476,7 @@ const REGS=[
   C('grade','Grade (M20/M25...)','sel',{options:['',...GRADES],formOnly:true}),
   C('mark','ક્યુબ ઉપરનું નિશાન તથા કોન્ક્રીટના વપરાશનું સ્થળ'),
   C('qty','ટેન્ડર મુજબ થયેલ કામનો રોજિંદો જથ્થો (ઘ.મી.)','num',{dp:2}),
-  C('reqNos','કામની નિર્દિષ્ઠ વિગતો પ્રમાણે ક્યુબ લેવાની સંખ્યા','calc',{dp:0,fn:r=>reqSamples(r.qty)*3||null}),
+  C('reqNos','કામની નિર્દિષ્ઠ વિગતો પ્રમાણે ક્યુબ લેવાની સંખ્યા','calc',{dp:0,fn:r=>reqSamples(r.qty)*3||null,xf:x=>{const q=x.R('qty');return `IF(${q}="","",3*IF(${q}<=5,1,IF(${q}<=15,2,IF(${q}<=30,3,IF(${q}<=50,4,4+ROUNDUP((${q}-50)/50,0))))))`}}),
   C('cubesN','લીધેલ ક્યુબની સંખ્યા','num',{dp:0,formOnly:true}),C('cubeSize','ક્યુબનું માપ','text',{formOnly:true,def:'15 સે.મી.'}),
   C('cubes','લેવામાં આવેલ ક્યુબના સંખ્યા તથા માપ','calc',{fn:r=>r.cubesN!=null?`${r.cubesN} નંગ, ${r.cubeSize||''}`:''}),
   C('curing','ક્યોરીંગનો સમય ગાળો'),
@@ -487,7 +506,7 @@ const REGS=[
  cols:[C('_sr','Sr No','sr'),C('material','Material / Items To be Tested'),C('estQty','Total Estimated Quantity of Items/Materials As per Tender'),C('freq','Frequency of Testing'),
   C('reqTender','Total Nos. of Tests Required to be carried out as per Tender/ IS','num',{dp:0}),C('execQty','Actual Executed Quantity up to RA Bill'),
   C('reqActual','Nos. of Tests to be carried out for Actual Executed Quantity','num',{dp:0}),C('done','Actual Nos. of Tests carried out up to RA Bill','num',{dp:0}),
-  C('diff','Difference (+/-)','calc',{dp:0,fn:r=>num(r.done)!=null&&num(r.reqActual)!=null?r.done-r.reqActual:null}),
+  C('diff','Difference (+/-)','calc',{dp:0,fn:r=>num(r.done)!=null&&num(r.reqActual)!=null?r.done-r.reqActual:null,xf:x=>`IF(OR(${x.R('done')}="",${x.R('reqActual')}=""),"",${x.R('done')}-${x.R('reqActual')})`}),
   C('ok','Remarks Regarding The Acceptance of Testing Results Satisfactory YES/NO','sel',{options:['','YES','NO']})],
  flag:r=>r.diff<0?['bad',`${-r.diff} test kam`]:r.ok==='NO'?['bad','Result NO']:null}
 ];
@@ -508,7 +527,7 @@ function compute(reg,work=W()){
   const rows=sorted(reg,rowsOf(reg.id,work));
   if(reg.compute)return reg.compute(rows).map(c=>({...c,_flag:reg.flag?.(c)||null}));
   let prev=null;
-  return rows.map((r,i)=>{const c={...r,_sr:i+1};
+  return rows.map((r,i)=>{const c={...r,_sr:i+1,__raw:r};
     for(const col of reg.cols){
       if(col.type==='calc')c[col.key]=col.fn(c,prev);
       else if(col.type==='carry'){const v=num(r[col.key]);c[col.key]=v!=null?v:col.fn(c,prev)}
@@ -568,7 +587,8 @@ function seedFishPond(){
    {no:'6',qty:2943,unit:'Sq.m.',rate:184.53,desc:'Providing and laying cement concrete flooring 1:2:4 (1 cement: 2 coarse sand: 4 grade stone aggragate 20mm nominal size) laid in one laye and finished with a floating coat of neat cement (A) 40mm thick'},
    {no:'7',qty:15,unit:'Sq.m.',rate:653.47,desc:'Supplying promoulded bituminous joint filler.(i) 12mm thick'}].map(x=>({id:uid(),...x}));
   const bill={id:uid(),name:'1st RA Bill',absTitle:'1st & RA BILL (ABSTRACT)',measDate:'2024-03-14',start:'2024-02-15',stip:'2024-06-14'};
-  w.mb={cover:{cmbNo:'197',issueDate:'2024-02-15',tsText:'GOG R&B Dept. Letter No. : BDG/50/2022/1088/N, Dt.20.09.2022.',tsAmt:'11,16,99,753.17',stipDate:'2024-04-02',actualCompletion:'Work Order Issued',
+  w.aeList=[{name:'Akhilesh Singh',desig:'A.E.',from:'',to:''}];w.agEngList=[{name:'Nileshbhai M. Bhuriya',from:'',to:''}];
+  w.mb={cover:{cmbNo:'197',issueDate:'2024-02-15',tsText:'GOG R&B Dept. Letter No. : BDG/50/2022/1088/N, Dt.20.09.2022.',tsAmt:'11,16,99,753.17',actualCompletion:'Work Order Issued',
     regSr:'197',subDivFull:'Deputy Executive Engineer, Road & Building Sub division, Dahod',agencyEngineer:'Nileshbhai M. Bhuriya',aeName:'Akhilesh Singh',subDivShort:'R B Sub Division, Dahod'},bills:[bill],entries:[]};
   const pond=D=>[{desc:'bed',L:'21.5',B:'80.4',D},{desc:'slop 1',n2:'0.5',L:'161',B:'4.8',D},{desc:'slope 2',n2:'0.5',L:'161',B:'5',D},{desc:'slope 3',n2:'0.5',L:'41.8',B:'5.3',D},{desc:'slope 4',n2:'0.5',L:'41.8',B:'5.4',D},
     {desc:'Long Edge',n2:'2',L:'92',B:'0.9',D},{desc:'Short Edge',n2:'1',L:'28.3',B:'0.7',D},{desc:'Short Edge',n2:'1',L:'28.3',B:'0.65',D}];
@@ -592,11 +612,11 @@ function renderShelf(){
   const groups={};REGS.forEach(r=>(groups[r.grp]??=[]).push(r));
   const btn=(id,label,cnt,bad)=>`<button class="navitem ${view.reg===id?'on':''}" data-reg="${id}"><span>${esc(label)}${bad?'<span class="dot" title="dhyan do"></span>':''}</span>${cnt!=null?`<span class="cnt">${cnt}</span>`:''}</button>`;
   const w0=W();mbOf(w0);
-  let h=`<section><h4>Overview</h4>${btn('dash','Dashboard')}</section><section><h4>Kaam</h4>${btn('items','Tender Items',w0.items.length)}</section>
+  let h=`<section><h4>Overview</h4>${btn('dash','Dashboard')}${btn('chat','Chatbot')}${isAdmin()?btn('admin','Admin'):''}</section><section><h4>Kaam</h4>${btn('items','Tender Items',w0.items.length)}</section>
    <section><h4>MB</h4>${btn('mbCover','CMB Page 1–5')}${btn('mbRecord','For Record',w0.mb.entries.length)}${btn('mbAbstract','Abstract')}</section>`;
   for(const g in groups){h+=`<section><h4>${g}</h4>${groups[g].map(r=>{const rows=compute(r);return btn(r.id,r.short,rows.length,rows.some(x=>x._flag?.[0]==='bad'))}).join('')}</section>`}
   const opt=(id,l)=>`<option value="${id}" ${view.reg===id?'selected':''}>${esc(l)}</option>`;
-  h=`<select class="mobsel" id="mobSel" aria-label="Register chuno">${opt('dash','Dashboard')}<optgroup label="Kaam / MB">${Object.entries(MBV).map(([k,v])=>opt(k,v)).join('')}</optgroup>${Object.keys(groups).map(g=>`<optgroup label="${g}">${groups[g].map(r=>opt(r.id,r.short)).join('')}</optgroup>`).join('')}</select>`+h;
+  h=`<select class="mobsel" id="mobSel" aria-label="Register chuno">${opt('dash','Dashboard')}${opt('chat','Chatbot')}${isAdmin()?opt('admin','Admin'):''}<optgroup label="Kaam / MB">${Object.entries(MBV).map(([k,v])=>opt(k,v)).join('')}</optgroup>${Object.keys(groups).map(g=>`<optgroup label="${g}">${groups[g].map(r=>opt(r.id,r.short)).join('')}</optgroup>`).join('')}</select>`+h;
   $('#shelf').innerHTML=h;$('#mobSel').onchange=e=>go(e.target.value);
 }
 
@@ -632,7 +652,7 @@ function renderDash(){
   </div>
   <p class="note">${FIREBASE_CONFIG?'Data Firebase mein sync hota hai.':'Data abhi sirf is browser mein save ho raha hai. Backup lete raho, ya Firebase config jodo (README dekho).'}</p>`;
   $('#dropSample')?.addEventListener('click',e=>{if(e.target.dataset.sure){dropWork(w.id)}else{e.target.dataset.sure=1;e.target.textContent='Pakka hatao?'}});
-  $('#bkp').onclick=backup;$('#restore').onchange=restore;$('#xlsAll')?.addEventListener('click',()=>exportXlsx(null));
+  $('#bkp').onclick=backup;$('#restore').onchange=restore;$('#xlsAll')?.addEventListener('click',()=>exportAllRegs());
   document.querySelectorAll('[data-go]').forEach(a=>a.onclick=e=>{e.preventDefault();go(a.dataset.go)});
 }
 
@@ -694,16 +714,16 @@ function sieveHtml(reg,rows,forPrint){
 function renderReg(){
   const reg=REG[view.reg];const rows=compute(reg);
   $('#main').innerHTML=`<div class="sheethead"><div><h2>${esc(reg.title)}</h2><div class="sub">${esc(W().name)}</div></div>
-   <div class="actions"><button class="btn primary" id="add">+ Nayi entry</button>${EMBED?'':'<button class="btn" id="prn">Print / PDF</button><button class="btn" id="xls">Excel</button>'}</div></div>
+   <div class="actions"><button class="btn primary" id="add">+ Nayi entry</button>${EMBED?'':'<button class="btn" id="prn">PDF</button><button class="btn" id="xls">Excel</button>'}</div></div>
    ${reg.note?`<p class="note" style="margin:0">${esc(reg.note)}</p>`:''}
    <div class="tablewrap">${tableHtml(reg,rows)}</div>
    <p class="note">Neeli sankhya apne aap ganit hoti hai. Kisi line par click karke badlo. Sahi wale khane print mein khaali aate hain.</p>`;
   $('#add').onclick=()=>openForm(reg,null);
   $('#prn')?.addEventListener('click',()=>printReg(reg));
-  $('#xls')?.addEventListener('click',()=>exportXlsx(reg));
+  $('#xls')?.addEventListener('click',()=>exportReg(reg));
   document.querySelectorAll('#main tbody tr[data-id]').forEach(tr=>tr.onclick=()=>openForm(reg,rowsOf(reg.id).find(r=>r.id===tr.dataset.id)));
 }
-function render(){renderWorks();renderShelf();view.reg==='dash'?renderDash():MBV[view.reg]?renderMB(view.reg):renderReg()}
+function render(){renderWorks();renderShelf();view.reg==='dash'?renderDash():view.reg==='chat'?renderChat():view.reg==='admin'?renderAdmin():MBV[view.reg]?renderMB(view.reg):renderReg()}
 function go(id){view.reg=id;try{localStorage.setItem(LS_KEY+'_view',id)}catch(e){}render();window.scrollTo(0,0)}
 
 /* ===================== FORM ===================== */
@@ -763,13 +783,16 @@ $('#dlgCancel').onclick=$('#dlgClose').onclick=()=>$('#dlg').close();
 /* ===================== WORK (title page) ===================== */
 const WORK_FIELDS=[['name','Name of Work / કામનું નામ',1],['circle','Circle / વર્તુળ'],['division','Name of Division'],['subdivision','Name of Sub Division / પેટા વિભાગ'],
  ['estAmt','Estimated Amount / મંજુર અંદાજી રકમ'],['tenderAmt','Tender Amount / ટેન્ડરની રકમ'],['tenderNo','Tender No. / ટેન્ડર નંબર'],['agreementNo','Agreement No. / એગ્રીમેન્ટ નંબર'],
- ['agency','Name of Agency / ઠેકેદારનું નામ'],['startDate','Date of Start / કામ ચાલુ કર્યા તારીખ','date'],['timeLimit','Time Limit / સમય મર્યાદા'],['budgetHead','Budget Head / ખર્ચનું સદર'],
- ['issuedTo','Register issued to (A.E./A.A.E. name)']];
+ ['agency','Name of Agency / ઠેકેદારનું નામ'],['startDate','Date of Start / કામ ચાલુ કર્યા તારીખ','date'],['timeLimit','Time Limit / સમય મર્યાદા (jaise 08 (Eight) Months)'],['budgetHead','Budget Head / ખર્ચનું સદર'],
+ ['issuedTo','Register issued to (khaali = abhi ke A.E./A.A.E.)']];
 function openWork(isNew){
   const w=isNew?{id:uid(),name:'',subdivision:'R&B Sub Division, Dahod',sigs:[{name:'',desig:'D.E.E.'},{name:'',desig:'A.E.'},{name:'',desig:'Agency Representative'}]}:JSON.parse(JSON.stringify(W()));
   formCtx={kind:'work',work:w,isNew};
   $('#dlgTitle').textContent=isNew?'Naya kaam':'Kaam ki vigat (title page)';
   $('#dlgBody').innerHTML=WORK_FIELDS.map(([k,l,t])=>`<div class="fld ${t===1?'wide':''}"><label for="w_${k}">${l}</label>${t===1?`<textarea id="w_${k}" name="${k}" rows="2">${esc(w[k]||'')}</textarea>`:`<input id="w_${k}" name="${k}" type="${t==='date'?'date':'text'}" value="${esc(w[k]||'')}">`}</div>`).join('')
+   +`<div class="fld"><label for="w_stipDate">Stipulated date of completion (khaali = start + time limit${autoStip(w)?': '+fdS(autoStip(w)):''})</label><input id="w_stipDate" name="stipDate" type="date" value="${esc(w.stipDate||'')}"></div>`
+   +`<div class="grpttl">A.E. / A.A.E. – kab se kab tak (MB par usi tareekh wala naam aayega)</div>`+[0,1,2,3].map(i=>{const o=(w.aeList||[])[i]||{};return `<div class="offrow"><div class="fld"><label for="ae_n${i}">Naam ${i+1}</label><input id="ae_n${i}" value="${esc(o.name||'')}"></div><div class="fld"><label for="ae_d${i}">Pad</label><select id="ae_d${i}">${['A.E.','A.A.E.','Dy.E.E.'].map(x=>`<option ${o.desig===x?'selected':''}>${x}</option>`).join('')}</select></div><div class="fld"><label for="ae_f${i}">Kab se</label><input id="ae_f${i}" type="date" value="${esc(o.from||'')}"></div><div class="fld"><label for="ae_t${i}">Kab tak (khaali = abhi tak)</label><input id="ae_t${i}" type="date" value="${esc(o.to||'')}"></div></div>`}).join('')
+   +`<div class="grpttl">Agency ke Engineer – kab se kab tak</div>`+[0,1,2].map(i=>{const o=(w.agEngList||[])[i]||{};return `<div class="offrow"><div class="fld"><label for="ag_n${i}">Naam ${i+1}</label><input id="ag_n${i}" value="${esc(o.name||'')}"></div><div class="fld"><label for="ag_f${i}">Kab se</label><input id="ag_f${i}" type="date" value="${esc(o.from||'')}"></div><div class="fld"><label for="ag_t${i}">Kab tak</label><input id="ag_t${i}" type="date" value="${esc(o.to||'')}"></div></div>`}).join('')
    +`<div class="grpttl">Index of Specimen Signature</div>`+[0,1,2,3,4].map(i=>`<div class="fld"><label for="sg_n${i}">Officer/Staff ${i+1}</label><input id="sg_n${i}" name="sn${i}" value="${esc(w.sigs?.[i]?.name||'')}"></div><div class="fld"><label for="sg_d${i}">Designation</label><input id="sg_d${i}" name="sd${i}" value="${esc(w.sigs?.[i]?.desig||'')}"></div>`).join('');
   $('#dlgDel').hidden=isNew||state.works.length<2;$('#dlgDel').textContent='Kaam delete';delete $('#dlgDel').dataset.sure;
   $('#dlgBody').oninput=$('#dlgBody').onchange=null;
@@ -778,6 +801,8 @@ function openWork(isNew){
 function saveWork(){const{work:w,isNew}=formCtx;
   $('#dlgBody').querySelectorAll('[name]').forEach(el=>{if(/^s[nd]\d$/.test(el.name))return;w[el.name]=el.value});
   w.sigs=[0,1,2,3,4].map(i=>({name:$(`#sg_n${i}`).value,desig:$(`#sg_d${i}`).value}));delete w.sample;
+  w.aeList=[0,1,2,3].map(i=>({name:$(`#ae_n${i}`).value.trim(),desig:$(`#ae_d${i}`).value,from:$(`#ae_f${i}`).value,to:$(`#ae_t${i}`).value})).filter(o=>o.name);
+  w.agEngList=[0,1,2].map(i=>({name:$(`#ag_n${i}`).value.trim(),from:$(`#ag_f${i}`).value,to:$(`#ag_t${i}`).value})).filter(o=>o.name);
   if(isNew){state.works.push(w);state.data[w.id]={};state.cur=w.id;view.reg='dash'}else state.works[state.works.findIndex(x=>x.id===w.id)]=w;
   persist();$('#dlg').close();render();toast('Kaam save ho gaya')}
 function dropWork(id){state.works=state.works.filter(w=>w.id!==id);delete state.data[id];cloudDropWork(id);
@@ -792,15 +817,14 @@ function coverHtml(reg,w){
   const rowsT=[['Name of Division',w.division],['Name of Sub Division',w.subdivision],['Name of Work',w.name],['Agreement No',w.agreementNo],['Name of Agency',w.agency],['Time Limit',w.timeLimit],['Tender Amount',w.tenderAmt],['Estimated Amount',w.estAmt]];
   return `<div class="pg cover"><div>${gu?'ગુજરાત રાજ્ય':'Government of Gujarat'}</div><h1>${esc(reg.title)}</h1>
    <table>${rowsT.map(([k,v])=>`<tr><td style="width:35%">${k}</td><td>${esc(v||'')}</td></tr>`).join('')}</table></div>
-   <div class="pg"><p style="font-size:13px;line-height:2;margin-top:20mm">This is certified that this register is issued to Shri/Smt. <u>${esc(w.issuedTo||'                         ')}</u>, A.E./A.A.E. for the work of ${esc(w.subdivision||'')} contains page no. ______ to ______ on dated ______________.</p>
+   <div class="pg"><p style="font-size:13px;line-height:2;margin-top:20mm">This is certified that this register is issued to Shri/Smt. <u>${esc(w.issuedTo||aeOn(w,today()).name||'                         ')}</u>, A.E./A.A.E. for the work of ${esc(w.subdivision||'')} contains page no. ______ to ______ on dated ______________.</p>
    <p style="text-align:right;margin-top:16mm;font-size:13px">Deputy Executive Engineer<br>${esc(w.subdivision||'')}</p>
    <h3 style="text-align:center;margin-top:14mm">INDEX OF SPECIMEN SIGNATURE</h3>
    <table class="p" style="width:80%;margin:auto"><tr><th>Sr. No.</th><th>Name of Officer/Staff</th><th>Designation</th><th style="width:22%">Signature</th><th>Remarks</th></tr>
    ${[0,1,2,3,4].map(i=>`<tr><td>${i+1}</td><td>${esc(w.sigs?.[i]?.name||'')}</td><td>${esc(w.sigs?.[i]?.desig||'')}</td><td style="height:11mm"></td><td></td></tr>`).join('')}</table></div>`;
 }
 function printReg(reg){const w=W();
-  $('#printArea').innerHTML=coverHtml(reg,w)+`<div class="pg"><div class="ph"><span>${esc(w.name)}</span><h2>${esc(reg.title)}</h2><span></span></div>${tableHtml(reg,compute(reg),true)}</div>`;
-  setTimeout(()=>window.print(),60)}
+  printNow(coverHtml(reg,w)+`<div class="pg"><div class="ph"><span>${esc(w.name)}</span><h2>${esc(reg.title)}</h2><span></span></div>${tableHtml(reg,compute(reg),true)}</div>`,`${reg.short} - ${w.name}`)}
 function sheetRows(reg){const rows=compute(reg);
   if(reg.layout==='sieve'){const out=[['તારીખ','માલનો પ્રકાર','લેબ નં.','સીવ','અલગ વજન ગ્રામ','ક્યુમ્યુલેટીવ વજન','ક્યુમ્યુલેટીવ ટકા','પસાર થતાં ટકા']];
     rows.forEach(c=>SIEVES.forEach((sv,i)=>out.push([fdate(c.date),c.material||'',c.lab||'',sv,num(c['w'+i])??'',c['cw'+i]??'',c['cp'+i]!=null?+c['cp'+i].toFixed(2):'',c['pp'+i]!=null?+c['pp'+i].toFixed(2):''])));return out}
@@ -809,9 +833,6 @@ function sheetRows(reg){const rows=compute(reg);
   const cols=reg.cols.filter(c=>!c.formOnly);
   return [cols.map(c=>(c.grpH?c.grpH+' – ':'')+c.label),...rows.map(c=>cols.map(col=>{const v=c[col.key];if(col.type==='sign')return'';if(col.type==='date'||col.date)return fdate(v);
     if(Array.isArray(v))return v.map(x=>typeof x==='number'?x.toFixed(2):x).join(' / ');if(typeof v==='number')return +v.toFixed(col.dp??2);return v??''}))]}
-function exportXlsx(reg){if(typeof XLSX==='undefined')return toast('Excel library load nahi hui');
-  const wb=XLSX.utils.book_new();(reg?[reg]:REGS).forEach(r=>XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sheetRows(r)),r.short.replace(/[\\/?*[\]:]/g,'').slice(0,31)));
-  XLSX.writeFile(wb,(reg?reg.short:'All registers')+' - '+(W().name||'').slice(0,40).replace(/[\\/:*?"<>|]/g,'')+'.xlsx')}
 function download(name,text){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'application/json'}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)}
 function backup(){if(EMBED){navigator.clipboard?.writeText(JSON.stringify(state)).then(()=>toast('Backup JSON clipboard mein copy ho gaya'),()=>toast('Copy nahi hua'));return}
   download('site-registers-backup-'+today()+'.json',JSON.stringify(state,null,1));toast('Backup download ho gaya')}
@@ -868,10 +889,10 @@ function recBody(w,e){const it=itemOf(w,e),c=e._calc;const td=(v,cl='')=>`<td cl
     <tr class="tot" data-id="${e.id}"><td colspan="7"></td><td class="lbl">Total</td>${td(c.kg.toFixed(2),'n')}${td(esc(c.unit))}<td colspan="3"></td></tr>`}
   else h+=`<tr class="tot" data-id="${e.id}"><td colspan="7"></td><td class="lbl">Total</td>${td(c.qty.toFixed(2),'n')}${td(esc(c.unit))}<td colspan="3"></td></tr>`;
   return h}
-function recFoot(w){const c=mbOf(w).cover;return `<div class="mbsign"><div>Sign of Agency's Engineer<br><br>(${esc(c.agencyEngineer||'')})<br>${esc(w.agency||'')}</div><div class="r">Sign of A.E.<br><br>(${esc(c.aeName||'')})<br>${esc(c.subDivShort||'')}</div></div>`}
+function recFoot(w,date){const ae=aeOn(w,date),ag=agEngOn(w,date);return `<div class="mbsign"><div>Sign of Agency's Engineer<br><br>(${esc(ag.name||'')})<br>${esc(w.agency||'')}</div><div class="r">Sign of ${esc(ae.desig||'A.E.')}<br><br>(${esc(ae.name||'')})<br>${esc(w.subdivision||'')}</div></div>`}
 function recordPagesHtml(w,L,billId,forPrint){const ents=L.entries.filter(e=>e.bill===billId);const bill=L.bills.find(b=>b.id===billId);
   const pages={};ents.forEach(e=>(pages[e._page]??=[]).push(e));
-  return Object.keys(pages).sort((a,b)=>a-b).map(p=>`<div class="${forPrint?'pg':'mbsheet'}">${recHead(w,bill,p)}<div class="${forPrint?'':'tablewrap'}"><table class="mbt-rec ${forPrint?'p':'reg'}">${REC_TH}<tbody>${pages[p].map(e=>recBody(w,e)).join('<tr class="gap"><td colspan="13"></td></tr>')}</tbody></table></div>${recFoot(w)}</div>`).join('')}
+  return Object.keys(pages).sort((a,b)=>a-b).map(p=>`<div class="${forPrint?'pg':'mbsheet'}">${recHead(w,bill,p)}<div class="${forPrint?'':'tablewrap'}"><table class="mbt-rec ${forPrint?'p':'reg'}">${REC_TH}<tbody>${pages[p].map(e=>recBody(w,e)).join('<tr class="gap"><td colspan="13"></td></tr>')}</tbody></table></div>${recFoot(w,pages[p][0].date)}</div>`).join('')}
 function abstractPagesHtml(w,L,billId,forPrint){const bill=L.bills.find(b=>b.id===billId);const A=L.abs[billId];if(!A||!A.list.length)return '';
   const blocks=A.list.map(x=>`<div class="absit"><div><b>Item No ${esc(x.it.no)}</b></div><div class="desc">${esc(x.it.desc)}</div>
    <table class="absq">${x.rows.map(r=>`<tr><td>Qty. as per this M.B. Page No.</td><td class="n">${r.page}</td><td>=</td><td class="n">${fmt2(r.qty)}</td><td>${esc(x.it.unit||'')}</td></tr>`).join('')}
@@ -879,9 +900,9 @@ function abstractPagesHtml(w,L,billId,forPrint){const bill=L.bills.find(b=>b.id=
    <tr><td>Qty upto Previously Paid</td><td></td><td>=</td><td class="n">${fmt2(x.prev)}</td><td>${esc(x.it.unit||'')}</td></tr>
    <tr><td>Qty Now to be paid</td><td></td><td>=</td><td class="n">${fmt2(x.now)}</td><td>${esc(x.it.unit||'')}</td></tr>
    ${x.limit!=null?`<tr class="lim"><td>Limited Qty</td><td></td><td>=</td><td class="n">${fmt2(x.limit)}</td><td>${esc(x.it.unit||'')}</td></tr>`:''}</table></div>`);
-  const head=`<div class="mbt2">${esc(bill.absTitle||(bill.name||'').toUpperCase()+' (ABSTRACT)')}</div><div class="mbinfo">Date of Start :- ${fdS(bill.start||w.startDate)}<br>Stipulated date of completion :- ${fdS(bill.stip||mbOf(w).cover.stipDate)}<br>Date of Measurement :- ${fdS(bill.measDate)}</div>`;
-  if(!forPrint)return `<div class="mbsheet">${recHead(w,bill,A.start+(A.pages>1?'–'+(A.start+A.pages-1):''))}${head}${blocks.join('')}${recFoot(w)}</div>`;
-  const per=Math.ceil(blocks.length/A.pages);let out='';for(let i=0;i<A.pages;i++)out+=`<div class="pg">${recHead(w,bill,A.start+i)}${i===0?head:''}${blocks.slice(i*per,(i+1)*per).join('')}${recFoot(w)}</div>`;return out}
+  const head=`<div class="mbt2">${esc(bill.absTitle||(bill.name||'').toUpperCase()+' (ABSTRACT)')}</div><div class="mbinfo">Date of Start :- ${fdS(bill.start||w.startDate)}<br>Stipulated date of completion :- ${fdS(bill.stip||stipOf(w))}<br>Date of Measurement :- ${fdS(bill.measDate)}</div>`;
+  if(!forPrint)return `<div class="mbsheet">${recHead(w,bill,A.start+(A.pages>1?'–'+(A.start+A.pages-1):''))}${head}${blocks.join('')}${recFoot(w,bill.measDate)}</div>`;
+  const per=Math.ceil(blocks.length/A.pages);let out='';for(let i=0;i<A.pages;i++)out+=`<div class="pg">${recHead(w,bill,A.start+i)}${i===0?head:''}${blocks.slice(i*per,(i+1)*per).join('')}${recFoot(w,bill.measDate)}</div>`;return out}
 function coverPagesHtml(w,forPrint){const c=mbOf(w).cover;const no=esc(c.cmbNo||'');const cls=forPrint?'pg portrait cv':'mbsheet cv';
   const top=n=>`<div class="mbtop"><span></span><span class="r"><b>Computerized Measurement Book No.${no}<br>Page No.${n}</b></span></div>`;
   const ee=esc(c.eeCover||'Executive Engineer,\nR&B Division,\nDahod.').replace(/\n/g,'<br>');
@@ -890,7 +911,7 @@ function coverPagesHtml(w,forPrint){const c=mbOf(w).cover;const no=esc(c.cmbNo||
   const tender=[w.tenderAmt?'Rs.'+String(w.tenderAmt).replace(/^Rs\.?\s*/,''):'',w.tenderPct?`(i.e. ${w.tenderPct})`:''].filter(Boolean).join(' ');
   const rows=[['Name of Work',w.name],['Estimate Cost ',w.estAmt?'Rs. '+String(w.estAmt).replace(/^Rs\.?\s*/,''):''],['Technical Sanction Amount:-',[c.tsText,c.tsAmt?`<span class="red">Rs.${esc(String(c.tsAmt).replace(/^Rs\.?\s*/,''))}</span>`:''].filter(Boolean).map((v,i)=>i?v:esc(v)).join('<br>'),1],
    ['Tender Amount Approved:-',tender],['Name of Agency:-',w.agency],['Agreement No.',w.agreementNo],['Schedule date of Starting the Work:-',w.startDate?'Dt. '+fdS(w.startDate):''],
-   ['Stipulated date of  completion:-',c.stipDate?'Dt. '+fdS(c.stipDate):''],['Time limit :-',w.timeLimit],['Actual Date of completion:-',c.actualCompletion]];
+   ['Stipulated date of  completion:-',stipOf(w)?'Dt. '+fdS(stipOf(w)):''],['Time limit :-',w.timeLimit],['Actual Date of completion:-',c.actualCompletion]];
   return `<div class="${cls}">${top(1)}<div class="cv1">Computerized &nbsp;Mesurement Book No.${no}</div><div class="cvee">${ee}</div></div>
   <div class="${cls}">${top(2)}<table class="cvt">${rows.map((r,i)=>`<tr><td class="n0">${i+1}</td><td class="k">${r[0]}</td><td>:</td><td>${r[2]?r[1]:esc(r[1]||'')}</td></tr>`).join('')}</table>
    <div class="cvsig"><div>${dao}</div><div>${ees}</div></div></div>
@@ -902,7 +923,7 @@ function coverPagesHtml(w,forPrint){const c=mbOf(w).cover;const no=esc(c.cmbNo||
    <table class="cvg"><tr><th>No.</th><th>Date</th><th>CMB No.</th><th>Name of Work</th><th>Name &amp; Signature of Dy.Ex.Engg.</th><th>Name &amp; Signature of AE/AEE</th><th>Remarks</th></tr>
    <tr><td>1</td><td>${fdS(c.issueDate)}</td><td><b><u>${no}</u></b></td><td><b><u>${esc(w.name||'')}</u></b></td><td></td><td></td><td></td></tr></table></div>
   <div class="${cls}">${top(5)}<div class="cvh">ENGINEER APPOINTMENT &nbsp;CERTIFICATE</div>
-   <p class="cvp">This is to certified &nbsp;that Shri ${esc(c.agencyEngineer||'_______________')} is appointed as an Engineer for Supervision and taking and entering measurement in CMB for this work.</p>
+   <p class="cvp">This is to certified &nbsp;that Shri ${esc(agEngOn(w,c.issueDate||w.startDate).name||'_______________')} is appointed as an Engineer for Supervision and taking and entering measurement in CMB for this work.</p>
    <div class="cvsig one r"><div>${esc(w.agency||'')}</div></div></div>`}
 
 /* ---------- screens ---------- */
@@ -911,35 +932,37 @@ function billBar(w){const mb=mbOf(w);const b=curBill(w);
    <button class="btn" id="billEdit">Bill ki vigat</button><button class="btn" id="billNew">+ Naya bill</button></div>`}
 function wireBillBar(w){$('#billSel').onchange=e=>{view.bill=e.target.value;render()};$('#billEdit').onclick=()=>openBill(w,curBill(w));$('#billNew').onclick=()=>openBill(w,null)}
 function renderMB(id){const w=W();mbOf(w);const L=mbLayout(w);
-  const printBtn=EMBED?'':'<button class="btn" id="prn">Print / PDF</button>';
+  const printBtn=EMBED?'':'<button class="btn" id="prn">PDF</button><button class="btn" id="xls">Excel</button>';
   if(id==='items'){
-    $('#main').innerHTML=`<div class="sheethead"><div><h2>Tender Items</h2><div class="sub">${esc(w.name)}</div></div><div class="actions"><button class="btn primary" id="itAdd">+ Item</button><button class="btn" id="itPaste">Excel se paste</button></div></div>
+    $('#main').innerHTML=`<div class="sheethead"><div><h2>Tender Items</h2><div class="sub">${esc(w.name)}</div></div><div class="actions"><button class="btn primary" id="itAdd">+ Item</button><button class="btn" id="itPaste">Excel se paste</button>${EMBED?'':'<button class="btn" id="xls">Excel</button>'}</div></div>
     <p class="note" style="margin:0">MB inhi items se banti hai. Baad mein chatbot BOQ upload karke ye list apne aap bharega.</p>
     <div class="tablewrap"><table class="reg"><thead><tr><th>It. No.</th><th>Tender Qty.</th><th>Item of Work</th><th>Rate</th><th>Unit</th><th>Ab tak MB qty</th></tr></thead><tbody>
     ${w.items.length?w.items.map(it=>{const up=L.entries.filter(e=>String(e.itemNo)===String(it.no)).reduce((a,e)=>a+e._calc.qty,0);const ex=it.qty!=null&&up>+it.qty;
       return `<tr data-it="${it.id}"><td>${esc(it.no)}</td><td class="n">${it.qty??''}</td><td>${esc(it.desc)}</td><td class="n">${it.rate??''}</td><td>${esc(it.unit||'')}</td><td class="n">${up?fmt2(up):''} ${ex?'<span class="chip warn">Tender qty se zyada</span>':''}</td></tr>`}).join(''):'<tr><td colspan="6" class="empty">Abhi koi item nahi. "+ Item" ya "Excel se paste" se jodo.</td></tr>'}
     </tbody></table></div>`;
-    $('#itAdd').onclick=()=>openItem(w,null);$('#itPaste').onclick=()=>openPaste(w);
+    $('#itAdd').onclick=()=>openItem(w,null);$('#itPaste').onclick=()=>openPaste(w);$('#xls')?.addEventListener('click',exportItems);
     document.querySelectorAll('[data-it]').forEach(tr=>tr.onclick=()=>openItem(w,w.items.find(i=>i.id===tr.dataset.it)));return}
   if(id==='mbCover'){
     $('#main').innerHTML=`<div class="sheethead"><div><h2>CMB Page 1–5</h2><div class="sub">${esc(w.name)}</div></div><div class="actions"><button class="btn primary" id="cvEdit">Vigat bharo / badlo</button>${printBtn}</div></div>
-    <p class="note" style="margin:0">Baad mein ye vigat TS letter, tender approval aur work order upload karke chatbot bharega.</p><div class="mbpages">${coverPagesHtml(w,false)}</div>`;
-    $('#cvEdit').onclick=()=>openCover(w);$('#prn')?.addEventListener('click',()=>{$('#printArea').innerHTML=coverPagesHtml(w,true);setTimeout(()=>window.print(),60)});return}
+    <p class="note" style="margin:0">Agency, Agency Engineer, Sub Division aur A.E./A.A.E. ke naam "Kaam ki vigat" se aate hain. Baad mein ye vigat TS letter, tender approval aur work order upload karke chatbot bharega.</p><div class="mbpages">${coverPagesHtml(w,false)}</div>`;
+    $('#cvEdit').onclick=()=>openCover(w);$('#prn')?.addEventListener('click',()=>printNow(coverPagesHtml(w,true),`CMB Page 1-5 - ${w.name}`));$('#xls')?.addEventListener('click',()=>exportMB(['cover'],'CMB Page 1-5'));return}
   const b=curBill(w);
   if(id==='mbRecord'){
     const n=L.entries.filter(e=>e.bill===b.id).length;
-    $('#main').innerHTML=`<div class="sheethead"><div><h2>Measurement Sheet for Record</h2><div class="sub">${esc(w.name)} · ${esc(b.name)} · ${n} item entry</div></div><div class="actions"><button class="btn primary" id="add">+ Naap jodo</button>${printBtn}</div></div>
+    $('#main').innerHTML=`<div class="sheethead"><div><h2>Measurement Sheet for Record</h2><div class="sub">${esc(w.name)} · ${esc(b.name)} · ${n} item entry</div></div><div class="actions"><button class="btn primary" id="add">+ Naap jodo</button>${printBtn}${EMBED?'':'<button class="btn" id="xlsFull">Poori MB (Excel)</button><button class="btn" id="pdfFull">Poori MB (PDF)</button>'}</div></div>
     ${billBar(w)}<p class="note" style="margin:0">Har item ka naap alag page par. Page No. apne aap aata hai (pehla page 6). Do item ek hi page par chahiye to entry mein page no. likh do. Kisi line par click karke badlo.</p>
     ${n?`<div class="mbpages">${recordPagesHtml(w,L,b.id,false)}</div>`:'<div class="empty">Is bill mein abhi koi naap nahi. "+ Naap jodo" dabao.</div>'}`;
     wireBillBar(w);$('#add').onclick=()=>openEntry(w,null);
-    $('#prn')?.addEventListener('click',()=>{$('#printArea').innerHTML=recordPagesHtml(w,L,b.id,true);setTimeout(()=>window.print(),60)});
+    $('#xlsFull')?.addEventListener('click',()=>exportMB(['cover','record','abstract'],'Poori MB'));
+    $('#pdfFull')?.addEventListener('click',()=>printNow(coverPagesHtml(w,true)+recordPagesHtml(w,L,b.id,true)+abstractPagesHtml(w,L,b.id,true),`Poori MB - ${b.name} - ${w.name}`));
+    $('#prn')?.addEventListener('click',()=>printNow(recordPagesHtml(w,L,b.id,true),`For Record - ${b.name} - ${w.name}`));$('#xls')?.addEventListener('click',()=>exportMB(['record'],'For Record'));
     document.querySelectorAll('.mbsheet tr[data-id]').forEach(tr=>tr.onclick=()=>openEntry(w,mbOf(w).entries.find(e=>e.id===tr.dataset.id)));return}
   if(id==='mbAbstract'){
     const A=L.abs[b.id];
     $('#main').innerHTML=`<div class="sheethead"><div><h2>Abstract</h2><div class="sub">${esc(w.name)} · ${esc(b.name)}${A&&A.pages?` · MB page ${A.start}${A.pages>1?'–'+(A.start+A.pages-1):''}`:''}</div></div><div class="actions">${printBtn}</div></div>
     ${billBar(w)}<p class="note" style="margin:0">For Record ke naap se apne aap. Up to date qty tender qty se zyada ho to "Limited Qty" line aati hai.</p>
     ${A&&A.list.length?`<div class="mbpages">${abstractPagesHtml(w,L,b.id,false)}</div>`:'<div class="empty">Is bill tak koi naap nahi.</div>'}`;
-    wireBillBar(w);$('#prn')?.addEventListener('click',()=>{$('#printArea').innerHTML=abstractPagesHtml(w,L,b.id,true);setTimeout(()=>window.print(),60)});return}
+    wireBillBar(w);$('#prn')?.addEventListener('click',()=>printNow(abstractPagesHtml(w,L,b.id,true),`Abstract - ${b.name} - ${w.name}`));$('#xls')?.addEventListener('click',()=>exportMB(['record','abstract'],'MB Record + Abstract'));return}
 }
 
 /* ---------- forms ---------- */
@@ -956,15 +979,15 @@ function openPaste(w){openCustom('Excel se items paste karo',`<div class="fld wi
     rows.forEach(r=>{const unit=(r.length>=6?r[5]:r[4]||'').trim();const o={id:uid(),no:r[0].trim(),qty:num(r[1]),desc:(r[2]||'').trim(),rate:num(r[3]),unit};if(!o.desc)return;
       const i=w.items.findIndex(x=>String(x.no)===o.no);if(i>=0){o.id=w.items[i].id;w.items[i]=o}else w.items.push(o);n++});
     w.items.sort((a,b)=>(parseFloat(a.no)||0)-(parseFloat(b.no)||0));persist();$('#dlg').close();render();toast(n+' item jud gaye')})}
-const COVER_F=[['cmbNo','CMB No.'],['issueDate','CMB issue date','date'],['tsText','Technical Sanction – letter no. aur date','area'],['tsAmt','TS amount (Rs.)'],['stipDate','Stipulated date of completion','date'],['actualCompletion','Actual date of completion (ya "Work Order Issued")'],
- ['regSr','CMB issue register Sr. No.'],['regPage','CMB issue register Page No.'],['subDivFull','Issued to (page 3)','area'],['agencyEngineer','Agency ke Engineer ka naam (page 5 / sign)'],['aeName','A.E. ka naam (For Record sign)'],['subDivShort','A.E. ki office (sign ke neeche)'],
+const COVER_F=[['cmbNo','CMB No.'],['issueDate','CMB issue date','date'],['tsText','Technical Sanction – letter no. aur date','area'],['tsAmt','TS amount (Rs.)'],['actualCompletion','Actual date of completion (ya "Work Order Issued")'],
+ ['regSr','CMB issue register Sr. No.'],['regPage','CMB issue register Page No.'],['subDivFull','Issued to (page 3)','area'],
  ['eeCover','Page 1 – neeche ka pad','area'],['daoSign','DAO ka pad','area'],['eeSign','EE ka pad (page 2)','area']];
-const COVER_W=[['name','Name of Work','area'],['division','Division (For Record header)'],['estAmt','Estimate Cost (Rs.)'],['tenderAmt','Tender Amount Approved (Rs.)'],['tenderPct','Tender % (jaise 5.43% Above)'],['agency','Name of Agency'],['agreementNo','Agreement No.'],['startDate','Schedule date of starting','date'],['timeLimit','Time limit']];
+const COVER_W=[['name','Name of Work','area'],['division','Division (For Record header)'],['estAmt','Estimate Cost (Rs.)'],['tenderAmt','Tender Amount Approved (Rs.)'],['tenderPct','Tender % (jaise 5.43% Above)'],['agency','Name of Agency'],['agreementNo','Agreement No.'],['startDate','Schedule date of starting','date'],['timeLimit','Time limit (jaise 08 (Eight) Months)'],['stipDate','Stipulated date of completion (khaali = start + time limit)','date']];
 function openCover(w){const c=mbOf(w).cover;
   openCustom('CMB Page 1–5 ki vigat',COVER_W.map(([k,l,t])=>fI('cw_'+k,l,w[k],t==='area'?'area':t||'text',t==='area')).join('')+'<div class="grpttl">MB ki vigat</div>'+COVER_F.map(([k,l,t])=>fI('cc_'+k,l,c[k],t||'text',t==='area')).join(''),
   ()=>{COVER_W.forEach(([k])=>w[k]=gv('cw_'+k));COVER_F.forEach(([k])=>c[k]=gv('cc_'+k));persist();$('#dlg').close();render();toast('Save ho gaya')})}
 function openBill(w,b){const mb=mbOf(w);const nb=!b;b=b||{id:uid(),name:`${mb.bills.length+1}${['st','nd','rd'][mb.bills.length]||'th'} RA Bill`};
-  openCustom(nb?'Naya RA bill':'Bill ki vigat',fI('b_name','Bill ka naam (header mein)',b.name)+fI('b_abs','Abstract ka title',b.absTitle||'')+fI('b_meas','Date of Measurement',b.measDate,'date')+fI('b_start','Date of Start (Abstract mein)',b.start||w.startDate,'date')+fI('b_stip','Stipulated date of completion (Abstract mein)',b.stip||mb.cover.stipDate,'date'),
+  openCustom(nb?'Naya RA bill':'Bill ki vigat',fI('b_name','Bill ka naam (header mein)',b.name)+fI('b_abs','Abstract ka title',b.absTitle||'')+fI('b_meas','Date of Measurement',b.measDate,'date')+fI('b_start','Date of Start (Abstract mein)',b.start||w.startDate,'date')+fI('b_stip','Stipulated date of completion (Abstract mein)',b.stip||stipOf(w),'date'),
   ()=>{Object.assign(b,{name:gv('b_name'),absTitle:gv('b_abs'),measDate:gv('b_meas'),start:gv('b_start'),stip:gv('b_stip')});if(nb)mb.bills.push(b);view.bill=b.id;persist();$('#dlg').close();render()},
   !nb&&mb.bills.length>1?()=>{mb.entries=mb.entries.filter(e=>e.bill!==b.id);mb.bills=mb.bills.filter(x=>x.id!==b.id);view.bill=null;persist();$('#dlg').close();render()}:null)}
 function openEntry(w,e){const mb=mbOf(w);const d=e?JSON.parse(JSON.stringify(e)):{id:uid(),_c:Date.now(),bill:curBill(w).id,date:today(),lines:[{},{},{}]};
@@ -997,42 +1020,327 @@ function openEntry(w,e){const mb=mbOf(w);const d=e?JSON.parse(JSON.stringify(e))
   $('#e_addl').onclick=()=>{read();d.lines.push({});lines()};
   head();lines()}
 
-/* ===================== FIREBASE SYNC (optional) ===================== */
-let fb=null,user=null,pushT;
+/* ===================== OFFICERS (date-wise) + STIPULATED DATE ===================== */
+function officerOn(list,date){list=(list||[]).filter(o=>o&&o.name);if(!list.length)return null;
+  if(date){const hit=list.find(o=>(!o.from||o.from<=date)&&(!o.to||date<=o.to));if(hit)return hit}
+  return list[list.length-1]}
+function aeOn(w,date){return officerOn(w.aeList,date)||{name:mbOf(w).cover.aeName||w.issuedTo||'',desig:'A.E.'}}
+function agEngOn(w,date){return officerOn(w.agEngList,date)||{name:mbOf(w).cover.agencyEngineer||''}}
+function autoStip(w){if(!w.startDate)return'';const t=w.timeLimit||'';const m=/(\d+)\s*(?:\([^)]*\))?\s*month/i.exec(t),d=/(\d+)\s*(?:\([^)]*\))?\s*day/i.exec(t);
+  if(!m&&!d)return'';const x=new Date(w.startDate+'T00:00:00');if(m)x.setMonth(x.getMonth()+ +m[1]);if(d)x.setDate(x.getDate()+ +d[1]);x.setDate(x.getDate()-1);
+  return new Date(x-x.getTimezoneOffset()*60000).toISOString().slice(0,10)}
+function stipOf(w){return w.stipDate||autoStip(w)}
+
+/* ===================== PDF (print → Save as PDF) ===================== */
+function printNow(html,title){$('#printArea').innerHTML=html;const t=document.title;document.title=(title||'').replace(/[\\/:*?"<>|]/g,'').slice(0,90);
+  setTimeout(()=>{window.print();setTimeout(()=>document.title=t,500)},80)}
+
+/* ===================== EXCEL (formulas inbuilt) ===================== */
+const XL=n=>{let s='';n++;while(n>0){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-1)/26)}return s};
+const fname=s=>(s||'').replace(/[\\/:*?"<>|]/g,'').replace(/\s+/g,' ').trim().slice(0,80);
+async function xlSave(wb,name){if(typeof ExcelJS==='undefined')return toast('Excel library load nahi hui (internet chahiye)');
+  const buf=await wb.xlsx.writeBuffer();const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+  a.download=fname(name)+'.xlsx';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000);toast('Excel ban gaya')}
+const THIN={style:'thin'};const BOX={top:THIN,left:THIN,bottom:THIN,right:THIN};
+function xc(ws,r,c,v,o={}){const cell=ws.getCell(r,c+1);
+  if(v&&typeof v==='object'&&'f' in v)cell.value={formula:v.f,result:v.r??undefined};else cell.value=v===''||v==null?null:v;
+  if(o.b)cell.font={bold:true,size:o.sz||10};else cell.font={size:o.sz||10};
+  cell.alignment={vertical:'top',wrapText:o.wrap!==false,horizontal:o.h||(typeof v==='number'||(v&&v.f)?'right':'left')};
+  if(o.box!==false&&o.box)cell.border=BOX;if(o.fill)cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFEEF2F8'}};if(o.nf)cell.numFmt=o.nf;return cell}
+function newSheet(wb,name,land=true){const ws=wb.addWorksheet(name.replace(/[\\/?*[\]:]/g,'').slice(0,31),{pageSetup:{paperSize:9,orientation:land?'landscape':'portrait',fitToPage:true,fitToWidth:1,fitToHeight:0,margins:{left:0.4,right:0.4,top:0.5,bottom:0.5,header:0.2,footer:0.2}}});return ws}
+const nfOf=dp=>dp==null?'0.00':dp===0?'0':'0.'+'0'.repeat(dp);
+
+/* ---- one register → sheet ---- */
+function regSheet(wb,reg,w){const rows=compute(reg,w);const ws=newSheet(wb,reg.short);
+  const ttl=(r,t,ncol)=>{ws.mergeCells(r,1,r,ncol);xc(ws,r,0,t,{b:true,h:'center',sz:12})};
+  if(reg.layout==='steelBlock')return steelBlockSheet(ws,reg,rows,w,ttl);
+  if(reg.layout==='sieve')return sieveSheet(ws,reg,rows,w,ttl);
+  const cols=reg.cols.filter(c=>!c.formOnly);const n=cols.length;const hasG=cols.some(c=>c.grpH);
+  ttl(1,reg.title,n);ws.mergeCells(2,1,2,n);xc(ws,2,0,'Name of Work: '+(w.name||''),{});
+  let r=4;
+  cols.forEach((c,j)=>{if(c.grpH){xc(ws,r,j,c.grpH,{b:true,box:1,fill:1,h:'center'});xc(ws,r+1,j,c.label,{b:true,box:1,fill:1,h:'center'})}else{xc(ws,r,j,c.label,{b:true,box:1,fill:1,h:'center'});if(hasG){xc(ws,r+1,j,'',{box:1,fill:1});ws.mergeCells(r,j+1,r+1,j+1)}}});
+  if(hasG){let j=0;while(j<n){const g=cols[j].grpH;if(g){let k=j;while(k+1<n&&cols[k+1].grpH===g)k++;if(k>j)ws.mergeCells(r,j+1,r,k+1);j=k+1}else j++}r+=2}else r+=1;
+  cols.forEach((c,j)=>xc(ws,r,j,c.no,{box:1,h:'center',sz:8}));r++;
+  const first=r;const L={};cols.forEach((c,j)=>L[c.key]=XL(j));
+  // group info for day-group registers
+  const gStart={},gEnd={};if(reg.layout==='dayGroup'){let s=null;rows.forEach((c,i)=>{if(c._first)s=i;gStart[i]=s;let e=i;while(e+1<rows.length&&!rows[e+1]._first)e++;gEnd[i]=e})}
+  rows.forEach((c,i)=>{const rr=first+i;const R=(k,dr=0)=>L[k]+(rr+dr);
+    const ctx={R,L,row:rr,i,first:first,prevRow:i?rr-1:null,gS:first+(gStart[i]??i),gE:first+(gEnd[i]??i),c};
+    cols.forEach((col,j)=>{let v=c[col.key];let cell;
+      if(col.type==='sign'){xc(ws,rr,j,'',{box:1});return}
+      if((col.only==='first'&&!c._first)||(col.only==='last'&&!c._last)){xc(ws,rr,j,'',{box:1});return}
+      if(col.type==='sr'){xc(ws,rr,j,i+1,{box:1,h:'center'});return}
+      if(col.type==='date'||col.date){xc(ws,rr,j,fdate(v),{box:1});return}
+      const own=num(c.__raw?.[col.key]);
+      if(col.type==='carry'&&own==null&&col.xf){xc(ws,rr,j,{f:col.xf(ctx),r:typeof v==='number'?v:undefined},{box:1,nf:nfOf(col.dp)});return}
+      if(col.type==='calc'&&col.xf){const f=col.xf(ctx);if(f){xc(ws,rr,j,{f,r:typeof v==='number'?v:undefined},{box:1,nf:nfOf(col.dp)});return}}
+      if(Array.isArray(v))v=v.map(x=>typeof x==='number'?x.toFixed(2):x).join(' / ');
+      xc(ws,rr,j,typeof v==='number'?+v.toFixed(col.dp??3):(v??''),{box:1,nf:typeof v==='number'?nfOf(col.dp):undefined})})});
+  cols.forEach((c,j)=>ws.getColumn(j+1).width=c.type==='sr'?6:c.type==='sign'?10:/date/.test(c.type)||c.date?11:['num','calc','carry'].includes(c.type)?10:Math.min(34,Math.max(12,(c.label||'').length*0.6)));
+  ws.pageSetup.printTitlesRow=`4:${first-1}`;return ws}
+function steelBlockSheet(ws,reg,rows,w,ttl){const n=3+DIAS.length+1;ttl(1,reg.title,n);ws.mergeCells(2,1,2,n);xc(ws,2,0,'Name of Work: '+(w.name||''));
+  let r=4;['ક્રમ','વિગત','તારીખ',...DIAS.map(d=>d+'ø (મે.ટન)'),'વિશેષ નોંધ'].forEach((h,j)=>xc(ws,r,j,h,{b:true,box:1,fill:1,h:'center'}));r++;
+  let prevClose=null;
+  rows.forEach(c=>{const r1=r,r2=r+1,r3=r+2,r4=r+3,r5=r+4;
+    const lab=[['ખુલતી સિલક'],['નવી આવકની વિગત – '+(c.supplier||'')],['કુલ જથ્થો'],[(c.ra||'____')+' રનીંગ બિલ બનાવ્યા તારીખે પત્રક-૨ મુજબ વપરાશ'],['બંધ સિલક']];
+    lab.forEach((l,k)=>{xc(ws,r+k,0,k+1,{box:1,h:'center'});xc(ws,r+k,1,l[0],{box:1});xc(ws,r+k,2,k===0||k===3?fdate(c.date):'',{box:1});xc(ws,r+k,3+DIAS.length,k===0?(c.remarks||''):'',{box:1})});
+    DIAS.forEach((d,j)=>{const X=XL(3+j);
+      xc(ws,r1,3+j,prevClose?{f:`${X}${prevClose}`,r:c['o'+d]}:(num(c['op'+d])??0),{box:1,nf:'0.000'});
+      xc(ws,r2,3+j,num(c['r'+d])??0,{box:1,nf:'0.000'});
+      xc(ws,r3,3+j,{f:`${X}${r1}+${X}${r2}`,r:c['t'+d]},{box:1,nf:'0.000'});
+      xc(ws,r4,3+j,num(c['u'+d])??0,{box:1,nf:'0.000'});
+      xc(ws,r5,3+j,{f:`${X}${r3}-${X}${r4}`,r:c['c'+d]},{box:1,nf:'0.000',b:1})});
+    prevClose=r5;r+=5});
+  ws.getColumn(1).width=5;ws.getColumn(2).width=36;ws.getColumn(3).width=11;DIAS.forEach((d,j)=>ws.getColumn(4+j).width=8);ws.getColumn(4+DIAS.length).width=18;return ws}
+function sieveSheet(ws,reg,rows,w,ttl){ttl(1,reg.title,6);ws.mergeCells(2,1,2,6);xc(ws,2,0,'કામનું નામ : '+(w.name||''));let r=4;
+  rows.forEach(c=>{ws.mergeCells(r,1,r,6);xc(ws,r,0,`માલનો પ્રકાર: ${c.material||''}   ·   IS 383: ${c._g?.spec||''}   ·   તારીખ: ${fdate(c.date)}   ·   લેબોરેટરી નંબર / તારીખ: ${c.lab||''}`,{b:true});r++;
+    xc(ws,r,0,'કુલ વજન ગ્રામ',{b:true});const tRow=r;xc(ws,r,1,num(c.totalWt)!=null?num(c.totalWt):{f:`SUM(B${r+3}:B${r+2+SIEVES.length})`,r:c._T},{b:true,nf:'0'});r++;
+    ['આઈ.એસ. સીવ નંબર','દરેકનું અલગ વજન (ગ્રામ)','ક્યુમ્યુલેટીવ વજન ગ્રામ','ક્યુમ્યુલેટીવ ટકા','પસાર થતાં ટકા','IS 383 limit / રીમાર્કસ'].forEach((h,j)=>xc(ws,r,j,h,{b:true,box:1,fill:1,h:'center'}));r++;
+    const s0=r;SIEVES.forEach((sv,i)=>{const rr=s0+i;const lim=GRADING[c._g?.spec]?.[sv];
+      xc(ws,rr,0,sv,{box:1});xc(ws,rr,1,num(c['w'+i])??null,{box:1,nf:'0'});
+      xc(ws,rr,2,{f:`IF(COUNT(B$${s0}:B${rr})=0,"",SUM(B$${s0}:B${rr}))`,r:c['cw'+i]??undefined},{box:1,nf:'0'});
+      xc(ws,rr,3,{f:`IF(C${rr}="","",C${rr}/$B$${tRow}*100)`,r:c['cp'+i]??undefined},{box:1,nf:'0.00'});
+      xc(ws,rr,4,{f:`IF(D${rr}="","",100-D${rr})`,r:c['pp'+i]??undefined},{box:1,nf:'0.00'});
+      xc(ws,rr,5,lim?{f:`IF(E${rr}="","${lim[0]}–${lim[1]}",IF(AND(E${rr}>=${lim[0]},E${rr}<=${lim[1]}),"${lim[0]}–${lim[1]} ✓","${lim[0]}–${lim[1]} ✗"))`}:(i===0?(c.remarks||''):''),{box:1})});
+    r=s0+SIEVES.length+2});
+  [16,16,16,14,14,24].forEach((x,j)=>ws.getColumn(j+1).width=x);return ws}
+
+/* ---- MB workbook: CMB 1–5, For Record, Abstract ---- */
+const MBW=[11,30,7,6,6,9,9,9,10,10,9,9,9];
+function mbHead(ws,r,w,bill,page){const c=mbOf(w).cover;
+  ws.mergeCells(r,9,r,13);xc(ws,r,8,'Computerised Measurment Book No. '+(c.cmbNo||''),{h:'right'});ws.mergeCells(r+1,9,r+1,13);xc(ws,r+1,8,`Page No. [${page}]`,{h:'right'});
+  ws.mergeCells(r+2,1,r+2,13);xc(ws,r+2,0,'MEASUREMENT SHEET FOR RECORD / RUNNING BILL NO. '+(bill.name||''),{b:true,h:'center'});
+  [['Division  :- ',w.division],['Name of Work :- ',w.name],['Name of Agency :- ',w.agency],['Agreement No:- ',w.agreementNo]].forEach(([k,v],i)=>{ws.mergeCells(r+3+i,1,r+3+i,13);xc(ws,r+3+i,0,k+(v||''))});
+  return r+7}
+function mbTH(ws,r){const H1=['Date','Item No. / Description','','No.','No.','Length','Breadth','Depth','This Bill Quantity','Upto Date Qty.','Remarks','',''];
+  const H2=['','','DIA MM','','','','8mm','10mm','12mm','16mm','20mm','25mm','32mm'];
+  H1.forEach((h,j)=>xc(ws,r,j,h,{b:true,box:1,fill:1,h:'center'}));H2.forEach((h,j)=>xc(ws,r+1,j,h,{b:true,box:1,fill:1,h:'center'}));
+  for(let j=0;j<13;j++)xc(ws,r+2,j,`[${j+1}]`,{box:1,h:'center',sz:8});return r+3}
+function mbSign(ws,r,w,date){const ae=aeOn(w,date),ag=agEngOn(w,date);
+  xc(ws,r,1,"Sign of Agency's Engineer",{});ws.mergeCells(r,10,r,13);xc(ws,r,9,'Sign of '+(ae.desig||'A.E.'),{h:'right'});
+  xc(ws,r+2,1,`(${ag.name||''})`);ws.mergeCells(r+2,10,r+2,13);xc(ws,r+2,9,`(${ae.name||''})`,{h:'right'});
+  xc(ws,r+3,1,w.agency||'');ws.mergeCells(r+3,10,r+3,13);xc(ws,r+3,9,w.subdivision||'',{h:'right'});return r+5}
+function buildMBWorkbook(w,billId,parts){const wb=new ExcelJS.Workbook();const L=mbLayout(w);const bill=L.bills.find(b=>b.id===billId);const c=mbOf(w).cover;
+  const refs={};// entry id -> {sheetRef}
+  if(parts.includes('cover')){const ws=newSheet(wb,'CMB Page 1-5',false);[6,34,4,48].forEach((x,j)=>ws.getColumn(j+1).width=x);let r=1;
+    const top=n=>{ws.mergeCells(r,3,r,4);xc(ws,r,2,`Computerized Measurement Book No.${c.cmbNo||''}   Page No.${n}`,{b:true,h:'right'});r+=2};
+    const brk=()=>{ws.getRow(r-1).addPageBreak();};
+    top(1);r+=3;ws.mergeCells(r,1,r,4);xc(ws,r,0,'Computerized  Mesurement Book No.'+(c.cmbNo||''),{b:true,sz:14});r+=14;
+    (c.eeCover||'Executive Engineer,\nR&B Division,\nDahod.').split('\n').forEach(l=>{xc(ws,r,1,l,{h:'center'});r++});r+=2;brk();
+    top(2);const tender=[w.tenderAmt?'Rs.'+String(w.tenderAmt).replace(/^Rs\.?\s*/,''):'',w.tenderPct?`(i.e. ${w.tenderPct})`:''].filter(Boolean).join(' ');
+    [['Name of Work',w.name],['Estimate Cost ',w.estAmt?'Rs. '+String(w.estAmt).replace(/^Rs\.?\s*/,''):''],['Technical Sanction Amount:-',[c.tsText,c.tsAmt?'Rs.'+String(c.tsAmt).replace(/^Rs\.?\s*/,''):''].filter(Boolean).join('\n')],
+     ['Tender Amount Approved:-',tender],['Name of Agency:-',w.agency],['Agreement No.',w.agreementNo],['Schedule date of Starting the Work:-',w.startDate?'Dt. '+fdS(w.startDate):''],
+     ['Stipulated date of  completion:-',stipOf(w)?'Dt. '+fdS(stipOf(w)):''],['Time limit :-',w.timeLimit],['Actual Date of completion:-',c.actualCompletion]].forEach(([k,v],i)=>{xc(ws,r,0,i+1);xc(ws,r,1,k,{b:true});xc(ws,r,2,':');xc(ws,r,3,v||'');ws.getRow(r).height=30;r+=2});
+    r+=2;xc(ws,r,1,(c.daoSign||'Divisional Accounts Officer Gr-1\nRoad & Building Division\nDahod'),{h:'center'});xc(ws,r,3,(c.eeSign||'Executive Engineer\nDahod ( R&B ) Division\nDahod'),{h:'center'});ws.getRow(r).height=45;r+=3;brk();
+    top(3);xc(ws,r,1,'Name of Work',{b:true});xc(ws,r,2,':');xc(ws,r,3,w.name||'',{b:true});r++;xc(ws,r,1,'Agreement No.',{b:true});xc(ws,r,2,':');xc(ws,r,3,w.agreementNo||'',{b:true});r+=2;
+    ws.mergeCells(r,1,r,4);xc(ws,r,0,'PERFORMA OF COMPUTERIZED MEASUREMENT  BOOK ISSUE CERTIFICATE BY DIVISION OFFICE',{b:true,h:'center'});r+=2;
+    ws.mergeCells(r,1,r,4);xc(ws,r,0,`        This is to certify that Computerized Measurement Book No. ${c.cmbNo||''} issued on Date: ${fdS(c.issueDate)} to the ${c.subDivFull||'Deputy Executive Engineer, Road & Building Sub division, Dahod'}, For the Work: ${w.name||''} (Sr. No.${c.regSr||c.cmbNo||''}) Which entered in Computerized Measurement Book issue Register Sr.No. ${c.regSr||c.cmbNo||''}  Page No. ${c.regPage||'      '}.`);ws.getRow(r).height=75;r+=4;
+    xc(ws,r,3,(c.daoSign||'Divisional Accounts Officer Gr-1\nRoad & Building Division\nDahod'),{h:'center'});ws.getRow(r).height=45;r+=3;brk();
+    top(4);ws.mergeCells(r,1,r,4);xc(ws,r,0,'COMPUTERIZED MEASUREMENT  BOOK ISSUE CERTIFICATE BY  SUB DIVISION OFFICE',{b:true,h:'center'});r+=2;
+    ['No. / Date / CMB No.','Name of Work','Name & Signature of Dy.Ex.Engg. / AE/AEE','Remarks'];xc(ws,r,0,'No.',{box:1,b:1});xc(ws,r,1,'Date / CMB No.',{box:1,b:1});xc(ws,r,2,'',{box:1});xc(ws,r,3,'Name of Work  |  Name & Signature of Dy.Ex.Engg.  |  Name & Signature of AE/AEE  |  Remarks',{box:1,b:1});r++;
+    xc(ws,r,0,1,{box:1});xc(ws,r,1,`${fdS(c.issueDate)}  /  ${c.cmbNo||''}`,{box:1});xc(ws,r,2,'',{box:1});xc(ws,r,3,w.name||'',{box:1,b:1});ws.getRow(r).height=45;r+=3;brk();
+    top(5);ws.mergeCells(r,1,r,4);xc(ws,r,0,'ENGINEER APPOINTMENT  CERTIFICATE',{b:true,h:'center'});r+=2;
+    ws.mergeCells(r,1,r,4);xc(ws,r,0,`        This is to certified  that Shri ${agEngOn(w,c.issueDate||w.startDate).name||'__________'} is appointed as an Engineer for Supervision and taking and entering measurement in CMB for this work.`);ws.getRow(r).height=45;r+=4;xc(ws,r,3,w.agency||'',{h:'center'})}
+  let recName='For Record';
+  if(parts.includes('record')||parts.includes('abstract')){const ws=newSheet(wb,recName);MBW.forEach((x,j)=>ws.getColumn(j+1).width=x);let r=1;
+    const ents=L.entries.filter(e=>e.bill===billId);const pages={};ents.forEach(e=>(pages[e._page]??=[]).push(e));
+    Object.keys(pages).sort((a,b)=>a-b).forEach((p,pi)=>{r=mbHead(ws,r,w,bill,p);r=mbTH(ws,r);
+      pages[p].forEach(e=>{const it=itemOf(w,e),cc=e._calc;
+        xc(ws,r,0,fdS(e.date));xc(ws,r,1,'Item No '+it.no,{b:true});r++;ws.mergeCells(r,2,r,13);xc(ws,r,1,it.desc||'');ws.getRow(r).height=Math.min(60,15*Math.ceil((it.desc||'').length/110));r++;
+        const s=r;
+        (e.lines||[]).forEach(l=>{xc(ws,r,1,l.desc||'');[3,4,5].forEach((j,k)=>{const v=num([l.n1,l.n2,l.L][k]);xc(ws,r,j,v,{nf:j===5?'0.00':undefined})});
+          if(cc.steel){xc(ws,r,2,l.dia?l.dia+'mm':'');MBDIAS.forEach((d,k)=>xc(ws,r,6+k,{f:`IF($C${r}="${d}mm",ROUND(PRODUCT($D${r}:$F${r}),2),"-")`,r:+l.dia===d?steelLen(l):'-'},{nf:'0.00',h:'right'}))}
+          else{xc(ws,r,6,num(l.B),{nf:'0.00'});xc(ws,r,7,num(l.D),{nf:'0.00'});xc(ws,r,8,{f:`IF(COUNT(D${r}:H${r})=0,"",ROUND(PRODUCT(D${r}:H${r}),2))`,r:lineQty(l)??''},{nf:'0.00'});xc(ws,r,10,l.rem||'')}
+          r++});
+        const eR=r-1;
+        if(cc.steel){xc(ws,r,5,'Total Length',{b:true,h:'right'});MBDIAS.forEach((d,k)=>xc(ws,r,6+k,{f:`SUM(${XL(6+k)}${s}:${XL(6+k)}${eR})`,r:cc.len[d]},{nf:'0.00'}));const tl=r;r++;
+          xc(ws,r,5,'Unit Weight Per Rmt',{b:true,h:'right'});MBDIAS.forEach((d,k)=>xc(ws,r,6+k,UW[d],{nf:d===8?'0.000':'0.00#'}));const uw=r;r++;
+          xc(ws,r,5,'Total Weight per Dia',{b:true,h:'right'});MBDIAS.forEach((d,k)=>xc(ws,r,6+k,{f:`ROUND(${XL(6+k)}${uw}*${XL(6+k)}${tl},2)`,r:cc.wt[d]},{nf:'0.00'}));const tw=r;r++;
+          xc(ws,r,7,'Total',{b:true,h:'right'});const mt=/m\.?\s*t/i.test(cc.unit);xc(ws,r,8,{f:mt?`ROUND(SUM(G${tw}:M${tw})/1000,3)`:`SUM(G${tw}:M${tw})`,r:cc.qty},{b:true,nf:mt?'0.000':'0.00'});xc(ws,r,9,cc.unit,{b:true})}
+        else{xc(ws,r,7,'Total',{b:true,h:'right'});xc(ws,r,8,{f:`SUM(I${s}:I${eR})`,r:cc.qty},{b:true,nf:'0.00'});xc(ws,r,9,cc.unit,{b:true})}
+        refs[e.id]=`'${recName}'!I${r}`;r+=2});
+      r=mbSign(ws,r+1,w,pages[p][0].date);ws.getRow(r-1).addPageBreak();r++});
+    if(!parts.includes('record'))ws.state='hidden'}
+  if(parts.includes('abstract')){const A=L.abs[billId];const ws=newSheet(wb,'Abstract');MBW.forEach((x,j)=>ws.getColumn(j+1).width=x);let r=1;
+    r=mbHead(ws,r,w,bill,A&&A.pages?A.start+(A.pages>1?'–'+(A.start+A.pages-1):''):'');r=mbTH(ws,r)+1;
+    ws.mergeCells(r,1,r,13);xc(ws,r,0,bill.absTitle||(bill.name||'').toUpperCase()+' (ABSTRACT)',{b:true,h:'center'});r+=2;
+    [['Date of Start :- ',fdS(bill.start||w.startDate)],['Stipulated date of completion  :- ',fdS(bill.stip||stipOf(w))],['Date of Measurement :- ',fdS(bill.measDate)]].forEach(([k,v])=>{ws.mergeCells(r,1,r,6);xc(ws,r,0,k+v);r++});r++;
+    const bi=Object.fromEntries(L.bills.map((b,i)=>[b.id,i]));const k=bi[billId];
+    (A?.list||[]).forEach(x=>{xc(ws,r,1,'Item No '+x.it.no,{b:true});r++;ws.mergeCells(r,2,r,13);xc(ws,r,1,x.it.desc||'');ws.getRow(r).height=Math.min(60,15*Math.ceil((x.it.desc||'').length/110));r++;
+      const ents=L.entries.filter(e=>String(e.itemNo)===String(x.it.no)&&bi[e.bill]<=k);const s=r;const prevRows=[];
+      ents.forEach(e=>{xc(ws,r,1,'Qty. as per this M.B. Page No.');xc(ws,r,3,e._page);xc(ws,r,7,'=',{h:'center'});
+        const f=refs[e.id];xc(ws,r,8,f?{f,r:e._calc.qty}:e._calc.qty,{nf:'0.00'});xc(ws,r,9,x.it.unit||'');if(bi[e.bill]<k)prevRows.push(r);r++});
+      const up=r;xc(ws,r,1,'Total Up to date Qty');xc(ws,r,7,'=',{h:'center'});xc(ws,r,8,{f:`SUM(I${s}:I${r-1})`,r:x.upto},{nf:'0.00'});xc(ws,r,9,x.it.unit||'');r++;
+      const pv=r;xc(ws,r,1,'Qty upto Previously Paid');xc(ws,r,7,'=',{h:'center'});xc(ws,r,8,prevRows.length?{f:prevRows.map(q=>'I'+q).join('+'),r:x.prev}:0,{nf:'0.00'});xc(ws,r,9,x.it.unit||'');r++;
+      xc(ws,r,1,'Qty Now to be paid');xc(ws,r,7,'=',{h:'center'});xc(ws,r,8,{f:`I${up}-I${pv}`,r:x.now},{nf:'0.00'});xc(ws,r,9,x.it.unit||'');r++;
+      if(x.it.qty!=null){xc(ws,r,1,'Limited Qty',{b:true});xc(ws,r,7,'=',{h:'center'});xc(ws,r,8,{f:`IF(I${up}>${+x.it.qty},${+x.it.qty},"")`,r:x.limit??''},{b:true,nf:'0.00'});xc(ws,r,9,x.it.unit||'');r++}
+      r++});
+    mbSign(ws,r+1,w,bill.measDate)}
+  return wb}
+function itemsWorkbook(w){const wb=new ExcelJS.Workbook();const ws=newSheet(wb,'Schedule B');[7,11,60,11,8,15].forEach((x,j)=>ws.getColumn(j+1).width=x);
+  ws.mergeCells(1,1,1,6);xc(ws,1,0,'SCHEDULE - B',{b:true,h:'center',sz:12});ws.mergeCells(2,1,2,6);xc(ws,2,0,w.name||'');
+  ['It. No.','Tender Qty.','Item of Work','Rate','Unit','Total Amount'].forEach((h,j)=>xc(ws,4,j,h,{b:true,box:1,fill:1,h:'center'}));let r=5;
+  (w.items||[]).forEach(it=>{xc(ws,r,0,isNaN(+it.no)?it.no:+it.no,{box:1,h:'center'});xc(ws,r,1,it.qty,{box:1,nf:'0.00'});xc(ws,r,2,it.desc,{box:1});xc(ws,r,3,it.rate,{box:1,nf:'0.00'});xc(ws,r,4,it.unit,{box:1});
+    xc(ws,r,5,{f:`IF(OR(B${r}="",D${r}=""),"",ROUND(B${r}*D${r},2))`,r:it.qty!=null&&it.rate!=null?Math.round(it.qty*it.rate*100)/100:''},{box:1,nf:'#,##0.00'});r++});
+  xc(ws,r,4,'Total',{b:true,box:1});xc(ws,r,5,{f:`SUM(F5:F${r-1})`},{b:true,box:1,nf:'#,##0.00'});return wb}
+async function exportReg(reg){const w=W();const wb=new ExcelJS.Workbook();regSheet(wb,reg,w);await xlSave(wb,`${reg.short} - ${w.name}`)}
+async function exportAllRegs(){const w=W();const wb=new ExcelJS.Workbook();REGS.forEach(r=>regSheet(wb,r,w));await xlSave(wb,`All registers - ${w.name}`)}
+async function exportMB(parts,label){const w=W();const b=curBill(w);await xlSave(buildMBWorkbook(w,b.id,parts),`${label} - ${b.name} - ${w.name}`)}
+async function exportItems(){const w=W();await xlSave(itemsWorkbook(w),`Tender Items - ${w.name}`)}
+
+/* ===================== FIREBASE: LOGIN, SYNC, ADMIN ===================== */
+const ADMIN_EMAIL='112ce0489@gmail.com';
+let fb=null,user=null,pushT,profile={},appCfg={};
+const isAdmin=()=>!!user&&user.email===ADMIN_EMAIL&&user.emailVerified;
+const canAI=()=>isAdmin()||(profile.approved===true&&!profile.blocked);
 function loadScript(src){return new Promise((ok,no)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=no;document.head.appendChild(s)})}
+function gate(html){const g=$('#gate');if(!html){g.hidden=true;return}g.querySelector('.gbody').innerHTML=html;g.hidden=false}
 async function initFirebase(){
   const box=$('#syncBox');
   if(!FIREBASE_CONFIG){box.innerHTML='<span>Local save</span>';return}
+  gate('<p class="note">Login check ho raha hai…</p>');
   const V='10.12.2',B=`https://cdn.jsdelivr.net/npm/firebase@${V}/`;
   try{await loadScript(B+'firebase-app-compat.js');await Promise.all([loadScript(B+'firebase-auth-compat.js'),loadScript(B+'firebase-firestore-compat.js')])}
-  catch(e){box.textContent='Firebase load nahi hua (offline?)';return}
+  catch(e){gate('<p>Firebase load nahi hua. Internet check karo, phir page refresh karo.</p><button class="btn" onclick="location.reload()">Refresh</button>');return}
   firebase.initializeApp(FIREBASE_CONFIG);fb=firebase.firestore();
   try{fb.enablePersistence({synchronizeTabs:true})}catch(e){}
   firebase.auth().onAuthStateChanged(async u=>{user=u;
-    if(!u){box.innerHTML='<button class="btn small" id="gin">Google se login</button>';$('#gin').onclick=()=>firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>toast(e.message));return}
-    box.innerHTML=`<span>${esc(u.email)}</span><button class="btn small" id="gout">Logout</button>`;$('#gout').onclick=()=>firebase.auth().signOut();
-    await cloudPull()});
+    if(!u){box.innerHTML='';gate(`<p>Apne Google account se login karo. Aapka data aapke account mein surakshit rahega aur kisi bhi phone/computer par milega.</p>
+      <button class="btn primary" id="gin">Google se login</button>`);$('#gin').onclick=()=>firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>toast(e.message));render();return}
+    box.innerHTML=`<span title="${esc(u.email)}">${esc(u.displayName||u.email)}${isAdmin()?' · Admin':''}</span><button class="btn small" id="gout">Logout</button>`;$('#gout').onclick=()=>firebase.auth().signOut();
+    try{const ref=uref();const snap=await ref.get();profile=snap.exists?snap.data():{};
+      if(profile.blocked&&!isAdmin()){gate('<p><b>Aapka access band hai.</b> Admin se baat karo.</p><button class="btn" id="gout2">Logout</button>');$('#gout2').onclick=()=>firebase.auth().signOut();return}
+      await ref.set({email:u.email,name:u.displayName||'',photo:u.photoURL||'',lastLogin:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+      const c=await fb.collection('config').doc('app').get();appCfg=c.exists?c.data():{}}catch(e){toast('Profile error: '+e.message)}
+    gate(null);await cloudPull();
+    if(isAdmin()&&!sessionStorage.getItem('adminShown')){try{sessionStorage.setItem('adminShown',1)}catch(e){}go('admin')}else render()});
 }
 const uref=()=>fb.collection('users').doc(user.uid);
 async function cloudPull(){try{
   const ws=await uref().collection('works').get();
-  if(ws.empty){await cloudPushAll();toast('Data Firebase par chala gaya');return}
+  if(ws.empty){await cloudPushAll();toast('Data aapke account mein save ho gaya');return}
   const works=[],data={};
   for(const d of ws.docs){const w=d.data();works.push(w.info);data[w.info.id]={};
     const rs=await d.ref.collection('regs').get();rs.forEach(r=>data[w.info.id][r.id]=r.data().rows||[])}
   state={works,data,cur:works.some(w=>w.id===state.cur)?state.cur:works[0].id};
-  try{localStorage.setItem(LS_KEY,JSON.stringify(state))}catch(e){}render();toast('Firebase se data aa gaya')}catch(e){toast('Sync error: '+e.message)}}
+  try{localStorage.setItem(LS_KEY,JSON.stringify(state))}catch(e){}render()}catch(e){toast('Sync error: '+e.message)}}
 async function cloudPushAll(){for(const w of state.works){await uref().collection('works').doc(w.id).set({info:w});
-  for(const k in (state.data[w.id]||{}))await uref().collection('works').doc(w.id).collection('regs').doc(k).set({rows:state.data[w.id][k],at:Date.now()})}}
+  for(const k in (state.data[w.id]||{}))await uref().collection('works').doc(w.id).collection('regs').doc(k).set({rows:state.data[w.id][k],at:Date.now()})}
+  await uref().set({worksCount:state.works.length},{merge:true})}
 const dirty=new Set();
 function cloudPush(regId){if(!fb||!user)return;const w=W();dirty.add(w.id+'|'+(regId||''));clearTimeout(pushT);
   pushT=setTimeout(async()=>{try{for(const k of dirty){const[wid,rid]=k.split('|');const wo=state.works.find(x=>x.id===wid);if(!wo)continue;
     const ref=uref().collection('works').doc(wid);await ref.set({info:wo});
-    if(rid)await ref.collection('regs').doc(rid).set({rows:state.data[wid][rid]||[],at:Date.now()})}dirty.clear()}catch(e){toast('Sync error: '+e.message)}},800)}
+    if(rid)await ref.collection('regs').doc(rid).set({rows:state.data[wid][rid]||[],at:Date.now()})}dirty.clear();uref().set({worksCount:state.works.length},{merge:true})}catch(e){toast('Sync error: '+e.message)}},800)}
 async function cloudDropWork(id){if(!fb||!user)return;try{const ref=uref().collection('works').doc(id);const rs=await ref.collection('regs').get();for(const d of rs.docs)await d.ref.delete();await ref.delete()}catch(e){}}
 
+/* ---------- Admin page ---------- */
+async function renderAdmin(){
+  if(!isAdmin()){$('#main').innerHTML='<div class="empty">Ye page sirf admin ke liye hai.</div>';return}
+  $('#main').innerHTML=`<div class="sheethead"><div><h2>Admin</h2><div class="sub">${esc(user.email)}</div></div></div><div class="empty">Users load ho rahe hain…</div>`;
+  let users=[];try{const s=await fb.collection('users').get();users=s.docs.map(d=>({uid:d.id,...d.data()}))}catch(e){$('#main').innerHTML=`<div class="banner">Users nahi padh paye: ${esc(e.message)}. Firestore rules (firestore.rules) publish kiye hain?</div>`;return}
+  users.sort((a,b)=>(b.lastLogin?.seconds||0)-(a.lastLogin?.seconds||0));
+  const ts=t=>t?.seconds?new Date(t.seconds*1000).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'}):'';
+  const calls=users.reduce((a,u)=>a+(u.aiCalls||0),0);
+  $('#main').innerHTML=`<div class="sheethead"><div><h2>Admin</h2><div class="sub">${esc(user.email)}</div></div></div>
+  <div class="cards"><div class="card"><span class="k">Users</span><span class="v">${users.length}</span></div><div class="card"><span class="k">Chatbot allowed</span><span class="v">${users.filter(u=>u.approved&&!u.blocked).length}</span></div>
+   <div class="card"><span class="k">Chatbot calls (kul)</span><span class="v">${calls}</span></div><div class="card"><span class="k">Worker</span><span class="v" style="font-size:15px">${appCfg.workerUrl?'<span class="chip ok">Juda hai</span>':'<span class="chip bad">URL baaki</span>'}</span></div></div>
+  <div class="list"><h3>Chatbot setting</h3><div class="li" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
+   <div class="fld"><label for="ad_url">Cloudflare Worker URL</label><input id="ad_url" value="${esc(appCfg.workerUrl||'')}" placeholder="https://rnb-chat.xxxx.workers.dev"></div>
+   <div class="fld"><label for="ad_model">Model</label><select id="ad_model">${['claude-sonnet-5-5','claude-opus-5-5','claude-haiku-5-5'].map(m=>`<option ${appCfg.model===m?'selected':''}>${m}</option>`).join('')}</select></div>
+   <div class="fld" style="justify-content:flex-end"><button class="btn primary" id="ad_save">Save</button></div></div>
+   <div class="li note">Sonnet sasta aur kaafi accurate hai, roz ke kaam ke liye. Opus mehenga hai, sirf mushkil drawing ke liye. Haiku sabse sasta hai, chhote sawaalon ke liye.</div></div>
+  <div class="tablewrap"><table class="reg"><thead><tr><th>User</th><th>Aakhri login</th><th>Kaam</th><th>Chatbot calls</th><th>Chatbot</th><th>Access</th></tr></thead><tbody>
+  ${users.map(u=>`<tr><td><b>${esc(u.name||'')}</b><div class="note">${esc(u.email||u.uid)}</div></td><td class="d">${ts(u.lastLogin)}</td><td class="n">${u.worksCount??''}</td><td class="n">${u.aiCalls||0}</td>
+   <td>${u.email===ADMIN_EMAIL?'<span class="chip ok">Admin</span>':`<button class="btn small" data-ap="${u.uid}" data-v="${u.approved?0:1}">${u.approved?'Band karo':'Allow karo'}</button> ${u.approved?'<span class="chip ok">Allowed</span>':''}`}</td>
+   <td>${u.email===ADMIN_EMAIL?'':`<button class="btn small ${u.blocked?'':'danger'}" data-bl="${u.uid}" data-v="${u.blocked?0:1}">${u.blocked?'Kholo':'Block'}</button> ${u.blocked?'<span class="chip bad">Blocked</span>':''}`}</td></tr>`).join('')}
+  </tbody></table></div><p class="note">Naya user Google se login karte hi yahan dikhega. Registers aur MB har login user chala sakta hai. Chatbot (API ka kharcha) sirf "Allowed" users ke liye chalega. Admin kisi ka kaam/data nahi dekh sakta, sirf ye list.</p>`;
+  $('#ad_save').onclick=async()=>{try{appCfg={workerUrl:gv('ad_url').trim().replace(/\/$/,''),model:gv('ad_model')};await fb.collection('config').doc('app').set(appCfg,{merge:true});toast('Setting save ho gayi');renderAdmin()}catch(e){toast(e.message)}};
+  document.querySelectorAll('[data-ap]').forEach(b=>b.onclick=async()=>{await fb.collection('users').doc(b.dataset.ap).set({approved:b.dataset.v==='1'},{merge:true});renderAdmin()});
+  document.querySelectorAll('[data-bl]').forEach(b=>b.onclick=async()=>{await fb.collection('users').doc(b.dataset.bl).set({blocked:b.dataset.v==='1'},{merge:true});renderAdmin()});
+}
+
+/* ===================== CHATBOT ===================== */
+const DOCT={ask:'Sirf sawaal',ts:'TS letter',tender:'Tender approval letter',wo:'Work order',boq:'BOQ / Schedule-B',estimate:'Estimate'};
+const chat={msgs:[],busy:false};
+const SYS_X='You read Gujarat Roads & Buildings (PWD) government documents (English or Gujarati). Reply with ONLY one valid JSON object and nothing else. Use null when a value is not in the document. Dates as YYYY-MM-DD. Amounts as plain text exactly as written (e.g. "4,01,55,180.69").';
+const SCHEMA={
+ ts:'{"nameOfWork":"","tsLetterNo":"letter number","tsDate":"YYYY-MM-DD","tsAmount":"","estimateCost":""}',
+ tender:'{"nameOfWork":"","tenderAmount":"","tenderPercent":"e.g. 5.43% Above / 2.10% Below","approvalLetterNo":"","approvalDate":"YYYY-MM-DD","agency":""}',
+ wo:'{"nameOfWork":"","agency":"","agreementNo":"","workOrderNo":"","workOrderDate":"YYYY-MM-DD","startDate":"YYYY-MM-DD","timeLimit":"e.g. 08 (Eight) Months","stipulatedDate":"YYYY-MM-DD","tenderAmount":"","tenderPercent":""}',
+ boq:'{"items":[{"no":"item number as printed","qty":0,"unit":"Cum/Sq.m./Kg./Rmt/Nos","rate":0,"desc":"full item description"}]}',
+ estimate:'{"items":[{"no":"item number as printed","sor":"SOR item code if any","qty":0,"unit":"","rate":0,"amount":0,"desc":"full item description"}]}'};
+const XPROMPT={ts:'Ye Technical Sanction (TS) letter hai. Isse ye nikaalo:',tender:'Ye tender approval / acceptance letter hai. Isse ye nikaalo:',wo:'Ye work order letter hai. Isse ye nikaalo (time limit jaise likha hai waise, stipulated date agar likhi ho):',
+ boq:'Ye BOQ / Schedule-B (tender items) hai. Har item ko bina chhode is JSON mein do, item no. bilkul waise jaise chhapa hai:',estimate:'Ye estimate hai. Har item (abstract of cost) is JSON mein do:'};
+const b64=buf=>{let s='';const u=new Uint8Array(buf);for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s)};
+async function fileToBlocks(f){const buf=await f.arrayBuffer();
+  if(/pdf$/i.test(f.type)||/\.pdf$/i.test(f.name))return [{type:'document',source:{type:'base64',media_type:'application/pdf',data:b64(buf)}}];
+  if(/^image\//.test(f.type))return [{type:'image',source:{type:'base64',media_type:f.type,data:b64(buf)}}];
+  if(/\.xlsx$/i.test(f.name)){if(typeof ExcelJS==='undefined')throw new Error('Excel library load nahi hui');const wb=new ExcelJS.Workbook();await wb.xlsx.load(buf);let t='';
+    wb.eachSheet(ws=>{if(ws.state==='hidden')return;t+=`\n### Sheet: ${ws.name}\n`;ws.eachRow({includeEmpty:false},row=>{const v=[];row.eachCell({includeEmpty:true},c=>{let x=c.value;if(x&&typeof x==='object')x=x.result??x.text??x.richText?.map(r=>r.text).join('')??'';v.push(String(x??'').replace(/\s+/g,' ').trim())});t+=v.join('\t').replace(/\t+$/,'')+'\n'})});
+    return [{type:'text',text:'Excel file ka data (tab-separated):\n'+t.slice(0,180000)}]}
+  throw new Error('Ye file type nahi chalega. PDF, photo (jpg/png) ya .xlsx do. Word file ho to PDF bana ke do.')}
+async function callAI({system,messages,max=4000}){
+  if(!appCfg.workerUrl)throw new Error('Admin ne abhi Worker URL set nahi kiya.');
+  const tok=await user.getIdToken();
+  const r=await fetch(appCfg.workerUrl,{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+tok},body:JSON.stringify({model:appCfg.model||'claude-sonnet-5-5',max_tokens:max,system,messages})});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(j.error?.message||j.error||('Error '+r.status));
+  try{uref().set({aiCalls:firebase.firestore.FieldValue.increment(1),lastAi:firebase.firestore.FieldValue.serverTimestamp()},{merge:true})}catch(e){}
+  return (j.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('\n')}
+function parseJSON(t){const a=t.indexOf('{'),b=t.lastIndexOf('}');if(a<0||b<a)throw new Error('Jawab samajh nahi aaya');return JSON.parse(t.slice(a,b+1))}
+function ctxSummary(w){const L=mbLayout(w);const up={};L.entries.forEach(e=>{const k=String(e.itemNo);up[k]=(up[k]||0)+e._calc.qty});
+  const c2=compute(REG.cement4,w),s2=compute(REG.steel2,w);
+  return JSON.stringify({kaam:{naam:w.name,agency:w.agency,agreement:w.agreementNo,start:w.startDate,timeLimit:w.timeLimit,stipulated:stipOf(w),estimate:w.estAmt,tender:w.tenderAmt,tenderPct:w.tenderPct},
+    tenderItems:(w.items||[]).map(i=>({no:i.no,desc:(i.desc||'').slice(0,140),unit:i.unit,tenderQty:i.qty,rate:i.rate,mbUptoDate:up[String(i.no)]?+up[String(i.no)].toFixed(2):0})),
+    bills:mbOf(w).bills.map(b=>b.name),cementStockBags:c2.length?c2[c2.length-1].closing:null,steelStockMT:s2.length?s2[s2.length-1].closing:null,
+    registers:REGS.map(r=>({naam:r.short,entries:rowsOf(r.id,w).length,laal:compute(r,w).filter(x=>x._flag?.[0]==='bad').map(x=>x._flag[1]).slice(0,5)}))})}
+function applyFields(w,type,d){const c=mbOf(w).cover;const out=[];const set=(o,k,v,label)=>{if(v==null||v==='')return;out.push({o,k,v,label,old:o[k]})};
+  if(type==='ts'){set(w,'name',d.nameOfWork,'Name of Work');set(c,'tsText',[d.tsLetterNo&&('GOG R&B Dept. Letter No. : '+d.tsLetterNo),d.tsDate&&('Dt.'+fdS(d.tsDate).replace(/\//g,'.'))].filter(Boolean).join(', '),'TS letter');set(c,'tsAmt',d.tsAmount,'TS amount');set(w,'estAmt',d.estimateCost,'Estimate cost')}
+  if(type==='tender'){set(w,'name',d.nameOfWork,'Name of Work');set(w,'tenderAmt',d.tenderAmount,'Tender amount');set(w,'tenderPct',d.tenderPercent,'Tender %');set(w,'agency',d.agency,'Agency');set(c,'tenderLetter',[d.approvalLetterNo,d.approvalDate&&fdS(d.approvalDate)].filter(Boolean).join(' dt. '),'Tender approval letter')}
+  if(type==='wo'){set(w,'name',d.nameOfWork,'Name of Work');set(w,'agency',d.agency,'Agency');set(w,'agreementNo',d.agreementNo,'Agreement No.');set(w,'startDate',d.startDate,'Start date');set(w,'timeLimit',d.timeLimit,'Time limit');set(w,'stipDate',d.stipulatedDate,'Stipulated date');
+    set(w,'tenderAmt',d.tenderAmount,'Tender amount');set(w,'tenderPct',d.tenderPercent,'Tender %');set(c,'workOrder',[d.workOrderNo,d.workOrderDate&&fdS(d.workOrderDate)].filter(Boolean).join(' dt. '),'Work order')}
+  return out}
+function renderChat(){const w=W();
+  const why=!FIREBASE_CONFIG||EMBED?'Chatbot GitHub wale app mein Google login aur Worker setup ke baad chalega.':!user?'Pehle login karo.':!canAI()?'Admin ne abhi aapko chatbot ki permission nahi di. Admin page se "Allow karo" karwao.':!appCfg.workerUrl?'Admin ne abhi Worker URL set nahi kiya (Admin page → Chatbot setting).':'';
+  $('#main').innerHTML=`<div class="sheethead"><div><h2>Chatbot</h2><div class="sub">${esc(w.name)}</div></div></div>
+  ${why?`<div class="banner"><span>${esc(why)}</span></div>`:''}
+  <div class="chatlog" id="chatlog">${chat.msgs.length?'':`<div class="empty">Letter, estimate ya BOQ upload karo, ya kaam ke baare mein sawaal poochho.<br>Jaise: "Item 5 ka ab tak kitna MB hua?" ya "Cement kitna bacha hai?"</div>`}</div>
+  <form class="composer" id="chatForm"><div class="crow"><select id="c_type" aria-label="Kya upload kar rahe ho">${Object.entries(DOCT).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select>
+   <label class="btn" for="c_file">File chuno</label><input type="file" id="c_file" accept=".pdf,.png,.jpg,.jpeg,.xlsx" hidden><span class="note" id="c_fname"></span></div>
+   <div class="crow"><textarea id="c_text" rows="2" placeholder="Sawaal ya note likho…"></textarea><button class="btn primary" id="c_send" ${why||chat.busy?'disabled':''}>${chat.busy?'Padh raha hai…':'Bhejo'}</button></div></form>`;
+  drawChat();
+  $('#c_file').onchange=e=>{const f=e.target.files[0];$('#c_fname').textContent=f?f.name:'';if(f&&$('#c_type').value==='ask')$('#c_type').value=/boq|schedule/i.test(f.name)?'boq':/estimate/i.test(f.name)?'estimate':/work.?order/i.test(f.name)?'wo':/tender/i.test(f.name)?'tender':/ts/i.test(f.name)?'ts':'ask'};
+  $('#chatForm').onsubmit=e=>{e.preventDefault();sendChat()}}
+function drawChat(){const el=$('#chatlog');if(!el||!chat.msgs.length)return;
+  el.innerHTML=chat.msgs.map((m,i)=>`<div class="msg ${m.role}"><div class="bub">${m.html||esc(m.text||'').replace(/\n/g,'<br>')}</div></div>`).join('');el.scrollTop=el.scrollHeight;
+  el.querySelectorAll('[data-apply]').forEach(b=>b.onclick=()=>applyResult(+b.dataset.apply))}
+async function sendChat(){const w=W();const type=$('#c_type').value;const f=$('#c_file').files[0];const text=$('#c_text').value.trim();
+  if(!f&&!text)return toast('File chuno ya sawaal likho');if(type!=='ask'&&!f)return toast(DOCT[type]+' ki file chuno');
+  chat.msgs.push({role:'user',text:(f?`📎 ${f.name} (${DOCT[type]})\n`:'')+text});chat.busy=true;renderChat();
+  try{
+    if(type!=='ask'){const blocks=await fileToBlocks(f);
+      const t=await callAI({system:SYS_X,max:type==='boq'||type==='estimate'?16000:2000,messages:[{role:'user',content:[...blocks,{type:'text',text:`${XPROMPT[type]}\n${SCHEMA[type]}${text?'\nNote: '+text:''}`}]}]});
+      const d=parseJSON(t);const i=chat.msgs.length;
+      if(type==='boq'||type==='estimate'){const items=(d.items||[]).filter(x=>x&&x.desc);
+        chat.msgs.push({role:'bot',type,data:{items},html:`<b>${items.length} item mile</b> (${DOCT[type]}). Check karo:<div class="tablewrap" style="margin:6px 0"><table class="reg"><thead><tr><th>No.</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Item</th></tr></thead><tbody>${items.slice(0,40).map(x=>`<tr><td>${esc(x.no)}</td><td class="n">${x.qty??''}</td><td>${esc(x.unit||'')}</td><td class="n">${x.rate??''}</td><td>${esc((x.desc||'').slice(0,90))}</td></tr>`).join('')}${items.length>40?`<tr><td colspan="5" class="note">…aur ${items.length-40}</td></tr>`:''}</tbody></table></div>
+          <button class="btn primary small" data-apply="${i}">${type==='boq'?'Tender Items mein save karo':'Estimate items save karo'}</button>`})}
+      else{const ch=applyFields(w,type,d);
+        chat.msgs.push({role:'bot',type,data:d,html:ch.length?`<b>${DOCT[type]} se ye mila:</b><table class="kv">${ch.map(x=>`<tr><td>${esc(x.label)}</td><td><b>${esc(x.k.match(/date/i)?fdS(x.v):x.v)}</b>${x.old&&x.old!==x.v?`<div class="note">abhi: ${esc(x.k.match(/date/i)?fdS(x.old):x.old)}</div>`:''}</td></tr>`).join('')}</table><button class="btn primary small" data-apply="${i}">Theek hai, save karo</button>`:'Is file mein kaam ki vigat nahi mili. Sahi file aur type chuna hai?'})}}
+    else{const hist=chat.msgs.filter(m=>m.role==='user'||m.answer).slice(-8).map(m=>({role:m.role==='user'?'user':'assistant',content:m.role==='user'?m.text:m.answer}));
+      const t=await callAI({max:1500,system:`Tum Gujarat R&B (Dahod) ke Deputy Executive Engineer ke site assistant ho. Hinglish mein chhota, seedha jawab do. Sirf neeche diye data se jawab do; data mein na ho to saaf bolo ki app mein ye data nahi hai. Kaam ka data (JSON): ${ctxSummary(w)}`,messages:hist});
+      chat.msgs.push({role:'bot',answer:t,text:t})}
+  }catch(e){chat.msgs.push({role:'bot',text:'Dikkat: '+e.message})}
+  chat.busy=false;renderChat();$('#c_text').value=''}
+function applyResult(i){const m=chat.msgs[i];const w=W();
+  if(m.type==='boq'){m.data.items.forEach(x=>{const o={id:uid(),no:String(x.no).trim(),qty:num(x.qty),unit:x.unit||'',rate:num(x.rate),desc:x.desc};const k=w.items.findIndex(y=>String(y.no)===o.no);if(k>=0){o.id=w.items[k].id;w.items[k]=o}else w.items.push(o)});
+    w.items.sort((a,b)=>(parseFloat(a.no)||0)-(parseFloat(b.no)||0));toast(m.data.items.length+' items Tender Items mein save')}
+  else if(m.type==='estimate'){w.estItems=m.data.items;toast(m.data.items.length+' estimate items save')}
+  else applyFields(w,m.type,m.data).forEach(x=>x.o[x.k]=x.v),toast('Kaam ki vigat mein save ho gaya');
+  persist();m.html=m.html.replace(/<button[^>]*data-apply[^>]*>.*?<\/button>/,'<span class="chip ok">Save ho gaya</span>');renderChat()}
+
 /* ===================== BOOT ===================== */
-try{const v=localStorage.getItem(LS_KEY+'_view');if(v&&(v==='dash'||REG[v]||MBV[v]))view.reg=v}catch(e){}
+try{const v=localStorage.getItem(LS_KEY+'_view');if(v&&(v==='dash'||v==='chat'||REG[v]||MBV[v]))view.reg=v}catch(e){}
 document.getElementById('shelf').addEventListener('click',e=>{const b=e.target.closest('[data-reg]');if(b)go(b.dataset.reg)});
 render();initFirebase();
 if(!EMBED&&'serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});

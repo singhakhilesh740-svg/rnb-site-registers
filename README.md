@@ -48,14 +48,34 @@ Har register ka print: Title page, Certificate, Index of Specimen Signature, phi
 3. Settings → Pages → Branch: `main`, folder `/ (root)` → Save.
 4. `https://singhakhilesh740-svg.github.io/rnb-site-registers/` khulega.
 
-## Firebase (Google login + sync) jodna
-Bina Firebase ke data sirf us browser/phone mein rehta hai (Backup button se JSON file lo).
-1. Firebase console → project → Authentication → Sign-in method → **Google** enable.
-2. Authentication → Settings → Authorized domains mein `singhakhilesh740-svg.github.io` jodo.
-3. Firestore Database banao, Rules mein `firestore.rules` ka content paste karo.
-4. Project settings → Web app config copy karke `index.html` mein `const FIREBASE_CONFIG = null;` ki jagah paste karo.
+## Google login + Admin (Firebase)
+1. console.firebase.google.com → **Add project** (naam: rnb-site-registers) → Google Analytics off → Create.
+2. **Build → Authentication → Get started → Sign-in method → Google → Enable** → support email chuno → Save.
+3. **Authentication → Settings → Authorized domains → Add domain**: `singhakhilesh740-svg.github.io`
+4. **Build → Firestore Database → Create database** → location `asia-south1 (Mumbai)` → production mode.
+   **Rules** tab mein `firestore.rules` ka poora content paste karo → **Publish**.
+5. **Project settings (⚙) → General → Your apps → Web (</>)** → app naam do → Register. Jo `firebaseConfig = {...}` dikhe, use `index.html` mein
+   `const FIREBASE_CONFIG = null;` ki jagah daalo, jaise: `const FIREBASE_CONFIG = { apiKey: "...", authDomain: "...", projectId: "...", ... };`
+6. Push karo. Ab app kholte hi Google login aayega. **112ce0489@gmail.com** se login karne par Admin page khulega.
 
-Data structure: `users/{uid}/works/{workId}` (title page) aur `users/{uid}/works/{workId}/regs/{registerId}` (rows).
+Admin page: users ki list, kisko chatbot chalane dena hai (Allow), kisko block karna hai, Worker URL aur model.
+Admin kisi user ka kaam/data nahi dekh sakta.
+
+## Chatbot (Claude API + Cloudflare Worker)
+API key kabhi bhi index.html mein mat daalna. Wo Worker mein secret rehti hai.
+1. **API key:** console.anthropic.com → login → Billing mein thoda credit daalo → **API Keys → Create Key** → copy karke surakshit rakho.
+2. **Worker:** dash.cloudflare.com (free account) → **Workers & Pages → Create → Create Worker** → naam `rnb-chat` → Deploy → **Edit code**.
+   `worker/worker.js` ka poora code paste karo → **Deploy**.
+3. Worker → **Settings → Variables and Secrets → Add**:
+   - `ANTHROPIC_API_KEY` (type **Secret**): aapki API key
+   - `FIREBASE_PROJECT_ID`: Firebase project ID (firebaseConfig ka projectId)
+   - `ADMIN_EMAIL`: `112ce0489@gmail.com`
+   - `ALLOWED_ORIGINS`: `https://singhakhilesh740-svg.github.io`
+   → Deploy.
+4. Worker ka URL (jaise `https://rnb-chat.xxxx.workers.dev`) copy karo → app mein **Admin → Chatbot setting → Worker URL** → Save.
+5. Chatbot mein upload: TS letter, tender approval, work order (PDF/photo) → kaam ki vigat; BOQ/Schedule-B, estimate (PDF/xlsx) → items. Har baar pehle preview, phir "Save karo".
+
+Worker har request par check karta hai: Google login sahi hai, aur user admin hai ya admin ne "Allow" kiya hai. Tabhi API ko call jati hai.
 
 ## Aage (Phase 2)
 Estimate + BOQ upload → tender item mapping → MB aur RA bill.

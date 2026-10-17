@@ -1,9 +1,30 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Har user sirf apna data padh/likh sakta hai
-    match /users/{uid}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == '112ce0489@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
+    function isOwner(uid) { return request.auth != null && request.auth.uid == uid; }
+
+    // Har user ka profile: user khud likh sakta hai, lekin 'approved'/'blocked' sirf admin badlega
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if isOwner(uid) && !request.resource.data.keys().hasAny(['approved', 'blocked']);
+      allow update: if isAdmin()
+        || (isOwner(uid) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['approved', 'blocked']));
+
+      // Kaam, registers, MB: sirf wahi user (admin bhi nahi dekh sakta)
+      match /{rest=**} {
+        allow read, write: if isOwner(uid);
+      }
+    }
+
+    // App setting (Worker URL, model): sab padh sakte, sirf admin badle
+    match /config/{doc} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
     }
   }
 }
