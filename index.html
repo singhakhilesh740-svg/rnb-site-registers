@@ -6,65 +6,73 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="manifest" href="manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hind+Vadodara:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Hind+Vadodara:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 /* Layout: ledger-book app — work bar on top, register shelf on the left, ruled register sheet on the right */
 :root{
-  --bg:#F1F4F8; --surface:#FFFFFF; --ink:#1A2332; --muted:#5A6577; --rule:#D3DAE4; --rule-strong:#9AA6B8;
-  --accent:#2745A6; --accent-soft:#E6ECFB; --head:#EEF2F8;
-  --bad:#B42318; --bad-soft:#FDECEA; --warn:#A15C07; --warn-soft:#FEF4E2; --ok:#067647; --ok-soft:#E5F5EC;
-  --f-ui:"Hind Vadodara","Noto Sans Gujarati","Segoe UI",system-ui,sans-serif;
+  --bg:#FFFFFF; --surface:#FFFFFF; --ink:#111827; --muted:#6B7280; --rule:#E5E7EB; --rule-strong:#CBD2DC;
+  --accent:#1E3A8A; --accent-2:#0F2557; --accent-soft:#EEF2FB; --head:#F4F6FA;
+  --bad:#B42318; --bad-soft:#FDECEA; --warn:#A15C07; --warn-soft:#FEF4E2; --ok:#067647; --ok-soft:#E7F6EE;
+  --shadow:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.06);
+  --f-ui:"Inter","Hind Vadodara","Noto Sans Gujarati","Segoe UI",system-ui,sans-serif;
   --f-num:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+  color-scheme:light;
 }
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#0F131A; --surface:#171C25; --ink:#E5E9F0; --muted:#9AA3B2; --rule:#2B3342; --rule-strong:#475165;
-  --accent:#93A9FF; --accent-soft:#1E2742; --head:#1C2230;
-  --bad:#FF8A80; --bad-soft:#3A1B1A; --warn:#F5B85C; --warn-soft:#3A2A12; --ok:#6FD8A2; --ok-soft:#13301F; color-scheme:dark}}
-:root[data-theme="dark"]{
-  --bg:#0F131A; --surface:#171C25; --ink:#E5E9F0; --muted:#9AA3B2; --rule:#2B3342; --rule-strong:#475165;
-  --accent:#93A9FF; --accent-soft:#1E2742; --head:#1C2230;
-  --bad:#FF8A80; --bad-soft:#3A1B1A; --warn:#F5B85C; --warn-soft:#3A2A12; --ok:#6FD8A2; --ok-soft:#13301F; color-scheme:dark}
 *{box-sizing:border-box}
-body{background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:15px;line-height:1.45}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:14.5px;line-height:1.5;-webkit-font-smoothing:antialiased}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
 button,input,select,textarea{font:inherit;color:inherit}
 .num{font-family:var(--f-num);font-variant-numeric:tabular-nums;font-size:.86em}
-header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border-bottom:1px solid var(--rule);
-  padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
-  display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center}
-.brand{font-weight:700;font-size:17px;letter-spacing:.01em;display:flex;align-items:center;gap:8px}
-.brand i{width:22px;height:22px;border:2px solid var(--accent);border-radius:3px;display:inline-grid;place-items:center;font-style:normal;font-size:11px;color:var(--accent);font-family:var(--f-num)}
-.workpick{display:flex;gap:8px;align-items:center;flex:1 1 320px;min-width:0}
-.workpick select{flex:1;min-width:0;padding:7px 10px;border:1px solid var(--rule-strong);border-radius:6px;background:var(--surface)}
-.btn{border:1px solid var(--rule-strong);background:var(--surface);border-radius:6px;padding:7px 12px;cursor:pointer;white-space:nowrap}
-.btn:hover{border-color:var(--accent);color:var(--accent)}
+header.top{position:relative;z-index:6;background:var(--surface);border-top:4px solid var(--accent);border-bottom:1px solid var(--rule);
+  padding-block:12px;padding-left:max(24px,env(safe-area-inset-left,0px));padding-right:max(24px,env(safe-area-inset-right,0px));
+  display:flex;flex-wrap:wrap;gap:10px 24px;align-items:center}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.brand i{width:38px;height:38px;border-radius:8px;background:var(--accent);color:#fff;display:inline-grid;place-items:center;font-style:normal;font-size:12px;font-weight:700;letter-spacing:.02em;flex:none}
+.brand b{display:block;font-size:17px;font-weight:700;letter-spacing:-.01em;line-height:1.2;color:var(--accent-2)}
+.brand small{display:block;font-size:12px;color:var(--muted);font-weight:500}
+.workpick{display:flex;gap:8px;align-items:center;flex:1 1 360px;min-width:0}
+.workpick select{flex:1;min-width:0;padding:8px 12px;border:1px solid var(--rule-strong);border-radius:8px;background:var(--surface);font-weight:500}
+.btn{border:1px solid var(--rule-strong);background:var(--surface);border-radius:8px;padding:7px 14px;cursor:pointer;white-space:nowrap;font-weight:500;box-shadow:0 1px 2px rgba(16,24,40,.04);transition:background .12s,border-color .12s,color .12s}
+.btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--surface);font-weight:600}
-.btn.primary:hover{color:var(--surface);filter:brightness(1.08)}
+.btn.primary:hover{color:#fff;background:var(--accent-2);border-color:var(--accent-2)}
 .btn.danger{color:var(--bad);border-color:var(--bad)}
 .btn.small{padding:3px 9px;font-size:13px}
 .btn:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible,.navitem:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .sync{font-size:13px;color:var(--muted);display:flex;gap:8px;align-items:center}
-.app{display:grid;grid-template-columns:250px minmax(0,1fr);gap:20px;padding-block:18px 40px;
+nav.shelf{position:sticky;top:0;z-index:5;background:var(--surface);border-bottom:1px solid var(--rule);box-shadow:var(--shadow);
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
-nav.shelf{display:flex;flex-direction:column;gap:14px;align-self:start;position:sticky;top:76px}
-.shelf h4{margin:0 0 4px;font-size:11.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:600}
-.navitem{display:flex;justify-content:space-between;gap:8px;align-items:center;width:100%;text-align:left;border:0;background:none;padding:5px 9px;border-radius:5px;cursor:pointer;color:var(--ink)}
-.navitem:hover{background:var(--accent-soft)}
-.navitem.on{background:var(--accent-soft);color:var(--accent);font-weight:600;box-shadow:inset 3px 0 0 var(--accent)}
-.navitem .cnt{font-family:var(--f-num);font-size:12px;color:var(--muted)}
-.shelf .mobsel{display:none;width:100%;padding:9px 10px;border:1px solid var(--rule-strong);border-radius:6px;background:var(--surface);font-weight:600}
-.navitem .dot{width:7px;height:7px;border-radius:50%;background:var(--bad);display:inline-block;margin-left:4px}
-main{min-width:0;display:flex;flex-direction:column;gap:16px}
-.sheethead{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:flex-end;justify-content:space-between}
-.sheethead h2{margin:0;font-size:22px;line-height:1.25;text-wrap:balance}
+.navbar{display:flex;align-items:stretch;gap:2px;flex-wrap:wrap;max-width:1500px;margin:0 auto}
+.tab{border:0;background:none;padding:12px 14px;cursor:pointer;color:var(--ink);font-weight:500;font-size:14px;display:flex;align-items:center;gap:6px;border-bottom:2px solid transparent;white-space:nowrap}
+.tab:hover{color:var(--accent);background:var(--accent-soft)}
+.tab.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.tab .car{font-size:9px;opacity:.55}
+.tab .cnt{font-family:var(--f-num);font-size:11px;color:var(--muted);background:var(--head);border-radius:10px;padding:0 7px}
+.navbar .spacer{flex:1}
+.dd{position:relative;display:flex}
+.dd .menu{display:none;position:absolute;top:100%;left:0;min-width:340px;background:var(--surface);border:1px solid var(--rule);border-radius:10px;box-shadow:0 12px 32px rgba(16,24,40,.14);padding:6px;z-index:20}
+.dd.open .menu{display:block}
+@media (hover:hover){.dd:hover .menu{display:block}}
+.menu h4{margin:6px 10px 4px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+.navitem{display:flex;justify-content:space-between;gap:12px;align-items:center;width:100%;text-align:left;border:0;background:none;padding:8px 10px;border-radius:6px;cursor:pointer;color:var(--ink);font-size:14px}
+.navitem:hover{background:var(--accent-soft);color:var(--accent)}
+.navitem.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.navitem .cnt{font-family:var(--f-num);font-size:11.5px;color:var(--muted);background:var(--head);border-radius:10px;padding:0 7px;min-width:24px;text-align:center}
+.shelf .mobsel{display:none;width:100%;margin:10px 0;padding:10px 12px;border:1px solid var(--rule-strong);border-radius:8px;background:var(--surface);font-weight:600}
+.navitem .dot,.tab .dot{width:7px;height:7px;border-radius:50%;background:var(--bad);display:inline-block;margin-left:4px}
+.app{max-width:1500px;margin:0 auto;padding-block:24px 48px;padding-left:max(24px,env(safe-area-inset-left,0px));padding-right:max(24px,env(safe-area-inset-right,0px))}
+main{min-width:0;display:flex;flex-direction:column;gap:18px}
+.sheethead{display:flex;flex-wrap:wrap;gap:12px 16px;align-items:flex-end;justify-content:space-between;padding-bottom:14px;border-bottom:1px solid var(--rule)}
+.sheethead h2{margin:0;font-size:22px;line-height:1.3;text-wrap:balance;font-weight:700;color:var(--accent-2);letter-spacing:-.01em}
 .sheethead .sub{color:var(--muted);font-size:13.5px}
 .actions{display:flex;gap:8px;flex-wrap:wrap}
-.banner{background:var(--warn-soft);color:var(--ink);border:1px solid var(--warn);border-radius:6px;padding:9px 12px;font-size:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.banner{background:var(--warn-soft);color:var(--ink);border:1px solid #F3D19C;border-left:4px solid var(--warn);border-radius:8px;padding:9px 12px;font-size:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
 .note{color:var(--muted);font-size:13.5px}
-.tablewrap{overflow-x:auto;background:var(--surface);border:1px solid var(--rule-strong);border-radius:4px}
+.tablewrap{overflow-x:auto;background:var(--surface);border:1px solid var(--rule);border-radius:10px;box-shadow:var(--shadow)}
 table.reg{border-collapse:collapse;width:100%;font-size:13.5px}
-table.reg th,table.reg td{border:1px solid var(--rule);padding:5px 7px;vertical-align:top}
-table.reg thead th{background:var(--head);font-weight:600;font-size:12.5px;line-height:1.3;text-align:center;vertical-align:middle}
+table.reg th,table.reg td{border:1px solid var(--rule);padding:6px 8px;vertical-align:top}
+table.reg thead th{background:var(--head);font-weight:600;font-size:12.5px;line-height:1.35;text-align:center;vertical-align:middle;color:#374151}
+table.reg tbody tr:nth-child(even) td{background:#FAFBFD}
 table.reg thead tr.colno th{font-family:var(--f-num);font-weight:400;font-size:11px;color:var(--muted);padding:2px}
 table.reg tbody tr{cursor:pointer}
 table.reg tbody tr:hover td{background:var(--accent-soft)}
@@ -79,24 +87,24 @@ table.reg td.lbl{font-size:13px;min-width:190px}
 td.flagcell{min-width:110px}
 .empty{padding:28px 18px;text-align:center;color:var(--muted)}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
-.card{background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:12px 14px;display:flex;flex-direction:column;gap:4px}
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:16px 18px;display:flex;flex-direction:column;gap:4px;box-shadow:var(--shadow);border-left:3px solid var(--accent)}
 .card .k{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
-.card .v{font-size:22px;font-weight:600;font-family:var(--f-num)}
-.list{background:var(--surface);border:1px solid var(--rule);border-radius:6px}
-.list .li{display:flex;justify-content:space-between;gap:10px;padding:8px 12px;border-top:1px solid var(--rule);flex-wrap:wrap;align-items:center}
+.card .v{font-size:24px;font-weight:600;font-family:var(--f-num);color:var(--accent-2)}
+.list{background:var(--surface);border:1px solid var(--rule);border-radius:10px;box-shadow:var(--shadow);overflow:hidden}
+.list .li{display:flex;justify-content:space-between;gap:10px;padding:10px 16px;border-top:1px solid var(--rule);flex-wrap:wrap;align-items:center}
 .list .li:first-child{border-top:0}
-.list h3{margin:0;padding:10px 12px;font-size:15px;border-bottom:1px solid var(--rule)}
-dialog{border:1px solid var(--rule-strong);border-radius:8px;padding:0;background:var(--surface);color:var(--ink);width:min(760px,calc(100vw - 24px));max-height:calc(100vh - 40px)}
+.list h3{margin:0;padding:12px 16px;font-size:15px;border-bottom:1px solid var(--rule);background:var(--head);color:var(--accent-2)}
+dialog{border:1px solid var(--rule);border-radius:12px;box-shadow:0 24px 48px rgba(16,24,40,.18);padding:0;background:var(--surface);color:var(--ink);width:min(760px,calc(100vw - 24px));max-height:calc(100vh - 40px)}
 dialog::backdrop{background:rgba(10,15,25,.45)}
 .dlg{display:flex;flex-direction:column;max-height:calc(100vh - 42px)}
-.dlg header{padding:12px 16px;border-bottom:1px solid var(--rule);display:flex;justify-content:space-between;gap:10px;align-items:center}
-.dlg header h3{margin:0;font-size:16px}
+.dlg header{padding:14px 20px;border-bottom:1px solid var(--rule);background:var(--head);display:flex;justify-content:space-between;gap:10px;align-items:center}
+.dlg header h3{margin:0;font-size:16px;color:var(--accent-2)}
 .dlg .body{padding:14px 16px;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px 14px}
 .dlg footer{padding:10px 16px;border-top:1px solid var(--rule);display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap}
 .fld{display:flex;flex-direction:column;gap:3px;min-width:0}
 .fld.wide{grid-column:1/-1}
 .fld label{font-size:12.5px;color:var(--muted);line-height:1.3}
-.fld input,.fld select,.fld textarea{padding:7px 9px;border:1px solid var(--rule-strong);border-radius:5px;background:var(--surface);width:100%}
+.fld input,.fld select,.fld textarea{padding:8px 10px;border:1px solid var(--rule-strong);border-radius:7px;background:var(--surface);width:100%}
 .fld .calcv{padding:7px 9px;border:1px dashed var(--rule-strong);border-radius:5px;color:var(--accent);font-family:var(--f-num);font-size:13px;min-height:36px}
 .offrow{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
 .grpttl{grid-column:1/-1;font-weight:600;font-size:13px;border-bottom:1px solid var(--rule);padding-bottom:3px;margin-top:4px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
@@ -106,7 +114,7 @@ dialog::backdrop{background:rgba(10,15,25,.45)}
 #gate[hidden]{display:none}
 .gcard{background:var(--surface);border:1px solid var(--rule-strong);border-radius:10px;padding:26px 24px;max-width:420px;width:100%;display:flex;flex-direction:column;gap:14px}
 .gbody{display:flex;flex-direction:column;gap:14px;align-items:flex-start}
-.chatlog{background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:12px;min-height:280px;max-height:62vh;overflow:auto;display:flex;flex-direction:column;gap:10px}
+.chatlog{background:var(--surface);border:1px solid var(--rule);border-radius:10px;box-shadow:var(--shadow);padding:12px;min-height:280px;max-height:62vh;overflow:auto;display:flex;flex-direction:column;gap:10px}
 .msg{display:flex}.msg.user{justify-content:flex-end}
 .msg .bub{max-width:min(720px,92%);padding:9px 12px;border-radius:10px;background:var(--head);min-width:0;overflow-wrap:anywhere}
 .msg.user .bub{background:var(--accent-soft)}
@@ -116,7 +124,7 @@ table.kv{border-collapse:collapse;margin:6px 0}table.kv td{padding:3px 10px 3px 
 .crow select{padding:7px 9px;border:1px solid var(--rule-strong);border-radius:6px;background:var(--surface)}
 .btn[disabled]{opacity:.5;cursor:not-allowed}
 .mbpages{display:flex;flex-direction:column;gap:18px}
-.mbsheet{background:var(--surface);border:1px solid var(--rule-strong);border-radius:3px;padding:18px 20px;font-size:13px;min-width:0}
+.mbsheet{background:var(--surface);border:1px solid var(--rule);border-radius:6px;box-shadow:var(--shadow);padding:18px 20px;font-size:13px;min-width:0}
 .mbsheet .tablewrap{border:0}
 .mbtop{display:flex;justify-content:space-between}.mbtop .r,.mbsign .r{text-align:right}
 .mbt,.mbt2{text-align:center;font-weight:700;margin:6px 0}.mbt2{text-decoration:underline}
@@ -138,10 +146,11 @@ table.cvt{border-collapse:collapse;margin-top:16px}table.cvt td{padding:12px 6px
 table.cvg{border-collapse:collapse;width:100%;font-size:12px}table.cvg th,table.cvg td{border:1px solid var(--ink);padding:5px;vertical-align:top}
 table.ln td{padding:2px}table.ln input,table.ln select{padding:4px 5px;border:1px solid var(--rule-strong);border-radius:4px;background:var(--surface);width:100%;min-width:56px}
 @media (max-width:860px){
-  .app{grid-template-columns:minmax(0,1fr)}
-  nav.shelf{position:static}
-  .shelf section{display:none}
+  .navbar{display:none}
   .shelf .mobsel{display:block}
+  .app{padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:max(14px,env(safe-area-inset-right,0px));padding-top:16px}
+  header.top{padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:max(14px,env(safe-area-inset-right,0px))}
+  .brand small{display:none}
   .workpick{flex-wrap:wrap}.workpick select{flex:1 1 100%}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -159,7 +168,7 @@ table.ln td{padding:2px}table.ln input,table.ln select{padding:4px 5px;border:1p
   .pg .absit{font-size:10px;margin:3px 0;page-break-inside:avoid}.pg table.absq td{padding:0 8px;font-size:10px}.pg .mbsign{margin-top:14px;font-size:10.5px}
   body{background:#fff;color:#000;font-size:11px}
   body::before{display:none}
-  header.top,.app,dialog,.toast{display:none!important}
+  header.top,nav.shelf,.app,dialog,.toast{display:none!important}
   #printArea{display:block}
   .pg{page-break-after:always;padding:6mm 4mm}
   .pg:last-child{page-break-after:auto}
@@ -182,7 +191,7 @@ table.ln td{padding:2px}table.ln input,table.ln select{padding:4px 5px;border:1p
 </style>
 
 <header class="top">
-  <div class="brand"><i>R&amp;B</i> Site Registers</div>
+  <div class="brand"><i>R&amp;B</i><span><b>Site Registers &amp; MB</b><small>Roads &amp; Buildings Sub Division, Dahod</small></span></div>
   <div class="workpick">
     <select id="workSel" aria-label="Kaam chuno"></select>
     <button class="btn" id="workEdit">Kaam ki vigat</button>
@@ -191,8 +200,8 @@ table.ln td{padding:2px}table.ln input,table.ln select{padding:4px 5px;border:1p
   <div class="sync" id="syncBox"></div>
 </header>
 
+<nav class="shelf" id="shelf" aria-label="Registers"></nav>
 <div class="app">
-  <nav class="shelf" id="shelf" aria-label="Registers"></nav>
   <main id="main"></main>
 </div>
 
@@ -625,15 +634,21 @@ function renderWorks(){
 function renderShelf(){
   const groups={};myRegs().forEach(r=>(groups[r.grp]??=[]).push(r));
   const btn=(id,label,cnt,bad)=>`<button class="navitem ${view.reg===id?'on':''}" data-reg="${id}"><span>${esc(label)}${bad?'<span class="dot" title="dhyan do"></span>':''}</span>${cnt!=null?`<span class="cnt">${cnt}</span>`:''}</button>`;
+  const tab=(id,label)=>`<button class="tab ${view.reg===id?'on':''}" data-reg="${id}">${esc(label)}</button>`;
+  const dd=(label,ids,inner,bad)=>`<div class="dd"><button type="button" class="tab ddbtn ${ids.includes(view.reg)?'on':''}" aria-haspopup="true">${esc(label)}${bad?'<span class="dot"></span>':''}<span class="car">▼</span></button><div class="menu">${inner}</div></div>`;
   const w0=W();mbOf(w0);
-  let h=`<section><h4>Overview</h4>${btn('dash','Dashboard')}${btn('chat','Chatbot')}${isAdmin()?btn('admin','Admin'):''}</section><section><h4>Kaam</h4>${btn('works','Mere kaam',state.works.length)}${btn('items','Tender Items',w0.items.length)}</section>
-   <section><h4>MB</h4>${btn('mbCover','CMB Page 1–5')}${btn('mbRecord','For Record',w0.mb.entries.length)}${btn('mbAbstract','Abstract')}</section>`;
-  for(const g in groups){h+=`<section><h4>${g}</h4>${groups[g].map(r=>{const rows=compute(r);return btn(r.id,r.short,rows.length,rows.some(x=>x._flag?.[0]==='bad'))}).join('')}</section>`}
-  h+=`<section><button class="navitem" data-act="pickRegs"><span>⚙ Registers chuno</span><span class="cnt">${myRegs().length}/${REGS.length}</span></button></section>`;
+  let h=`<div class="navbar">${tab('dash','Dashboard')}${tab('chat','Chatbot')}
+    ${dd('Kaam',['works','items'],btn('works','Mere kaam',state.works.length)+btn('items','Tender Items',w0.items.length))}
+    ${dd('MB',['mbCover','mbRecord','mbAbstract'],btn('mbCover','CMB Page 1–5')+btn('mbRecord','For Record',w0.mb.entries.length)+btn('mbAbstract','Abstract'))}`;
+  for(const g in groups){const rs=groups[g].map(r=>{const rows=compute(r);return {r,n:rows.length,bad:rows.some(x=>x._flag?.[0]==='bad')}});
+    h+=dd(g,groups[g].map(r=>r.id),`<h4>${esc(g)}</h4>`+rs.map(o=>btn(o.r.id,o.r.short,o.n,o.bad)).join(''),rs.some(o=>o.bad))}
+  h+=`<span class="spacer"></span><button class="tab" data-act="pickRegs" title="Is kaam ke registers chuno">⚙ Registers <span class="cnt">${myRegs().length}/${REGS.length}</span></button>${isAdmin()?tab('admin','Admin'):''}</div>`;
   const opt=(id,l)=>`<option value="${id}" ${view.reg===id?'selected':''}>${esc(l)}</option>`;
   h=`<select class="mobsel" id="mobSel" aria-label="Register chuno">${opt('dash','Dashboard')}${opt('chat','Chatbot')}${isAdmin()?opt('admin','Admin'):''}<optgroup label="Kaam / MB">${opt('works','Mere kaam')}${Object.entries(MBV).map(([k,v])=>opt(k,v)).join('')}</optgroup>${Object.keys(groups).map(g=>`<optgroup label="${g}">${groups[g].map(r=>opt(r.id,r.short)).join('')}</optgroup>`).join('')}<option value="__pick">⚙ Registers chuno…</option></select>`+h;
   $('#shelf').innerHTML=h;$('#mobSel').onchange=e=>{if(e.target.value==='__pick'){e.target.value=view.reg;return openRegPicker()}go(e.target.value)};
 }
+document.addEventListener('click',e=>{const t=e.target.closest('.ddbtn');document.querySelectorAll('.dd.open').forEach(d=>{if(!t||d!==t.parentElement)d.classList.remove('open')});if(t)t.parentElement.classList.toggle('open')});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.dd.open').forEach(d=>d.classList.remove('open'))});
 
 /* ===================== RENDER: DASHBOARD ===================== */
 function renderDash(){
@@ -1246,9 +1261,14 @@ function isoD(d){return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOS
 const isDateTxt=a=>typeof a==='string'&&/^\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}$/.test(a.trim());
 async function parseMBExcel(file){if(typeof ExcelJS==='undefined')throw new Error('Excel library load nahi hui (internet chahiye)');
   const wb=new ExcelJS.Workbook();await wb.xlsx.load(await file.arrayBuffer());
-  let ws=wb.worksheets.find(s=>/for\s*record/i.test(s.name));
-  if(!ws)ws=wb.worksheets.find(s=>{let f=false;s.eachRow({includeEmpty:false},r=>{r.eachCell(c=>{if(/MEASUREMENT\s+(SHEET\s+)?FOR\s+RECORD/i.test(String(xv(c)||'')))f=true})});return f});
-  if(!ws)throw new Error('Is file mein "For Record" (MB) sheet nahi mili');
+  /* sirf wo sheet jiske naam mein "MB" / "Measurement Book" ho; naam mein na ho to jiske andar "Measurement Book" likha ho. Baaki sheet ignore. */
+  const MBRX=/(^|[^a-z])m\.?\s?b([^a-z]|$)|measurement\s*book/i;
+  const info=wb.worksheets.filter(x=>x.state!=='hidden').map(x=>{let items=0,mbook=false;x.eachRow({includeEmpty:false},r=>{r.eachCell(c=>{const v=xv(c);if(typeof v!=='string')return;if(/^\s*Item\s*No\.?\s*\d+/i.test(v))items++;if(/measurement\s*book/i.test(v))mbook=true})});return {x,items,mbook,byName:MBRX.test(x.name)&&!/abstract|summary|bbs|schedule|boq/i.test(x.name)}});
+  const pick=a=>a.sort((p,q)=>q.items-p.items)[0];
+  const hit=pick(info.filter(i=>i.byName))||pick(info.filter(i=>i.mbook));
+  if(!hit)throw new Error('Is workbook mein MB / Measurement Book wali sheet nahi mili. Sheet ke naam mein "MB" likh do.');
+  if(!hit.items)throw new Error(`Sheet "${hit.x.name}" mili par usmein "Item No ..." wale block nahi mile`);
+  const ws=hit.x;
   const blocks=[];let cur=null,date=null,bill='',diaCol={7:8,8:10,9:12,10:16,11:20,12:25,13:32};
   ws.eachRow({includeEmpty:false},row=>{const a=xv(row.getCell(1)),b=xv(row.getCell(2));
     /* dia ka header (8mm 10mm ...) */
