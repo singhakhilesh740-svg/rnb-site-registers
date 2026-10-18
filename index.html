@@ -648,14 +648,14 @@ function renderShelf(){
   const tab=(id,label)=>`<button class="tab ${view.reg===id?'on':''}" data-reg="${id}">${esc(label)}</button>`;
   const dd=(label,ids,inner,bad)=>`<div class="dd"><button type="button" class="tab ddbtn ${ids.includes(view.reg)?'on':''}" aria-haspopup="true">${esc(label)}${bad?'<span class="dot"></span>':''}<span class="car">▼</span></button><div class="menu">${inner}</div></div>`;
   const w0=W();mbOf(w0);
-  let h=`<div class="navbar">${tab('dash','Dashboard')}${tab('chat','Chatbot')}
+  let h=`<div class="navbar">${tab('dash','Dashboard')}${tab('chat','Chatbot')}${tab('aavak','Aavak planning')}
     ${dd('Kaam',['works','items'],btn('works','Mere kaam',state.works.length)+btn('items','Tender Items',w0.items.length))}
     ${dd('MB',['mbCover','mbRecord','mbAbstract','mbup'],btn('mbup','Upload ki hui MB (Excel)',(w0.mbFiles||[]).length)+'<h4>App mein bani MB</h4>'+btn('mbCover','CMB Page 1–5')+btn('mbRecord','For Record',w0.mb.entries.length)+btn('mbAbstract','Abstract'))}`;
   for(const g in groups){const rs=groups[g].map(r=>{const rows=compute(r);return {r,n:rows.length,bad:rows.some(x=>x._flag?.[0]==='bad')}});
     h+=dd(g,groups[g].map(r=>r.id),`<h4>${esc(g)}</h4>`+rs.map(o=>btn(o.r.id,o.r.short,o.n,o.bad)).join(''),rs.some(o=>o.bad))}
   h+=`<span class="spacer"></span><button class="tab" data-act="pickRegs" title="Is kaam ke registers chuno">⚙ Registers <span class="cnt">${myRegs().length}/${REGS.length}</span></button>${isAdmin()?tab('admin','Admin'):''}</div>`;
   const opt=(id,l)=>`<option value="${id}" ${view.reg===id?'selected':''}>${esc(l)}</option>`;
-  h=`<select class="mobsel" id="mobSel" aria-label="Register chuno">${opt('dash','Dashboard')}${opt('chat','Chatbot')}${isAdmin()?opt('admin','Admin'):''}<optgroup label="Kaam / MB">${opt('works','Mere kaam')}${opt('mbup','Upload ki hui MB')}${Object.entries(MBV).map(([k,v])=>opt(k,v)).join('')}</optgroup>${Object.keys(groups).map(g=>`<optgroup label="${g}">${groups[g].map(r=>opt(r.id,r.short)).join('')}</optgroup>`).join('')}<option value="__pick">⚙ Registers chuno…</option></select>`+h;
+  h=`<select class="mobsel" id="mobSel" aria-label="Register chuno">${opt('dash','Dashboard')}${opt('chat','Chatbot')}${opt('aavak','Aavak planning')}${isAdmin()?opt('admin','Admin'):''}<optgroup label="Kaam / MB">${opt('works','Mere kaam')}${opt('mbup','Upload ki hui MB')}${Object.entries(MBV).map(([k,v])=>opt(k,v)).join('')}</optgroup>${Object.keys(groups).map(g=>`<optgroup label="${g}">${groups[g].map(r=>opt(r.id,r.short)).join('')}</optgroup>`).join('')}<option value="__pick">⚙ Registers chuno…</option></select>`+h;
   $('#shelf').innerHTML=h;$('#mobSel').onchange=e=>{if(e.target.value==='__pick'){e.target.value=view.reg;return openRegPicker()}go(e.target.value)};
 }
 document.addEventListener('click',e=>{const t=e.target.closest('.ddbtn');document.querySelectorAll('.dd.open').forEach(d=>{if(!t||d!==t.parentElement)d.classList.remove('open')});if(t)t.parentElement.classList.toggle('open')});
@@ -757,15 +757,15 @@ function renderReg(){
   const reg=REG[view.reg];const rows=compute(reg);
   $('#main').innerHTML=`<div class="sheethead"><div><h2>${esc(reg.title)}</h2><div class="sub">${esc(W().name)}</div></div>
    <div class="actions"><button class="btn primary" id="add">+ Nayi entry</button>${MBGEN[reg.id]?'<button class="btn" id="mbx">MB Excel se bharo</button>':''}${EMBED?'':'<button class="btn" id="prn">PDF</button><button class="btn" id="xls">Excel</button>'}</div></div>
-   ${reg.note?`<p class="note" style="margin:0">${esc(reg.note)}</p>`:''}
+   ${reg.note?`<p class="note" style="margin:0">${esc(reg.note)}</p>`:''}${needBanner(reg.id)}
    <div class="tablewrap">${tableHtml(reg,rows)}</div>
    <p class="note">Neeli sankhya apne aap ganit hoti hai. Kisi line par click karke badlo. Sahi wale khane print mein khaali aate hain.</p>`;
-  $('#add').onclick=()=>openForm(reg,null);$('#mbx')?.addEventListener('click',openMbImport);
+  $('#add').onclick=()=>openForm(reg,null);$('#mbx')?.addEventListener('click',openMbImport);$('#main').querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
   $('#prn')?.addEventListener('click',()=>printReg(reg));
   $('#xls')?.addEventListener('click',()=>exportReg(reg));
   document.querySelectorAll('#main tbody tr[data-id]').forEach(tr=>tr.onclick=()=>openForm(reg,rowsOf(reg.id).find(r=>r.id===tr.dataset.id)));
 }
-function render(){renderWorks();renderShelf();view.reg==='dash'?renderDash():view.reg==='chat'?renderChat():view.reg==='works'?renderWorksList():view.reg==='admin'?renderAdmin():view.reg==='mbup'?renderMbUp():MBV[view.reg]?renderMB(view.reg):renderReg()}
+function render(){renderWorks();renderShelf();view.reg==='dash'?renderDash():view.reg==='chat'?renderChat():view.reg==='works'?renderWorksList():view.reg==='admin'?renderAdmin():view.reg==='mbup'?renderMbUp():view.reg==='aavak'?renderAavak():MBV[view.reg]?renderMB(view.reg):renderReg()}
 function go(id){view.reg=id;try{localStorage.setItem(LS_KEY+'_view',id)}catch(e){}render();window.scrollTo(0,0)}
 
 /* ===================== FORM ===================== */
@@ -1304,8 +1304,8 @@ function planMB(blocks){return blocks.map((b,i)=>{const s=CEM_STD.find(x=>x.k.te
   const steel=/kg/i.test(b.unit)&&/steel|tmt|reinforce|\bbar/i.test(b.desc);
   const grade=cemOk&&!sqm?concGrade(b.desc):null;
   const kind=steel?'steel':grade?'conc':cemOk?'cem':'other';
-  return {i,kind,bill:b.bill||'',use:kind!=='other'&&!!b.date&&(!steel||!!b.dia),itemNo:b.itemNo,date:b.date,desc:b.desc,qty:b.total,unit:b.unit,page:b.page,dia:b.dia,grade,
-    name:steel?'Steel (TMT)':elemName(b.desc),per:cemOk?s.per:0,days:Math.max(1,Math.ceil(b.total/dayRate(b.desc,b.unit)))}})}
+  return {i,kind,bill:b.bill||'',use:kind!=='other'&&!!b.date&&(!steel||!!b.dia),itemNo:b.itemNo,date:b.date,desc:b.desc,qty:b.total,unit:b.unit,page:b.page,dia:b.dia,grade,lab:cemOk?s.lab:'',
+    name:steel?'Steel (TMT)':elemName(b.desc),per:cemOk?Math.round(mixOf(W(),s.lab).cement/50*1000)/1000:0,days:Math.max(1,Math.ceil(b.total/dayRate(b.desc,b.unit)))}})}
 const planCement=planMB;
 /* qty ko din mein baanto: [{d,q,f}] f = hissa (0-1) */
 function splitDays(p){const days=workDaysBefore(p.date,Math.max(1,+p.days||1));const n=days.length;let ql=p.qty;
@@ -1314,7 +1314,7 @@ const mbRef=p=>`MB ${p.date?fdate(p.date):''}${p.page?' '+p.page:''}`;
 function cementEntries(plan){const out=[];let c=Date.now();
   plan.filter(p=>p.use&&p.per>0&&p.date&&p.kind!=='steel').forEach(p=>{const bags=Math.round(p.qty*p.per);const sp=splitDays(p);let left=bags;
     sp.forEach((x,k)=>{const bg=k===sp.length-1?left:Math.round(bags/sp.length);left-=bg;
-      out.push({id:uid(),_c:c++,date:x.d,itemNo:p.itemNo,item:p.name,workQty:`${fmt(x.q,2)} ${p.unit}`,used:String(bg),remarks:`${mbRef(p)} se (std. ${p.per} bags/${/sq/i.test(p.unit)?'sqm':'cum'})`,src:'mbx'})})});
+      out.push({id:uid(),_c:c++,date:x.d,itemNo:p.itemNo,item:p.name,workQty:`${fmt(x.q,2)} ${p.unit}`,used:String(bg),remarks:`${mbRef(p)} se (${mixOf(W(),p.lab).src==='mix'?'mix design':'std.'} ${p.per} bags/${/sq/i.test(p.unit)?'sqm':'cum'})`,src:'mbx',mq:x.q,mk:p.lab})})});
   return out}
 function steelEntries(plan){const out=[];let c=Date.now();
   plan.filter(p=>p.use&&p.kind==='steel'&&p.dia).forEach(p=>{const sp=splitDays(p);const left={};Object.keys(p.dia).forEach(d=>left[d]=Math.round(p.dia[d])/1000);
@@ -1415,7 +1415,7 @@ function openMbFill(r){const plan=planMB(r.blocks);const on=Object.fromEntries(R
        if(ents.length&&g.id==='cement4'){ents.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);const op=num(gv('mbxOpen'));if(op!=null)ents[0].opening=String(op)}
        if(ents.length&&g.id==='steel2'){ents.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);const op=num(gv('mbxOpenS'));if(op!=null)ents[0].opening=String(op)}
        const keep=rowsOf(g.id).filter(e=>e.src!=='mbx');state.data[w.id][g.id]=[...keep,...ents];persist(g.id);tot+=ents.length;if(ents.length)msg.push(`${g.short}: ${ents.length}`)});
-     $('#dlg').close();go('dash');toast(`${tot} entries ${msg.length} register mein bhari`,6000)});
+     $('#dlg').close();go('aavak');toast(`${tot} entries ${msg.length} register mein bhari – ab dekho kis din tak kitna maal chahiye`,7000)});
   const sum=()=>{const u=plan.filter(p=>p.use);const bags=u.filter(p=>p.per&&p.kind!=='steel').reduce((a,p)=>a+Math.round(p.qty*p.per),0);const st=u.filter(p=>p.kind==='steel').reduce((a,p)=>a+p.qty,0);
     const pours=u.filter(p=>p.kind==='conc').reduce((a,p)=>a+Math.max(1,+p.days||1),0);
     $('#mbxSum').innerHTML=`Cement: <b>${bags} bags</b> (${fmt(bags*0.05,2)} MT) · Steel: <b>${fmt(st/1000,3)} MT</b> · Concrete ke din: <b>${pours}</b>`};sum();
@@ -1547,6 +1547,64 @@ function importMbEntries(w,meta,sheets){const mb=mbOf(w);const b=billFor(w,meta.
 function blocksFromEntries(w){const L=mbLayout(w);const bn=Object.fromEntries(mbOf(w).bills.map(b=>[b.id,b.name]));
   return L.entries.filter(e=>e.date).map(e=>{const c=e._calc;const it=itemOf(w,e);const blk={itemNo:String(e.itemNo),date:e.date,desc:it.desc||e.desc||'',total:c.qty,unit:c.unit||e.unit||'',page:'P.No.'+e._page,bill:bn[e.bill]||'',inherited:!!e.dateInherited};
     if(c.steel){blk.dia={};MBDIAS.forEach(d=>{if(c.wt[d])blk.dia[d]=c.wt[d]});blk.total=c.kg;blk.unit='Kg.'}return blk}).filter(b=>b.total)}
+/* ===================== AAVAK PLANNING: kis din tak kitna maal chahiye ===================== */
+/* per cum (ya sqm) – kg; int nos. Mix design daalo to wahi lagega, warna ye andaaz */
+const MIXDEF={'M25':{u:'cum',cement:420,sand:680,a20:700,a10:470},'M20':{u:'cum',cement:400,sand:700,a20:720,a10:480},
+ 'M15 / 1:2:4':{u:'cum',cement:320,sand:660,a20:790,a10:530},'PCC 1:3:6':{u:'cum',cement:220,sand:700,a40:1410},'PCC 1:4:8':{u:'cum',cement:170,sand:720,a40:1440},
+ 'Brick work CM 1:6':{u:'cum',cement:62.5,sand:400,brick:500},'Brick work CM 1:4':{u:'cum',cement:80,sand:390,brick:500},'Half brick CM 1:4':{u:'sqm',cement:8.5,sand:33,brick:55},
+ 'Plaster CM 1:4 (12 mm)':{u:'sqm',cement:5,sand:23},'Plaster CM 1:3':{u:'sqm',cement:6.5,sand:22}};
+const MATS=[['cement','Cement','kg'],['sand','Reti (sand)','kg'],['a20','Kapchi 20 mm','kg'],['a10','Kapchi 10 mm','kg'],['a40','Metal 40 mm','kg'],['water','Paani','L'],['brick','Int','nos']];
+function mixOf(w,k){const d=MIXDEF[k]||{};const m=w?.mix?.[k];return m?{...d,...Object.fromEntries(Object.entries(m).filter(([,v])=>v!==''&&v!=null)),src:'mix'}:{...d,src:'andaaz'}}
+function needTable(w=W()){const day={};const D=d=>day[d]??={cem:0,stl:{},sand:0,a20:0,a10:0,a40:0,brick:0,rc:0,rs:0,rsd:{}};
+  let cOpen=0,sOpen=0;const sdOpen={};
+  const c4=rowsOf('cement4',w).slice().sort((a,b)=>a.date<b.date?-1:1);
+  c4.forEach((r,i)=>{if(!r.date)return;const o=D(r.date);o.cem+=+r.used||0;o.rc+=+r.receipt||0;if(i===0&&num(r.opening)!=null)cOpen=+r.opening;
+    if(r.mk&&r.mq){const f=mixOf(w,r.mk);['sand','a20','a10','a40','brick'].forEach(k=>{if(f[k])o[k]+=r.mq*f[k]})}});
+  const s2=rowsOf('steel2',w).slice().sort((a,b)=>a.date<b.date?-1:1);
+  s2.forEach((r,i)=>{if(!r.date)return;const o=D(r.date);DIAS.forEach(d=>{const v=+r['d'+d]||0;if(v)o.stl[d]=(o.stl[d]||0)+v});o.rs+=+r.receipt||0;if(i===0&&num(r.opening)!=null)sOpen=+r.opening});
+  rowsOf('steel1',w).forEach((r,i)=>{if(r.date)DIAS.forEach(d=>{const v=+r['r'+d]||0;if(v)D(r.date).rsd[d]=(D(r.date).rsd[d]||0)+v});DIAS.forEach(d=>{if(i===0&&+r['op'+d])sdOpen[d]=+r['op'+d]})});
+  const dates=Object.keys(day).sort();let C={cem:0,stl:0,sand:0,a20:0,a10:0,a40:0,brick:0,rc:cOpen,rs:sOpen};const rows=[];const firstShort={};
+  dates.forEach(d=>{const o=day[d];const st=Object.values(o.stl).reduce((a,v)=>a+v,0);
+    C.rc+=o.rc;C.rs+=o.rs;C.cem+=o.cem;C.stl+=st;['sand','a20','a10','a40','brick'].forEach(k=>C[k]+=o[k]);
+    const r={d,o,st,C:{...C}};if(C.cem>C.rc&&!firstShort.cem)firstShort.cem=d;if(C.stl>C.rs+1e-9&&!firstShort.stl)firstShort.stl=d;rows.push(r)});
+  const dia={};Object.values(day).forEach(o=>Object.entries(o.stl).forEach(([d,v])=>{(dia[d]??={need:0,rcv:sdOpen[d]||0}).need+=v}));Object.values(day).forEach(o=>Object.entries(o.rsd).forEach(([d,v])=>{(dia[d]??={need:0,rcv:sdOpen[d]||0}).rcv+=v}));
+  const keys=[...new Set(c4.map(r=>r.mk).filter(Boolean))];
+  return {rows,C,firstShort,dia,keys,hasMk:c4.some(r=>r.mk)}}
+const fT=kg=>fmt(kg/1000,2);
+function needBanner(regId){if(!['cement4','cement1','steel2','steel1'].includes(regId))return '';const N=needTable();if(!N.rows.length)return '';
+  const cem=/^cement/.test(regId);const need=cem?N.C.cem:N.C.stl,rcv=cem?N.C.rc:N.C.rs,short=need-rcv,u=cem?'bags':'MT',f=v=>cem?fmt(v,0):fmt(v,3);
+  const last=N.rows[N.rows.length-1].d;const fs=cem?N.firstShort.cem:N.firstShort.stl;
+  return `<div class="banner" style="${short>1e-6?'':'background:var(--ok-soft);border-color:#A6DCC0;border-left-color:var(--ok)'}"><span>${fdate(last)} tak kul <b>${f(need)} ${u}</b> chahiye · aavak (khulti silak sahit) <b>${f(rcv)} ${u}</b>${short>1e-6?` · <b style="color:var(--bad)">${f(short)} ${u} kam</b> – ${fdate(fs)} se kami shuru, utni aavak jodo`:' · poora hai ✓'}</span><button class="btn small" data-go="aavak">Aavak planning dekho</button></div>`}
+function renderAavak(){const w=W();const N=needTable(w);const keys=[...new Set([...N.keys,...Object.keys(w.mix||{})])];
+  const fsC=N.firstShort.cem,fsS=N.firstShort.stl;const C=N.C;
+  const card=(k,v,sub,bad)=>`<div class="card" ${bad?'style="border-left-color:var(--bad)"':''}><div class="k">${k}</div><div class="v">${v}</div><div class="note">${sub}</div></div>`;
+  $('#main').innerHTML=`<div class="sheethead"><div><h2>Aavak planning – kis din tak kitna maal</h2><div class="sub">${esc(w.name)}</div></div>
+    <div class="actions"><button class="btn" id="avPdf">PDF</button><button class="btn" id="avXls">Excel</button></div></div>
+    <p class="note" style="margin:0">Cement aur steel ki zaroorat Cement Patrak-4 aur Steel Patrak-2 ke roz ke vapras se; kapchi, reti aur int us din ke kaam ke jaththe × mix design (ya andaaz) se. Aavak = Patrak-4 / Patrak-2 ki "nayi aavak" + khulti silak.${N.hasMk?'':' <b>Kapchi / reti ke liye MB se registers dobara bharo</b> (purani entries mein kaam ka jaththo nahi hai).'}</p>
+    ${N.rows.length?`<div class="cards">
+     ${card('Cement',`${fmt(C.cem,0)} bags`,`${fT(C.cem*50)} MT · aavak ${fmt(C.rc,0)} bags${C.cem>C.rc?` · <b style="color:var(--bad)">${fmt(C.cem-C.rc,0)} kam</b> (${fdate(fsC)} se)`:' ✓'}`,C.cem>C.rc)}
+     ${card('Steel',`${fmt(C.stl,3)} MT`,`aavak ${fmt(C.rs,3)} MT${C.stl>C.rs+1e-9?` · <b style="color:var(--bad)">${fmt(C.stl-C.rs,3)} kam</b> (${fdate(fsS)} se)`:' ✓'}<br>${Object.entries(N.dia).map(([d,o])=>`${d}ø ${fmt(o.need,3)}${o.rcv?` / ${fmt(o.rcv,3)}`:''}`).join(' · ')}`,C.stl>C.rs+1e-9)}
+     ${card('Kapchi 20 / 10 mm',`${fT(C.a20)} / ${fT(C.a10)} MT`,`≈ ${fmt(C.a20/1500,1)} / ${fmt(C.a10/1500,1)} cum${C.a40?` · 40 mm ${fT(C.a40)} MT`:''}`)}
+     ${card('Reti (sand)',`${fT(C.sand)} MT`,`≈ ${fmt(C.sand/1550,1)} cum`)}
+     ${card('Int',`${fmt(C.brick,0)} nos`,'chinai ke hisaab se')}</div>
+    <div class="list"><h3>Mix design (per cum; chinai / plaster per cum ya sqm) – kg</h3><div style="padding:12px 16px">
+     <p class="note" style="margin-top:0">Mix design report chatbot mein "Mix design" chun ke upload karo, ya yahan khud bharo. Khaali khana = andaaz (halka). Cement ka aankda Patrak-4 ke bags bhi badal deta hai (registers dobara bharne par).</p>
+     <div class="tablewrap"><table class="reg ln"><thead><tr><th>Kaam / grade</th><th>Unit</th>${MATS.map(m=>`<th>${m[1]} (${m[2]})</th>`).join('')}<th>Lab report / ref</th><th></th></tr></thead><tbody>
+     ${keys.map(k=>{const f=mixOf(w,k);const m=w.mix?.[k]||{};return `<tr data-mk="${esc(k)}"><td><b>${esc(k)}</b></td><td>${MIXDEF[k]?.u||'cum'}</td>${MATS.map(([mk])=>`<td><input data-mf="${mk}" value="${m[mk]??''}" placeholder="${f[mk]??''}" inputmode="decimal"></td>`).join('')}<td><input data-mf="ref" value="${esc(m.ref||'')}"></td><td><span class="chip ${f.src==='mix'?'ok':'warn'}">${f.src==='mix'?'mix design':'andaaz'}</span></td></tr>`}).join('')}
+     </tbody></table></div><div class="actions" style="margin-top:8px"><button class="btn primary small" id="mixSave">Mix design save karo</button><span class="note">Save ke baad "MB se registers bharo" dobara chalao taaki Patrak-4 bhi isi se bane.</span></div></div></div>
+    <div class="tablewrap"><table class="reg"><thead><tr><th rowspan="2">Tarikh</th><th colspan="4">Cement (bags)</th><th colspan="4">Steel (MT)</th><th colspan="3">Kul chahiye is din tak (MT)</th><th rowspan="2">Int kul</th></tr>
+     <tr><th>Us din</th><th>Kul</th><th>Aavak kul</th><th>Kam</th><th>Us din</th><th>Kul</th><th>Aavak kul</th><th>Kam</th><th>20 mm</th><th>10 mm</th><th>Reti</th></tr></thead><tbody>
+     ${N.rows.map(r=>{const kc=r.C.cem-r.C.rc,ks=r.C.stl-r.C.rs;return `<tr><td class="d">${fdate(r.d)}</td><td class="n">${r.o.cem?fmt(r.o.cem,0):''}</td><td class="n">${fmt(r.C.cem,0)}</td><td class="n">${fmt(r.C.rc,0)}</td><td class="n" style="${kc>0?'color:var(--bad);font-weight:700':''}">${kc>0?fmt(kc,0):'–'}</td>
+       <td class="n">${r.st?fmt(r.st,3):''}</td><td class="n">${fmt(r.C.stl,3)}</td><td class="n">${fmt(r.C.rs,3)}</td><td class="n" style="${ks>1e-9?'color:var(--bad);font-weight:700':''}">${ks>1e-9?fmt(ks,3):'–'}</td>
+       <td class="n">${fT(r.C.a20)}</td><td class="n">${fT(r.C.a10)}</td><td class="n">${fT(r.C.sand)}</td><td class="n">${fmt(r.C.brick,0)}</td></tr>`}).join('')}
+    </tbody></table></div>`:'<div class="empty">Abhi Cement Patrak-4 / Steel Patrak-2 mein vapras nahi hai. MB upload karke registers bharo.</div>'}`;
+  $('#mixSave')?.addEventListener('click',()=>{w.mix??={};document.querySelectorAll('[data-mk]').forEach(tr=>{const k=tr.dataset.mk;const o={};tr.querySelectorAll('[data-mf]').forEach(i=>{const v=i.value.trim();if(v!=='')o[i.dataset.mf]=i.dataset.mf==='ref'?v:num(v)});
+    if(Object.keys(o).filter(x=>x!=='ref').length)w.mix[k]=o;else delete w.mix[k]});persist();render();toast('Mix design save')});
+  const tbl=()=>$('#main').querySelectorAll('.tablewrap')[1]?.outerHTML||'';
+  $('#avPdf').onclick=()=>printNow(`<div class="pg"><div class="ph"><h2>Aavak planning – ${esc(w.name)}</h2></div>${tbl().replace(/class="reg"/,'class="p"')}</div>`,`Aavak planning - ${w.name}`);
+  $('#avXls').onclick=async()=>{const wb=new ExcelJS.Workbook();const ws=wb.addWorksheet('Aavak planning');ws.addRow(['Tarikh','Cement us din (bags)','Cement kul','Cement aavak kul','Cement kam','Steel us din (MT)','Steel kul','Steel aavak kul','Steel kam','20mm kul (MT)','10mm kul (MT)','40mm kul (MT)','Reti kul (MT)','Int kul']).font={bold:true};
+    N.rows.forEach(r=>ws.addRow([fdate(r.d),r.o.cem,r.C.cem,r.C.rc,Math.max(0,r.C.cem-r.C.rc),+r.st.toFixed(3),+r.C.stl.toFixed(3),+r.C.rs.toFixed(3),+Math.max(0,r.C.stl-r.C.rs).toFixed(3),+(r.C.a20/1000).toFixed(2),+(r.C.a10/1000).toFixed(2),+(r.C.a40/1000).toFixed(2),+(r.C.sand/1000).toFixed(2),Math.round(r.C.brick)]));
+    ws.columns.forEach(c=>c.width=14);await xlSave(wb,`Aavak planning - ${w.name}`)}}
 function openRegPicker(){const w=W();const on=Object.fromEntries(REGS.map(g=>[g.id,regOn(g.id,w)]));const grp=[...new Set(REGS.map(g=>g.grp))];
   openCustom('Is kaam ke registers',`<div class="fld wide note"><div>Jo register is kaam mein nahi chahiye uska tick hata do. Wo menu, Dashboard, "Sab register Excel" aur MB upload se hat jayega. Uski purani entries mitti nahi – tick wapas lagao to sab wapas.</div></div>
     <div class="fld wide"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button type="button" class="btn small" id="rpAll">Sab</button><button type="button" class="btn small" id="rpNone">Koi nahi</button></div>
@@ -1640,16 +1698,17 @@ async function renderAdmin(){
 }
 
 /* ===================== CHATBOT ===================== */
-const DOCT={ask:'Sirf sawaal',mb:'MB Excel → sab register',ts:'TS letter',tender:'Tender approval letter',wo:'Work order',boq:'BOQ / Schedule-B',estimate:'Estimate'};
+const DOCT={ask:'Sirf sawaal',mb:'MB Excel → sab register',mix:'Mix design report',ts:'TS letter',tender:'Tender approval letter',wo:'Work order',boq:'BOQ / Schedule-B',estimate:'Estimate'};
 const chat={msgs:[],busy:false};
 const SYS_X='You read Gujarat Roads & Buildings (PWD) government documents (English or Gujarati). Reply with ONLY one valid JSON object and nothing else. Use null when a value is not in the document. Dates as YYYY-MM-DD. Amounts as plain text exactly as written (e.g. "4,01,55,180.69").';
 const SCHEMA={
  ts:'{"nameOfWork":"","tsLetterNo":"letter number","tsDate":"YYYY-MM-DD","tsAmount":"","estimateCost":""}',
  tender:'{"nameOfWork":"","tenderAmount":"","tenderPercent":"e.g. 5.43% Above / 2.10% Below","approvalLetterNo":"","approvalDate":"YYYY-MM-DD","agency":""}',
  wo:'{"nameOfWork":"","agency":"","agreementNo":"","workOrderNo":"","workOrderDate":"YYYY-MM-DD","startDate":"YYYY-MM-DD","timeLimit":"e.g. 08 (Eight) Months","stipulatedDate":"YYYY-MM-DD","tenderAmount":"","tenderPercent":""}',
+ mix:'{"mixes":[{"grade":"M25 / M20 / M15 ...","cement":0,"flyash":0,"sand":0,"a20":0,"a10":0,"water":0,"admixture":0,"wc":0,"labRef":"lab report no. / date"}]}',
  boq:'{"items":[{"no":"item number as printed","qty":0,"unit":"Cum/Sq.m./Kg./Rmt/Nos","rate":0,"desc":"full item description"}]}',
  estimate:'{"items":[{"no":"item number as printed","sor":"SOR item code if any","qty":0,"unit":"","rate":0,"amount":0,"desc":"full item description"}]}'};
-const XPROMPT={ts:'Ye Technical Sanction (TS) letter hai. Isse ye nikaalo:',tender:'Ye tender approval / acceptance letter hai. Isse ye nikaalo:',wo:'Ye work order letter hai. Isse ye nikaalo (time limit jaise likha hai waise, stipulated date agar likhi ho):',
+const XPROMPT={mix:'Ye concrete mix design report hai. Har grade ke liye 1 cum concrete mein SSD/final (field correction ke baad agar diya ho) quantity kg mein nikaalo: cement, fly ash, fine aggregate (sand) = sand, 20 mm coarse aggregate = a20, 10 mm = a10, water litre, admixture kg, w/c ratio:',ts:'Ye Technical Sanction (TS) letter hai. Isse ye nikaalo:',tender:'Ye tender approval / acceptance letter hai. Isse ye nikaalo:',wo:'Ye work order letter hai. Isse ye nikaalo (time limit jaise likha hai waise, stipulated date agar likhi ho):',
  boq:'Ye BOQ / Schedule-B (tender items) hai. Har item ko bina chhode is JSON mein do, item no. bilkul waise jaise chhapa hai:',estimate:'Ye estimate hai. Har item (abstract of cost) is JSON mein do:'};
 const b64=buf=>{let s='';const u=new Uint8Array(buf);for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s)};
 async function fileToBlocks(f){const buf=await f.arrayBuffer();
@@ -1714,7 +1773,9 @@ async function sendChat(){const w=W();const type=$('#c_type').value;const fs=cha
     if(type!=='ask'){const blocks=await fileToBlocks(f);
       const t=await callAI({system:SYS_X,max:type==='boq'||type==='estimate'?16000:2000,messages:[{role:'user',content:[...blocks,{type:'text',text:`${XPROMPT[type]}\n${SCHEMA[type]}${text?'\nNote: '+text:''}`}]}]});
       const d=parseJSON(t);const i=chat.msgs.length;
-      if(type==='boq'||type==='estimate'){const items=(d.items||[]).filter(x=>x&&x.desc);
+      if(type==='mix'){const mx=(d.mixes||[]).filter(x=>x&&x.grade);
+        chat.msgs.push({role:'bot',type,data:{mixes:mx},html:`<b>Mix design mila</b> (per cum, kg):<div class="tablewrap" style="margin:6px 0"><table class="reg"><thead><tr><th>Grade</th><th>Cement</th><th>Fly ash</th><th>Reti</th><th>20 mm</th><th>10 mm</th><th>Paani</th><th>Admix</th><th>w/c</th></tr></thead><tbody>${mx.map(x=>`<tr><td>${esc(x.grade)}</td>${['cement','flyash','sand','a20','a10','water','admixture','wc'].map(k=>`<td class="n">${x[k]??''}</td>`).join('')}</tr>`).join('')}</tbody></table></div><button class="btn primary small" data-apply="${i}">Aavak planning mein save karo</button>`})}
+      else if(type==='boq'||type==='estimate'){const items=(d.items||[]).filter(x=>x&&x.desc);
         chat.msgs.push({role:'bot',type,data:{items},html:`<b>${items.length} item mile</b> (${DOCT[type]}). Check karo:<div class="tablewrap" style="margin:6px 0"><table class="reg"><thead><tr><th>No.</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Item</th></tr></thead><tbody>${items.slice(0,40).map(x=>`<tr><td>${esc(x.no)}</td><td class="n">${x.qty??''}</td><td>${esc(x.unit||'')}</td><td class="n">${x.rate??''}</td><td>${esc((x.desc||'').slice(0,90))}</td></tr>`).join('')}${items.length>40?`<tr><td colspan="5" class="note">…aur ${items.length-40}</td></tr>`:''}</tbody></table></div>
           <button class="btn primary small" data-apply="${i}">${type==='boq'?'Tender Items mein save karo':'Estimate items save karo'}</button>`})}
       else{const ch=applyFields(w,type,d);
@@ -1726,6 +1787,9 @@ async function sendChat(){const w=W();const type=$('#c_type').value;const fs=cha
   chat.busy=false;chat.files=[];renderChat();$('#c_text').value=''}
 function applyResult(i){const m=chat.msgs[i];const w=W();
   if(m.type==='mb')return openMbFillAll();
+  if(m.type==='mix'){w.mix??={};const map=g=>{const x=String(g).toUpperCase().replace(/\s/g,'');const n=/M-?(\d+)/.exec(x);return n?(+n[1]===15?'M15 / 1:2:4':'M'+n[1]):String(g)};
+    m.data.mixes.forEach(x=>{const k=map(x.grade);w.mix[k]={cement:num(x.cement),sand:num(x.sand),a20:num(x.a20),a10:num(x.a10),water:num(x.water),ref:x.labRef||''};Object.keys(w.mix[k]).forEach(z=>w.mix[k][z]==null&&delete w.mix[k][z])});
+    persist();m.html=m.html.replace(/<button[^>]*data-apply[^>]*>.*?<\/button>/,'<span class="chip ok">Save ho gaya</span>');renderChat();toast('Mix design save – Aavak planning dekho');return}
   if(m.type==='boq'){m.data.items.forEach(x=>{const o={id:uid(),no:String(x.no).trim(),qty:num(x.qty),unit:x.unit||'',rate:num(x.rate),desc:x.desc};const k=w.items.findIndex(y=>String(y.no)===o.no);if(k>=0){o.id=w.items[k].id;w.items[k]=o}else w.items.push(o)});
     w.items.sort((a,b)=>(parseFloat(a.no)||0)-(parseFloat(b.no)||0));toast(m.data.items.length+' items Tender Items mein save')}
   else if(m.type==='estimate'){w.estItems=m.data.items;toast(m.data.items.length+' estimate items save')}
@@ -1733,7 +1797,7 @@ function applyResult(i){const m=chat.msgs[i];const w=W();
   persist();m.html=m.html.replace(/<button[^>]*data-apply[^>]*>.*?<\/button>/,'<span class="chip ok">Save ho gaya</span>');renderChat()}
 
 /* ===================== BOOT ===================== */
-try{const v=localStorage.getItem(LS_KEY+'_view');if(v&&(v==='dash'||v==='chat'||v==='works'||v==='mbup'||REG[v]||MBV[v]))view.reg=v}catch(e){}
+try{const v=localStorage.getItem(LS_KEY+'_view');if(v&&(v==='dash'||v==='chat'||v==='works'||v==='mbup'||v==='aavak'||REG[v]||MBV[v]))view.reg=v}catch(e){}
 document.getElementById('shelf').addEventListener('click',e=>{if(e.target.closest('[data-act="pickRegs"]'))return openRegPicker();const b=e.target.closest('[data-reg]');if(b)go(b.dataset.reg)});
 render();initFirebase();
 if(!EMBED&&'serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
