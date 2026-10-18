@@ -177,6 +177,8 @@ table.ln td{padding:2px}table.ln input,table.ln select{padding:4px 5px;border:1p
 }
 .fld label.chk{display:flex;flex-direction:row;gap:8px;align-items:center;margin:2px 0;font-size:13.5px;color:var(--ink,inherit)}
 .fld label.chk input{width:auto;padding:0}
+.fld label.chk input[data-fq]{padding:4px 6px}
+.mbxg{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:4px 18px;margin-top:4px}
 </style>
 
 <header class="top">
@@ -433,7 +435,7 @@ const REGS=[
  compute(rows){return rows.map(r=>{const c={...r};const ws=SIEVES.map((_,i)=>num(r['w'+i]));const sum=ws.reduce((a,v)=>a+(v||0),0);
    const T=num(r.totalWt)||sum;c._T=T;let cum=0;SIEVES.forEach((_,i)=>{const w=ws[i];if(w!=null)cum+=w;c['cw'+i]=w!=null||cum?cum:null;c['cp'+i]=T&&c['cw'+i]!=null?cum/T*100:null;c['pp'+i]=c['cp'+i]!=null?100-c['cp'+i]:null});
    c._diff=num(r.totalWt)&&sum?sum-num(r.totalWt):null;c._g=gradeCheck(c);return c})},
- flag:r=>{if(r._diff&&r._diff/r._T>0.01)return['warn',`Ruka vajan kul se ${fmt(r._diff,0)} g zyada`];const g=r._g;if(!g||g.ok==null)return null;
+ flag:r=>{if(!SIEVES.some((_,i)=>num(r['w'+i])!=null))return null;if(r._diff&&r._diff/r._T>0.01)return['warn',`Ruka vajan kul se ${fmt(r._diff,0)} g zyada`];const g=r._g;if(!g||g.ok==null)return null;
   return g.ok?['ok',(g.auto?g.spec+' – ':'')+'IS 383 OK']:['bad',g.auto?'Kisi zone mein nahi':'Grading limit se bahar']}},
 
 /* ---- CONCRETE ---- */
@@ -522,6 +524,9 @@ const REGS=[
 REGS.forEach(r=>{let n=0;r.cols.forEach(c=>{if(!c.formOnly&&!['steelBlock','sieve'].includes(r.layout))c.no=++n})});
 const FILL_LABEL={cementP4:'Patrak-4 se bharo',steelP2:'Patrak-2 se bharo'};
 const REG=Object.fromEntries(REGS.map(r=>[r.id,r]));
+/* is kaam mein kaunse register chahiye (band kiye hue ki list; naye register apne aap chalu) */
+const regOn=(id,w=W())=>!(w?.regsOff||[]).includes(id);
+const myRegs=(w=W())=>REGS.filter(r=>regOn(r.id,w));
 
 /* ===================== STATE ===================== */
 let state=load();if(!state||state.works.every(w=>w.sample)&&!state.works.some(w=>w.mb))state=seed();
@@ -618,15 +623,16 @@ function renderWorks(){
   const s=$('#workSel');s.innerHTML=state.works.map(w=>`<option value="${w.id}" ${w.id===state.cur?'selected':''}>${esc(w.name||'(naam nahi)')}</option>`).join('');
 }
 function renderShelf(){
-  const groups={};REGS.forEach(r=>(groups[r.grp]??=[]).push(r));
+  const groups={};myRegs().forEach(r=>(groups[r.grp]??=[]).push(r));
   const btn=(id,label,cnt,bad)=>`<button class="navitem ${view.reg===id?'on':''}" data-reg="${id}"><span>${esc(label)}${bad?'<span class="dot" title="dhyan do"></span>':''}</span>${cnt!=null?`<span class="cnt">${cnt}</span>`:''}</button>`;
   const w0=W();mbOf(w0);
   let h=`<section><h4>Overview</h4>${btn('dash','Dashboard')}${btn('chat','Chatbot')}${isAdmin()?btn('admin','Admin'):''}</section><section><h4>Kaam</h4>${btn('works','Mere kaam',state.works.length)}${btn('items','Tender Items',w0.items.length)}</section>
    <section><h4>MB</h4>${btn('mbCover','CMB Page 1–5')}${btn('mbRecord','For Record',w0.mb.entries.length)}${btn('mbAbstract','Abstract')}</section>`;
   for(const g in groups){h+=`<section><h4>${g}</h4>${groups[g].map(r=>{const rows=compute(r);return btn(r.id,r.short,rows.length,rows.some(x=>x._flag?.[0]==='bad'))}).join('')}</section>`}
+  h+=`<section><button class="navitem" data-act="pickRegs"><span>⚙ Registers chuno</span><span class="cnt">${myRegs().length}/${REGS.length}</span></button></section>`;
   const opt=(id,l)=>`<option value="${id}" ${view.reg===id?'selected':''}>${esc(l)}</option>`;
-  h=`<select class="mobsel" id="mobSel" aria-label="Register chuno">${opt('dash','Dashboard')}${opt('chat','Chatbot')}${isAdmin()?opt('admin','Admin'):''}<optgroup label="Kaam / MB">${opt('works','Mere kaam')}${Object.entries(MBV).map(([k,v])=>opt(k,v)).join('')}</optgroup>${Object.keys(groups).map(g=>`<optgroup label="${g}">${groups[g].map(r=>opt(r.id,r.short)).join('')}</optgroup>`).join('')}</select>`+h;
-  $('#shelf').innerHTML=h;$('#mobSel').onchange=e=>go(e.target.value);
+  h=`<select class="mobsel" id="mobSel" aria-label="Register chuno">${opt('dash','Dashboard')}${opt('chat','Chatbot')}${isAdmin()?opt('admin','Admin'):''}<optgroup label="Kaam / MB">${opt('works','Mere kaam')}${Object.entries(MBV).map(([k,v])=>opt(k,v)).join('')}</optgroup>${Object.keys(groups).map(g=>`<optgroup label="${g}">${groups[g].map(r=>opt(r.id,r.short)).join('')}</optgroup>`).join('')}<option value="__pick">⚙ Registers chuno…</option></select>`+h;
+  $('#shelf').innerHTML=h;$('#mobSel').onchange=e=>{if(e.target.value==='__pick'){e.target.value=view.reg;return openRegPicker()}go(e.target.value)};
 }
 
 /* ===================== RENDER: DASHBOARD ===================== */
@@ -638,7 +644,7 @@ function renderDash(){
     [['t7','r7','7 din'],['t28','r28','28 din']].forEach(([dk,rk,l])=>{const dd=c[dk];if(!dd||has(rk))return;
       const diff=Math.round((new Date(dd)-new Date(t))/864e5);if(diff<=3)due.push({c,l,dd,diff})})});
   due.sort((a,b)=>a.diff-b.diff);
-  const flags=[];REGS.forEach(r=>compute(r).forEach(x=>{if(x._flag&&x._flag[0]!=='ok')flags.push({r,x})}));
+  const flags=[];myRegs().forEach(r=>compute(r).forEach(x=>{if(x._flag&&x._flag[0]!=='ok')flags.push({r,x})}));
   const last=a=>a.length?a[a.length-1]:null;
   const sc=s2.length?last(s2).closing:null;
   const steelUsed=s2.reduce((a,r)=>a+(r.cons||0),0);
@@ -724,7 +730,7 @@ function sieveHtml(reg,rows,forPrint){
 function renderReg(){
   const reg=REG[view.reg];const rows=compute(reg);
   $('#main').innerHTML=`<div class="sheethead"><div><h2>${esc(reg.title)}</h2><div class="sub">${esc(W().name)}</div></div>
-   <div class="actions"><button class="btn primary" id="add">+ Nayi entry</button>${['cement4','steel2','slump','cube3'].includes(reg.id)?'<button class="btn" id="mbx">MB Excel se bharo</button>':''}${EMBED?'':'<button class="btn" id="prn">PDF</button><button class="btn" id="xls">Excel</button>'}</div></div>
+   <div class="actions"><button class="btn primary" id="add">+ Nayi entry</button>${MBGEN[reg.id]?'<button class="btn" id="mbx">MB Excel se bharo</button>':''}${EMBED?'':'<button class="btn" id="prn">PDF</button><button class="btn" id="xls">Excel</button>'}</div></div>
    ${reg.note?`<p class="note" style="margin:0">${esc(reg.note)}</p>`:''}
    <div class="tablewrap">${tableHtml(reg,rows)}</div>
    <p class="note">Neeli sankhya apne aap ganit hoti hai. Kisi line par click karke badlo. Sahi wale khane print mein khaali aate hain.</p>`;
@@ -1208,7 +1214,7 @@ function itemsWorkbook(w){const wb=new ExcelJS.Workbook();const ws=newSheet(wb,'
     xc(ws,r,5,{f:`IF(OR(B${r}="",D${r}=""),"",ROUND(B${r}*D${r},2))`,r:it.qty!=null&&it.rate!=null?Math.round(it.qty*it.rate*100)/100:''},{box:1,nf:'#,##0.00'});r++});
   xc(ws,r,4,'Total',{b:true,box:1});xc(ws,r,5,{f:`SUM(F5:F${r-1})`},{b:true,box:1,nf:'#,##0.00'});return wb}
 async function exportReg(reg){const w=W();const wb=new ExcelJS.Workbook();regSheet(wb,reg,w);await xlSave(wb,`${reg.short} - ${w.name}`)}
-async function exportAllRegs(){const w=W();const wb=new ExcelJS.Workbook();REGS.forEach(r=>regSheet(wb,r,w));await xlSave(wb,`All registers - ${w.name}`)}
+async function exportAllRegs(){const w=W();const wb=new ExcelJS.Workbook();myRegs(w).forEach(r=>regSheet(wb,r,w));await xlSave(wb,`All registers - ${w.name}`)}
 async function exportMB(parts,label){const w=W();const b=curBill(w);await xlSave(buildMBWorkbook(w,b.id,parts),`${label} - ${b.name} - ${w.name}`)}
 async function exportItems(){const w=W();await xlSave(itemsWorkbook(w),`Tender Items - ${w.name}`)}
 
@@ -1243,10 +1249,11 @@ async function parseMBExcel(file){if(typeof ExcelJS==='undefined')throw new Erro
   let ws=wb.worksheets.find(s=>/for\s*record/i.test(s.name));
   if(!ws)ws=wb.worksheets.find(s=>{let f=false;s.eachRow({includeEmpty:false},r=>{r.eachCell(c=>{if(/MEASUREMENT\s+(SHEET\s+)?FOR\s+RECORD/i.test(String(xv(c)||'')))f=true})});return f});
   if(!ws)throw new Error('Is file mein "For Record" (MB) sheet nahi mili');
-  const blocks=[];let cur=null,date=null,diaCol={7:8,8:10,9:12,10:16,11:20,12:25,13:32};
+  const blocks=[];let cur=null,date=null,bill='',diaCol={7:8,8:10,9:12,10:16,11:20,12:25,13:32};
   ws.eachRow({includeEmpty:false},row=>{const a=xv(row.getCell(1)),b=xv(row.getCell(2));
     /* dia ka header (8mm 10mm ...) */
     const dh={};row.eachCell((c,i)=>{const v=xv(c);const m=typeof v==='string'&&/^\s*(\d{1,2})\s*mm\s*$/i.exec(v);if(m&&i>3)dh[i]=+m[1]});if(Object.keys(dh).length>=3)diaCol=dh;
+    if(!bill){row.eachCell(c=>{const v=xv(c);const m=typeof v==='string'&&/RUNNING\s+BILL\s+NO\.?\s*(.+)$/i.exec(v);if(m)bill=m[1].trim()})}
     if(a instanceof Date)date=isoD(a);else if(isDateTxt(a)){const[p,q,r]=a.trim().split(/[\/.-]/);date=`${r.length===2?'20'+r:r}-${q.padStart(2,'0')}-${p.padStart(2,'0')}`}
     if(typeof b==='string'&&/^\s*Item\s*No\.?\s*\d+/i.test(b)){cur={itemNo:b.match(/\d+[A-Za-z]?/)[0],date:null,desc:'',total:null,unit:'',page:'',dia:null};blocks.push(cur);return}
     if(!cur)return;if(a instanceof Date||isDateTxt(a)){if(!cur.date)cur.date=date}
@@ -1255,7 +1262,7 @@ async function parseMBExcel(file){if(typeof ExcelJS==='undefined')throw new Erro
     if(wpd){const o={};Object.entries(diaCol).forEach(([i,d])=>{const q=num(xv(row.getCell(+i)));if(q)o[d]=(o[d]||0)+q});cur.dia=o}
     if(tot){const q=num(xv(row.getCell(tot+1)));if(q!=null){cur.total=q;cur.unit=String(xv(row.getCell(tot+2))||'');const pg=xv(row.getCell(14));if(pg)cur.page=String(pg)}}});
   let last=null;blocks.forEach(b=>{if(b.date)last=b.date;else{b.date=last;b.inherited=!!last}});
-  return {sheet:ws.name,blocks:blocks.filter(b=>b.total!=null)}}
+  return {sheet:ws.name,bill,blocks:blocks.filter(b=>b.total!=null)}}
 function workDaysBefore(iso,n){const out=[];const d=new Date(iso+'T00:00:00');while(out.length<n){d.setDate(d.getDate()-1);if(d.getDay()!==0)out.unshift(isoD(d))}return out}
 /* MB block → kis register mein jayega */
 function concGrade(desc){const s=CEM_STD.find(x=>x.k.test(desc));if(!s||!/^M|PCC/.test(s.lab))return null;return s.lab.startsWith('M15')?'M15':s.lab}
@@ -1288,34 +1295,110 @@ function slumpEntries(plan){const out=[];let c=Date.now();
 function cubeEntries(plan){const out=[];let c=Date.now();
   plan.filter(p=>p.use&&p.kind==='conc'&&fck(p.grade)).forEach(p=>splitDays(p).forEach(x=>out.push({id:uid(),_c:c++,date:x.d,grade:p.grade,mark:`${p.name.split(' – ')[0]} (Item ${p.itemNo})`,qty:String(x.q),cubeSize:'15 સે.મી.',remarks:`${mbRef(p)} se – reading lab report se bharo`,src:'mbx'})));
   return out}
-const MBF=[{k:'cement4',lab:'Cement Patrak-4 (roj vapras)',fn:cementEntries},{k:'steel2',lab:'Steel Patrak-2 (roj vapras, dia-wise)',fn:steelEntries},
-  {k:'slump',lab:'Slump Test Register (tarikh, grade, jagah – slump khaali)',fn:slumpEntries},{k:'cube3',lab:'Cube Patrak-3 (tarikh, grade, jaththo, kitne cube – reading khaali)',fn:cubeEntries}];
+/* ---------- MB se baaki registers (sirf MB ke data se: tarikh, item, jaththo; test results kabhi nahi) ---------- */
+const FREQ_DEF={cem:50,steel:25,agg:100,brick:50000,tile:1000};
+const FREQ_L={cem:'Cement – 1 test har __ MT',steel:'Steel – har dia 1 test har __ MT',agg:'Kapchi / reti – 1 test har __ cum concrete',brick:'Int – 1 lot har __ int',tile:'Tiles – 1 test har __ sqm'};
+const isTile=p=>/sq/i.test(p.unit)&&/tile|flooring|paver/i.test(p.desc||'');
+const isBrick=p=>/brick/i.test(p.desc||'');
+const bricksOf=p=>Math.round(/sq/i.test(p.unit)?p.qty*55:p.qty*500);
+/* cumulative jaththo jab har "f" paar kare – us din ki tarikh */
+function tranches(ev,f){ev=ev.slice().sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);const out=[];let cum=0;
+  ev.forEach(e=>{cum+=e.q;while(out.length<Math.ceil((cum-1e-9)/f))out.push({d:e.d,k:out.length+1,upto:0})});
+  out.forEach(t=>t.upto=Math.min(cum,t.k*f));return {list:out,total:cum}}
+function mbCtx(plan,F,r){const w=W();const used=plan.filter(p=>p.use&&p.date);
+  const ev=[];used.forEach(p=>{if(p.kind==='other'&&!isTile(p))return;splitDays(p).forEach(x=>ev.push({d:x.d,q:x.q,p}))});
+  const cem=cementEntries(plan),stl=steelEntries(plan);
+  const last=used.reduce((m,p)=>p.date>m?p.date:m,'');
+  const cemEv=cem.map(e=>({d:e.date,q:(+e.used||0)*0.05}));
+  const concEv=ev.filter(e=>e.p.kind==='conc');
+  const dias={};stl.forEach(e=>DIAS.forEach(d=>{if(+e['d'+d]){(dias[d]??=[]).push({d:e.date,q:+e['d'+d]})}}));
+  return {w,plan,used,ev,cem,stl,last,F,bill:r.bill||'',cemT:tranches(cemEv,F.cem),concT:tranches(concEv,F.agg),
+    diaT:Object.fromEntries(Object.entries(dias).map(([d,e])=>[d,tranches(e,F.steel)])),
+    bricks:used.filter(isBrick),tiles:used.filter(isTile),grades:[...new Set(concEv.map(e=>e.p.grade))]}}
+const tenderQty=(w,nos)=>{const it=(w.items||[]).filter(i=>nos.includes(String(i.no)));return it.length?it.reduce((a,i)=>a+(+i.qty||0),0):null};
+const mkRows=(rows)=>{let c=Date.now();return rows.sort((a,b)=>(a.date||a.billDate||a.sDate||a._d||'')<(b.date||b.billDate||b.sDate||b._d||'')?-1:1).map(r=>{const o={id:uid(),_c:c++,src:'mbx',...r};delete o._d;return o})};
+const MBGEN={
+ cement4:x=>x.cem,
+ steel2:x=>x.stl,
+ slump:x=>slumpEntries(x.plan),
+ cube3:x=>cubeEntries(x.plan),
+ cement1:x=>{const bags=x.cem.reduce((a,e)=>a+(+e.used||0),0);return bags?mkRows([{billDate:x.last,cons:String(bags),remarks:`${x.bill||'RA bill'} – MB mujab vapras (std.). Aavak aap bharo`}]):[]},
+ steel1:x=>{if(!x.stl.length)return[];const r={date:x.last,ra:x.bill||'',remarks:'MB mujab vapras. Aavak aap bharo'};DIAS.forEach(d=>{const t=x.stl.reduce((a,e)=>a+(+e['d'+d]||0),0);if(t)r['u'+d]=String(+t.toFixed(3))});return mkRows([r])},
+ sampling:x=>{const R=[];
+  x.cemT.list.forEach(t=>R.push({_d:t.d,material:'Cement',rcv:`${fmt(t.upto,2)} MT tak vapras (${fdate(t.d)} se)`,sampleReq:`1 (har ${x.F.cem} MT)`,remarks:`Lot ${t.k} – MB se`}));
+  Object.entries(x.diaT).forEach(([d,T])=>T.list.forEach(t=>R.push({_d:t.d,material:`Steel ${d} mm`,rcv:`${fmt(t.upto,3)} MT tak (${fdate(t.d)} se)`,sampleReq:`1 (har dia, har ${x.F.steel} MT)`,remarks:`Lot ${t.k} – MB se`})));
+  x.concT.list.forEach(t=>{R.push({_d:t.d,material:'Coarse aggregate (kapchi / metal)',rcv:`${fmt(t.upto,1)} cum concrete tak (${fdate(t.d)} se)`,sampleReq:`1 (har ${x.F.agg} cum)`,remarks:`Lot ${t.k} – MB se`});
+    R.push({_d:t.d,material:'Fine aggregate (reti)',rcv:`${fmt(t.upto,1)} cum concrete tak (${fdate(t.d)} se)`,sampleReq:`1 (har ${x.F.agg} cum)`,remarks:`Lot ${t.k} – MB se`})});
+  x.bricks.forEach(p=>{const n=bricksOf(p);for(let k=1;k<=Math.max(1,Math.ceil(n/x.F.brick));k++)R.push({_d:splitDays(p)[0].d,material:`Int (Item ${p.itemNo})`,rcv:`${fmt(p.qty,2)} ${p.unit} ≈ ${n} int`,sampleReq:`1 lot (har ${x.F.brick} int)`,remarks:`Lot ${k} – MB ${fdate(p.date)}`})});
+  x.tiles.forEach(p=>{for(let k=1;k<=Math.max(1,Math.ceil(p.qty/x.F.tile));k++)R.push({_d:splitDays(p)[0].d,material:`Tiles (Item ${p.itemNo})`,rcv:`${fmt(p.qty,2)} ${p.unit}`,sampleReq:`1 (har ${x.F.tile} sqm)`,remarks:`Lot ${k} – MB ${fdate(p.date)}`})});
+  return mkRows(R)},
+ cementTest:x=>mkRows(x.cemT.list.map(t=>({_d:t.d,qty:`${fmt(Math.min(x.F.cem,t.upto-(t.k-1)*x.F.cem),2)} MT (lot ${t.k}, ${fdate(t.d)} se)`,remarks:'MB se – result lab report se bharo'}))),
+ cementCons:x=>mkRows(x.cemT.list.map(t=>({sDate:t.d,desc:`Cement lot ${t.k} (${fmt(t.upto,2)} MT tak)`,remarks:'MB se – reading aap bharo'}))),
+ petro:x=>x.concT.list.length?mkRows([{_d:x.concT.list[0].d,material:'Coarse aggregate (kapchi / metal)',rcv:`Pehli dhalai ${fdate(x.concT.list[0].d)}`,sampleReq:'1 (har source)',remarks:'MB se'},{_d:x.concT.list[0].d,material:'Fine aggregate (reti)',rcv:`Pehli dhalai ${fdate(x.concT.list[0].d)}`,sampleReq:'1 (har source)',remarks:'MB se'}]):[],
+ aggTest:x=>mkRows(x.concT.list.map(t=>({_d:t.d,sample:`Kapchi / metal – lot ${t.k} (${fdate(t.d)}, ${fmt(t.upto,1)} cum concrete tak)`,use:'RCC / PCC (non-wearing)',remarks:'MB se – result aap bharo'}))),
+ sieve:x=>{const R=[];x.concT.list.forEach(t=>{R.push({date:t.d,material:'કપચી',spec:'20 mm graded (IS 383)',remarks:`Lot ${t.k} – MB se, vajan aap bharo`});R.push({date:t.d,material:'રેતી',spec:'Sand (zone apne aap)',remarks:`Lot ${t.k} – MB se, vajan aap bharo`})});return mkRows(R)},
+ brick:x=>{const R=[];x.bricks.forEach(p=>{const n=bricksOf(p);const tq=tenderQty(x.w,[String(p.itemNo)]);for(let k=1;k<=Math.max(1,Math.ceil(n/x.F.brick));k++)R.push({_d:splitDays(p)[0].d,totalQty:tq!=null?`${fmt(tq,2)} ${p.unit}`:'',doneQty:`${fmt(p.qty,2)} ${p.unit} (Item ${p.itemNo})`,remarks:`Lot ${k} – ≈${n} int – MB ${fdate(p.date)}, result aap bharo`})});return mkRows(R)},
+ tiles:x=>{const R=[];x.tiles.forEach(p=>{for(let k=1;k<=Math.max(1,Math.ceil(p.qty/x.F.tile));k++)R.push({_d:splitDays(p)[0].d,place:`Item ${p.itemNo}`,remarks:`Lot ${k} – ${fmt(p.qty,2)} ${p.unit} – MB ${fdate(p.date)}, result aap bharo`})});return mkRows(R)},
+ mixDesign:x=>mkRows(x.grades.filter(g=>fck(g)).map(g=>{const d=x.ev.filter(e=>e.p.grade===g).map(e=>e.d).sort()[0];return {date:d,type:g,sampleReq:'1 (har grade)',remarks:`${g} ki pehli dhalai ${fdate(d)} – mix design isse pehle approve hona chahiye`}})),
+ calib:x=>{const m={};x.ev.filter(e=>e.p.kind==='conc').forEach(e=>{const k=e.d.slice(0,7);if(!m[k]||e.d<m[k])m[k]=e.d});return mkRows(Object.values(m).map(d=>({date:d,remarks:'Mahine ki pehli dhalai – calibration (MB se), reading aap bharo'})))},
+ corrBatch:x=>{const m={};x.ev.filter(e=>e.p.kind==='conc'&&fck(e.p.grade)).forEach(e=>{m[e.d+'|'+e.p.grade]??={date:e.d,grade:e.p.grade,remarks:[]};m[e.d+'|'+e.p.grade].remarks.push(e.p.name.split(' – ')[0])});
+   return mkRows(Object.values(m).map(r=>({...r,remarks:[...new Set(r.remarks)].join(', ')+' – MB se, vajan aap bharo'})))},
+ batchPlant:x=>{const byDay={};x.cem.forEach(e=>{byDay[e.date+'|'+e.itemNo]=(+e.used||0)});
+   return mkRows(x.ev.filter(e=>e.p.kind==='conc').map(e=>({date:e.d,grade:GRADES.includes(e.p.grade)?e.p.grade:'',location:`${e.p.name.split(' – ')[0]} (Item ${e.p.itemNo}) – ${fmt(e.q,2)} ${e.p.unit}`,cement:byDay[e.d+'|'+e.p.itemNo]!=null?String(byDay[e.d+'|'+e.p.itemNo]*50):'',remarks:'Cement std. consumption se (Patrak-4 jaisa); baaki vajan aap bharo'})))},
+ proforma3:x=>{const R=[];const nos=ps=>ps.map(p=>String(p.itemNo));
+  const cemMT=x.cemT.total;if(cemMT)R.push({material:'Cement',freq:`1 per ${x.F.cem} MT`,execQty:`${fmt(cemMT,2)} MT`,reqActual:String(Math.ceil(cemMT/x.F.cem))});
+  Object.entries(x.diaT).forEach(([d,T])=>R.push({material:`Steel ${d} mm`,freq:`1 per ${x.F.steel} MT (har dia)`,execQty:`${fmt(T.total,3)} MT`,reqActual:String(Math.ceil(T.total/x.F.steel))}));
+  x.grades.forEach(g=>{const ps=x.used.filter(p=>p.kind==='conc'&&p.grade===g);const q=ps.reduce((a,p)=>a+p.qty,0);const tq=tenderQty(x.w,nos(ps));
+    const sets=x.ev.filter(e=>e.p.kind==='conc'&&e.p.grade===g).reduce((a,e)=>a+reqSamples(e.q),0);
+    if(fck(g))R.push({material:`Concrete cube ${g}`,estQty:tq!=null?`${fmt(tq,2)} cum`:'',freq:'IS 456 cl. 15.2.2 (roz ki dhalai par)',execQty:`${fmt(q,2)} cum`,reqActual:String(sets)});
+    R.push({material:`Slump ${g}`,estQty:tq!=null?`${fmt(tq,2)} cum`:'',freq:'Har dhalai',execQty:`${fmt(q,2)} cum`,reqActual:String(x.ev.filter(e=>e.p.kind==='conc'&&e.p.grade===g).length)})});
+  if(x.concT.total){R.push({material:'Coarse aggregate',freq:`1 per ${x.F.agg} cum concrete`,execQty:`${fmt(x.concT.total,2)} cum concrete`,reqActual:String(x.concT.list.length)});R.push({material:'Fine aggregate (reti)',freq:`1 per ${x.F.agg} cum concrete`,execQty:`${fmt(x.concT.total,2)} cum concrete`,reqActual:String(x.concT.list.length)})}
+  x.bricks.forEach(p=>{const n=bricksOf(p);const tq=tenderQty(x.w,[String(p.itemNo)]);R.push({material:`Int (Item ${p.itemNo})`,estQty:tq!=null?`${fmt(tq,2)} ${p.unit}`:'',freq:`1 lot per ${x.F.brick} int`,execQty:`${fmt(p.qty,2)} ${p.unit}`,reqActual:String(Math.max(1,Math.ceil(n/x.F.brick)))})});
+  x.tiles.forEach(p=>{const tq=tenderQty(x.w,[String(p.itemNo)]);R.push({material:`Tiles (Item ${p.itemNo})`,estQty:tq!=null?`${fmt(tq,2)} ${p.unit}`:'',freq:`1 per ${x.F.tile} sqm`,execQty:`${fmt(p.qty,2)} ${p.unit}`,reqActual:String(Math.max(1,Math.ceil(p.qty/x.F.tile)))})});
+  return mkRows(R)}};
 const KINDL={steel:'Steel',conc:'Concrete',cem:'Cement kaam',other:'—'};
-function openMbFill(r){const plan=planMB(r.blocks);const on={cement4:true,steel2:true,slump:true,cube3:true};
-  const rowsH=()=>plan.map(p=>`<tr><td><input type="checkbox" data-u="${p.i}" ${p.use?'checked':''} ${p.kind==='other'?'disabled':''} aria-label="Use"></td><td>${esc(p.itemNo)}</td><td class="d">${fdate(p.date)||'<span class="chip bad">date nahi</span>'}${r.blocks[p.i].inherited?'<div class="note">pichhli date</div>':''}</td>
+const MBF_NOTE={cement4:'roz vapras',steel2:'roz vapras, dia-wise',slump:'har dhalai',cube3:'har dhalai, kitne cube',cement1:'bill ki line',steel1:'bill ka block',sampling:'kitne sample',cementTest:'har lot',cementCons:'har lot',petro:'har source',aggTest:'har lot',sieve:'kapchi + reti',brick:'har lot',tiles:'har lot',mixDesign:'har grade',calib:'har mahina',corrBatch:'har dhalai',batchPlant:'har dhalai',proforma3:'zaroori vs. MB'};
+function openMbFill(r){const plan=planMB(r.blocks);const on=Object.fromEntries(REGS.map(g=>[g.id,!!MBGEN[g.id]&&regOn(g.id)]));const F={...FREQ_DEF};
+  const rowsH=()=>plan.map(p=>`<tr><td><input type="checkbox" data-u="${p.i}" ${p.use?'checked':''} ${p.kind==='other'&&!isTile(p)?'disabled':''} aria-label="Use"></td><td>${esc(p.itemNo)}</td><td class="d">${fdate(p.date)||'<span class="chip bad">date nahi</span>'}${r.blocks[p.i].inherited?'<div class="note">pichhli date</div>':''}</td>
     <td>${esc(p.name)}<div class="note">${esc((p.desc||'').slice(0,80))}</div>${p.kind==='steel'?`<div class="note">${p.dia?Object.entries(p.dia).map(([d,v])=>`${d}ø ${fmt(v,0)} kg`).join(' · '):'<span class="chip bad">dia-wise vajan nahi mila</span>'}</div>`:''}</td>
-    <td><span class="chip ${p.kind==='other'?'':'ok'}">${KINDL[p.kind]}</span></td><td class="n">${fmt(p.qty,2)} ${esc(p.unit)}</td>
+    <td><span class="chip ${p.kind==='other'&&!isTile(p)?'':'ok'}">${isTile(p)?'Tiles':KINDL[p.kind]}</span></td><td class="n">${fmt(p.qty,2)} ${esc(p.unit)}</td>
     <td>${p.per?`<input data-per="${p.i}" value="${p.per}" inputmode="decimal" style="width:60px">`:'–'}</td><td><input data-days="${p.i}" value="${p.days}" inputmode="numeric" style="width:46px"></td><td class="n" data-bags="${p.i}">${p.use&&p.per?Math.round(p.qty*p.per):''}</td></tr>`).join('');
-  openCustom('MB se registers bharo',`<div class="fld wide note"><div>Sheet: <b>${esc(r.sheet)}</b> · ${r.blocks.length} item block mile. Har item ki quantity MB ki tarikh se <b>pehle ke kaam ke dino</b> (Ravivar chhod ke) mein baanti jayegi. Har register mein ek jaisi tarikhein aayengi. Din aur bags/unit badal sakte ho.</div></div>
-    <div class="fld wide"><b>Kaunse register bharne hain</b>${MBF.map(f=>`<label class="chk"><input type="checkbox" data-reg="${f.k}" checked> ${f.lab}</label>`).join('')}</div>
+  plan.forEach(p=>{if(isTile(p)&&p.date)p.use=true});
+  const grp=[...new Set(REGS.filter(g=>MBGEN[g.id]).map(g=>g.grp))];
+  openCustom('MB se saare registers',`<div class="fld wide note"><div>Sheet: <b>${esc(r.sheet)}</b>${r.bill?` · <b>${esc(r.bill)}</b>`:''} · ${r.blocks.length} item block mile. Har item ki quantity MB ki tarikh se <b>pehle ke kaam ke dino</b> (Ravivar chhod ke) mein baanti jayegi – sab register mein wahi tarikhein. MB mein jo hai (tarikh, item, jaththo) wahi bharega; <b>test ki reading / result, aavak aur sahi app khud nahi bharta</b>.</div></div>
+    <div class="fld wide"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>Kaunse register bharne hain</b><button type="button" class="btn small" id="mbxAll">Sab</button><button type="button" class="btn small" id="mbxNone">Koi nahi</button></div>
+     <div class="mbxg">${grp.map(gn=>`<div><div class="note"><b>${esc(gn)}</b></div>${REGS.filter(g=>g.grp===gn&&MBGEN[g.id]).map(g=>`<label class="chk"><input type="checkbox" data-reg="${g.id}" ${on[g.id]?'checked':''}> ${esc(g.short)} <span class="note">– ${MBF_NOTE[g.id]||''}</span></label>`).join('')}</div>`).join('')}</div></div>
+    <div class="fld wide"><b>Test ki frequency</b> <span class="note">(tender / QC manual mein alag ho to badlo)</span><div class="mbxg">${Object.keys(FREQ_DEF).map(k=>`<label class="chk">${FREQ_L[k].split('__')[0]}<input data-fq="${k}" value="${F[k]}" inputmode="numeric" style="width:80px">${FREQ_L[k].split('__')[1]}</label>`).join('')}</div></div>
     <div class="fld wide"><div class="tablewrap"><table class="reg"><thead><tr><th></th><th>Item</th><th>MB date</th><th>Kaam</th><th>Prakar</th><th>Qty</th><th>Bags / unit</th><th>Din</th><th>Kul bags</th></tr></thead><tbody id="mbxBody">${rowsH()}</tbody></table></div></div>
     <div class="fld wide note" id="mbxSum"></div>
     <div class="fld"><label for="mbxOpen">Cement khulti silak (bags) – pata ho to</label><input id="mbxOpen" inputmode="numeric" placeholder="khaali chhod sakte ho"></div>
     <div class="fld"><label for="mbxOpenS">Steel khulti silak (MT) – pata ho to</label><input id="mbxOpenS" inputmode="decimal" placeholder="khaali chhod sakte ho"></div>
-    <div class="fld wide note"><div>Pehle MB se bhari gayi entries hat kar nayi aayengi; haath se bhari entries waisi hi rahengi. <b>Slump aur cube ki reading app khud nahi bharta</b> – wo site / lab ka asli naap hai, wo aap bharoge. Cement / steel ki aavak (receipt) bhi aapko bharni hai.</div></div>`,
-   ()=>{const sel=MBF.filter(f=>on[f.k]);if(!sel.length)return toast('Koi register chuno');const w=W();const msg=[];
-     sel.forEach(f=>{const ents=f.fn(plan).sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
-       if(ents.length&&f.k==='cement4'){const op=num(gv('mbxOpen'));if(op!=null)ents[0].opening=String(op)}
-       if(ents.length&&f.k==='steel2'){const op=num(gv('mbxOpenS'));if(op!=null)ents[0].opening=String(op)}
-       const keep=rowsOf(f.k).filter(x=>x.src!=='mbx');state.data[w.id][f.k]=[...keep,...ents];persist(f.k);msg.push(`${REG[f.k].short}: ${ents.length}`)});
-     $('#dlg').close();go(sel[0].k);toast('Bhar diya – '+msg.join(' · '),6000)});
+    <div class="fld wide note"><div>Jo register yahan band karoge wo is kaam ke menu se bhi chhup jayega (baad mein "⚙ Registers chuno" se wapas). Pehle MB se bhari gayi entries hat kar nayi aayengi; haath se bhari entries waisi hi rahengi. Is bill ka MB dobara upload karo to sirf us bill ki nahi, <b>saari MB wali entries</b> nayi file se banengi – isliye har baar <b>upto-date MB</b> (pichhle bill sahit) upload karo.</div></div>`,
+   ()=>{const sel=REGS.filter(g=>on[g.id]&&MBGEN[g.id]);if(!sel.length)return toast('Koi register chuno');const w=W();const x=mbCtx(plan,F,r);const msg=[];let tot=0;
+     w.regsOff=REGS.filter(g=>MBGEN[g.id]?!on[g.id]:!regOn(g.id,w)).map(g=>g.id);persist();
+     sel.forEach(g=>{const ents=MBGEN[g.id](x);const key=g.sortKey||'date';
+       if(ents.length&&g.id==='cement4'){ents.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);const op=num(gv('mbxOpen'));if(op!=null)ents[0].opening=String(op)}
+       if(ents.length&&g.id==='steel2'){ents.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);const op=num(gv('mbxOpenS'));if(op!=null)ents[0].opening=String(op)}
+       const keep=rowsOf(g.id).filter(e=>e.src!=='mbx');state.data[w.id][g.id]=[...keep,...ents];persist(g.id);tot+=ents.length;if(ents.length)msg.push(`${g.short}: ${ents.length}`)});
+     $('#dlg').close();go('dash');toast(`${tot} entries ${msg.length} register mein bhari`,6000)});
   const sum=()=>{const u=plan.filter(p=>p.use);const bags=u.filter(p=>p.per&&p.kind!=='steel').reduce((a,p)=>a+Math.round(p.qty*p.per),0);const st=u.filter(p=>p.kind==='steel').reduce((a,p)=>a+p.qty,0);
     const pours=u.filter(p=>p.kind==='conc').reduce((a,p)=>a+Math.max(1,+p.days||1),0);
-    $('#mbxSum').innerHTML=`Cement: <b>${bags} bags</b> (${fmt(bags*0.05,2)} MT) · Steel: <b>${fmt(st/1000,3)} MT</b> · Concrete ke din: <b>${pours}</b> (itni slump / cube lines)`};sum();
-  $('#dlgBody').querySelectorAll('[data-reg]').forEach(c=>c.onchange=()=>{on[c.dataset.reg]=c.checked});
+    $('#mbxSum').innerHTML=`Cement: <b>${bags} bags</b> (${fmt(bags*0.05,2)} MT) · Steel: <b>${fmt(st/1000,3)} MT</b> · Concrete ke din: <b>${pours}</b>`};sum();
+  const D=$('#dlgBody');D.querySelectorAll('[data-reg]').forEach(c=>c.onchange=()=>{on[c.dataset.reg]=c.checked});
+  D.querySelectorAll('[data-fq]').forEach(c=>c.oninput=()=>{const v=num(c.value);if(v>0)F[c.dataset.fq]=v});
+  $('#mbxAll').onclick=()=>D.querySelectorAll('[data-reg]').forEach(c=>{c.checked=true;on[c.dataset.reg]=true});
+  $('#mbxNone').onclick=()=>D.querySelectorAll('[data-reg]').forEach(c=>{c.checked=false;on[c.dataset.reg]=false});
   $('#mbxBody').oninput=$('#mbxBody').onchange=e=>{const t=e.target;const i=+(t.dataset.u??t.dataset.per??t.dataset.days);const p=plan[i];if(!p)return;
     if('u' in t.dataset)p.use=t.checked;if('per' in t.dataset)p.per=num(t.value)||0;if('days' in t.dataset)p.days=Math.max(1,parseInt(t.value)||1);
     const bc=$('#mbxBody').querySelector(`[data-bags="${i}"]`);bc.textContent=p.use&&p.per?Math.round(p.qty*p.per):'';sum()}}
+function openRegPicker(){const w=W();const on=Object.fromEntries(REGS.map(g=>[g.id,regOn(g.id,w)]));const grp=[...new Set(REGS.map(g=>g.grp))];
+  openCustom('Is kaam ke registers',`<div class="fld wide note"><div>Jo register is kaam mein nahi chahiye uska tick hata do. Wo menu, Dashboard, "Sab register Excel" aur MB upload se hat jayega. Uski purani entries mitti nahi – tick wapas lagao to sab wapas.</div></div>
+    <div class="fld wide"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button type="button" class="btn small" id="rpAll">Sab</button><button type="button" class="btn small" id="rpNone">Koi nahi</button></div>
+    <div class="mbxg">${grp.map(gn=>`<div><div class="note"><b>${esc(gn)}</b></div>${REGS.filter(g=>g.grp===gn).map(g=>`<label class="chk"><input type="checkbox" data-rp="${g.id}" ${on[g.id]?'checked':''}> ${esc(g.short)}${rowsOf(g.id,w).length?` <span class="note">(${rowsOf(g.id,w).length})</span>`:''}</label>`).join('')}</div>`).join('')}</div></div>`,
+   ()=>{w.regsOff=REGS.filter(g=>!on[g.id]).map(g=>g.id);persist();$('#dlg').close();if(REG[view.reg]&&!regOn(view.reg,w))view.reg='dash';render();toast(`${myRegs(w).length} register chalu`)});
+  const D=$('#dlgBody');D.querySelectorAll('[data-rp]').forEach(c=>c.onchange=()=>{on[c.dataset.rp]=c.checked});
+  $('#rpAll').onclick=()=>D.querySelectorAll('[data-rp]').forEach(c=>{c.checked=true;on[c.dataset.rp]=true});
+  $('#rpNone').onclick=()=>D.querySelectorAll('[data-rp]').forEach(c=>{c.checked=false;on[c.dataset.rp]=false})}
 function openMbImport(){const inp=document.createElement('input');inp.type='file';inp.accept='.xlsx';
   inp.onchange=async()=>{const f=inp.files[0];if(!f)return;let r;try{r=await parseMBExcel(f)}catch(e){return toast(e.message)}openMbFill(r)};
   inp.click()}
@@ -1426,7 +1509,7 @@ function ctxSummary(w){const L=mbLayout(w);const up={};L.entries.forEach(e=>{con
   return JSON.stringify({kaam:{naam:w.name,agency:w.agency,agreement:w.agreementNo,start:w.startDate,timeLimit:w.timeLimit,stipulated:stipOf(w),estimate:w.estAmt,tender:w.tenderAmt,tenderPct:w.tenderPct},
     tenderItems:(w.items||[]).map(i=>({no:i.no,desc:(i.desc||'').slice(0,140),unit:i.unit,tenderQty:i.qty,rate:i.rate,mbUptoDate:up[String(i.no)]?+up[String(i.no)].toFixed(2):0})),
     bills:mbOf(w).bills.map(b=>b.name),cementStockBags:c2.length?c2[c2.length-1].closing:null,steelStockMT:s2.length?s2[s2.length-1].closing:null,
-    registers:REGS.map(r=>({naam:r.short,entries:rowsOf(r.id,w).length,laal:compute(r,w).filter(x=>x._flag?.[0]==='bad').map(x=>x._flag[1]).slice(0,5)}))})}
+    registers:myRegs(w).map(r=>({naam:r.short,entries:rowsOf(r.id,w).length,laal:compute(r,w).filter(x=>x._flag?.[0]==='bad').map(x=>x._flag[1]).slice(0,5)}))})}
 function applyFields(w,type,d){const c=mbOf(w).cover;const out=[];const set=(o,k,v,label)=>{if(v==null||v==='')return;out.push({o,k,v,label,old:o[k]})};
   if(type==='ts'){set(w,'name',d.nameOfWork,'Name of Work');set(c,'tsText',[d.tsLetterNo&&('GOG R&B Dept. Letter No. : '+d.tsLetterNo),d.tsDate&&('Dt.'+fdS(d.tsDate).replace(/\//g,'.'))].filter(Boolean).join(', '),'TS letter');set(c,'tsAmt',d.tsAmount,'TS amount');set(w,'estAmt',d.estimateCost,'Estimate cost')}
   if(type==='tender'){set(w,'name',d.nameOfWork,'Name of Work');set(w,'tenderAmt',d.tenderAmount,'Tender amount');set(w,'tenderPct',d.tenderPercent,'Tender %');set(w,'agency',d.agency,'Agency');set(c,'tenderLetter',[d.approvalLetterNo,d.approvalDate&&fdS(d.approvalDate)].filter(Boolean).join(' dt. '),'Tender approval letter')}
@@ -1452,7 +1535,7 @@ async function sendChat(){const w=W();const type=$('#c_type').value;const f=$('#
   if(type==='mb'){if(!/\.xlsx$/i.test(f.name))return toast('MB ki .xlsx file chuno');
     chat.msgs.push({role:'user',text:`📎 ${f.name} (${DOCT[type]})`+(text?'\n'+text:'')});
     try{const r=await parseMBExcel(f);const i=chat.msgs.length;const pl=planMB(r.blocks);const c=k=>pl.filter(p=>p.kind===k).length;
-      chat.msgs.push({role:'bot',type:'mb',data:r,html:`<b>MB padh liya</b> (sheet: ${esc(r.sheet)}): ${r.blocks.length} item block – concrete ${c('conc')}, steel ${c('steel')}, baaki cement kaam ${c('cem')}.<br>Isse Cement Patrak-4, Steel Patrak-2, Slump aur Cube Patrak-3 bharenge. Agle page par check karke save karo.<br><button class="btn primary small" data-apply="${i}">Registers bharo…</button>`})}
+      chat.msgs.push({role:'bot',type:'mb',data:r,html:`<b>MB padh liya</b> (sheet: ${esc(r.sheet)}): ${r.blocks.length} item block – concrete ${c('conc')}, steel ${c('steel')}, baaki cement kaam ${c('cem')}.<br>Isse saare registers (cement, steel, testing, concrete, Proforma-3) bharenge. Agle page par check karke save karo.<br><button class="btn primary small" data-apply="${i}">Registers bharo…</button>`})}
     catch(e){chat.msgs.push({role:'bot',text:'Dikkat: '+e.message})}
     $('#c_file').value='';$('#c_text').value='';renderChat();return}
   if(!FIREBASE_CONFIG||EMBED||!user||!canAI()||!appCfg.workerUrl)return toast('Chatbot abhi chalu nahi – upar likha kaaran dekho');
@@ -1481,7 +1564,7 @@ function applyResult(i){const m=chat.msgs[i];const w=W();
 
 /* ===================== BOOT ===================== */
 try{const v=localStorage.getItem(LS_KEY+'_view');if(v&&(v==='dash'||v==='chat'||v==='works'||REG[v]||MBV[v]))view.reg=v}catch(e){}
-document.getElementById('shelf').addEventListener('click',e=>{const b=e.target.closest('[data-reg]');if(b)go(b.dataset.reg)});
+document.getElementById('shelf').addEventListener('click',e=>{if(e.target.closest('[data-act="pickRegs"]'))return openRegPicker();const b=e.target.closest('[data-reg]');if(b)go(b.dataset.reg)});
 render();initFirebase();
 if(!EMBED&&'serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
