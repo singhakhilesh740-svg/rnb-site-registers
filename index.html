@@ -175,6 +175,8 @@ table.ln td{padding:2px}table.ln input,table.ln select{padding:4px 5px;border:1p
   .ph{display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px}
   .ph h2{font-size:15px;margin:0;text-align:center;flex:1}
 }
+.fld label.chk{display:flex;flex-direction:row;gap:8px;align-items:center;margin:2px 0;font-size:13.5px;color:var(--ink,inherit)}
+.fld label.chk input{width:auto;padding:0}
 </style>
 
 <header class="top">
@@ -722,7 +724,7 @@ function sieveHtml(reg,rows,forPrint){
 function renderReg(){
   const reg=REG[view.reg];const rows=compute(reg);
   $('#main').innerHTML=`<div class="sheethead"><div><h2>${esc(reg.title)}</h2><div class="sub">${esc(W().name)}</div></div>
-   <div class="actions"><button class="btn primary" id="add">+ Nayi entry</button>${reg.id==='cement4'?'<button class="btn" id="mbx">MB Excel se bharo</button>':''}${EMBED?'':'<button class="btn" id="prn">PDF</button><button class="btn" id="xls">Excel</button>'}</div></div>
+   <div class="actions"><button class="btn primary" id="add">+ Nayi entry</button>${['cement4','steel2','slump','cube3'].includes(reg.id)?'<button class="btn" id="mbx">MB Excel se bharo</button>':''}${EMBED?'':'<button class="btn" id="prn">PDF</button><button class="btn" id="xls">Excel</button>'}</div></div>
    ${reg.note?`<p class="note" style="margin:0">${esc(reg.note)}</p>`:''}
    <div class="tablewrap">${tableHtml(reg,rows)}</div>
    <p class="note">Neeli sankhya apne aap ganit hoti hai. Kisi line par click karke badlo. Sahi wale khane print mein khaali aate hain.</p>`;
@@ -860,7 +862,7 @@ function backup(){if(EMBED){navigator.clipboard?.writeText(JSON.stringify(state)
   download('site-registers-backup-'+today()+'.json',JSON.stringify(state,null,1));toast('Backup download ho gaya')}
 function restore(e){const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const s=JSON.parse(rd.result);if(!s.works||!s.data)throw 0;state=s;persist();view.reg='dash';render();toast('Restore ho gaya')}catch(x){toast('Ye sahi backup file nahi hai')}};rd.readAsText(f)}
 
-let tt;function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,2400)}
+let tt;function toast(m,ms=2400){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,ms)}
 
 /* ===================== MB MODULE (CMB Page 1–5, For Record, Abstract) ===================== */
 const MBV={items:'Tender Items',mbCover:'CMB Page 1–5',mbRecord:'For Record',mbAbstract:'Abstract'};
@@ -1225,52 +1227,97 @@ const CEM_STD=[
  {k:/plaster.*1\s*:\s*3/i,lab:'Plaster CM 1:3',per:0.13,unit:'sqm'}];
 /* roz kitna kaam hota hai (din nikalne ke liye) – badla ja sakta hai */
 function dayRate(desc,unit){const d=desc.toLowerCase();
+  if(/kg/i.test(unit||'')&&/steel|tmt|reinforce|\bbar/.test(d))return 1500;
   if(/half brick/.test(d))return 40;if(/brick/.test(d))return 8;if(/plaster/.test(d))return 60;if(/foundation|footing|mass concrete/.test(d))return 30;
   if(/slab/.test(d))return 120;if(/plinth/.test(d)&&/beam/.test(d))return 30;if(/beam/.test(d))return 60;if(/column|pillar/.test(d))return 10;
-  if(/stair/.test(d))return 4;if(/lintel/.test(d))return 3;if(/half brick/.test(d))return 40;if(/brick/.test(d))return 8;if(/plaster/.test(d))return 60;return 30}
+  if(/stair/.test(d))return 4;if(/lintel/.test(d))return 3;return 30}
 function elemName(desc){const d=desc.toLowerCase();const g=(CEM_STD.find(s=>s.k.test(desc))||{}).lab||'';
   const e=/half brick/.test(d)?'Half brick masonry':/brick/.test(d)?(/in foundation|foundation and plinth/.test(d)?'Brick work (foundation)':'Brick work'):/plaster/.test(d)?'Plaster':
    /foundation|footing|mass concrete/.test(d)?'PCC / foundation':/plinth/.test(d)&&/beam/.test(d)?'Plinth beam':/slab/.test(d)?'Slab':/beam/.test(d)?'Beam':/column|pillar/.test(d)?(/upto plinth|up to plinth/.test(d)?'Column (plinth tak)':'Column'):/stair/.test(d)?'Staircase':/lintel/.test(d)?'Lintel':'Kaam';
   return `${e} – ${g}`}
 const xv=c=>{let v=c?.value;if(v&&typeof v==='object'&&!(v instanceof Date))v=v.result??v.text??(v.richText?v.richText.map(r=>r.text).join(''):null);return v};
 function isoD(d){return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10)}
+const isDateTxt=a=>typeof a==='string'&&/^\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}$/.test(a.trim());
 async function parseMBExcel(file){if(typeof ExcelJS==='undefined')throw new Error('Excel library load nahi hui (internet chahiye)');
   const wb=new ExcelJS.Workbook();await wb.xlsx.load(await file.arrayBuffer());
   let ws=wb.worksheets.find(s=>/for\s*record/i.test(s.name));
   if(!ws)ws=wb.worksheets.find(s=>{let f=false;s.eachRow({includeEmpty:false},r=>{r.eachCell(c=>{if(/MEASUREMENT\s+(SHEET\s+)?FOR\s+RECORD/i.test(String(xv(c)||'')))f=true})});return f});
   if(!ws)throw new Error('Is file mein "For Record" (MB) sheet nahi mili');
-  const blocks=[];let cur=null,date=null,seen=false;
+  const blocks=[];let cur=null,date=null,diaCol={7:8,8:10,9:12,10:16,11:20,12:25,13:32};
   ws.eachRow({includeEmpty:false},row=>{const a=xv(row.getCell(1)),b=xv(row.getCell(2));
-    if(a instanceof Date)date=isoD(a);else if(typeof a==='string'&&/^\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}$/.test(a.trim())){const[p,q,r]=a.trim().split(/[\/.-]/);date=`${r.length===2?'20'+r:r}-${q.padStart(2,'0')}-${p.padStart(2,'0')}`}
-    if(typeof b==='string'&&/^\s*Item\s*No\.?\s*\d+/i.test(b)){cur={itemNo:b.match(/\d+[A-Za-z]?/)[0],date:null,desc:'',total:null,unit:'',page:''};blocks.push(cur);seen=false;return}
-    if(!cur)return;if(a instanceof Date||(typeof a==='string'&&/^\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}$/.test(a.trim()))){if(!cur.date)cur.date=date}
+    /* dia ka header (8mm 10mm ...) */
+    const dh={};row.eachCell((c,i)=>{const v=xv(c);const m=typeof v==='string'&&/^\s*(\d{1,2})\s*mm\s*$/i.exec(v);if(m&&i>3)dh[i]=+m[1]});if(Object.keys(dh).length>=3)diaCol=dh;
+    if(a instanceof Date)date=isoD(a);else if(isDateTxt(a)){const[p,q,r]=a.trim().split(/[\/.-]/);date=`${r.length===2?'20'+r:r}-${q.padStart(2,'0')}-${p.padStart(2,'0')}`}
+    if(typeof b==='string'&&/^\s*Item\s*No\.?\s*\d+/i.test(b)){cur={itemNo:b.match(/\d+[A-Za-z]?/)[0],date:null,desc:'',total:null,unit:'',page:'',dia:null};blocks.push(cur);return}
+    if(!cur)return;if(a instanceof Date||isDateTxt(a)){if(!cur.date)cur.date=date}
     if(!cur.desc&&typeof b==='string'&&b.length>40&&!b.includes('|'))cur.desc=b.trim();
-    let tot=false;row.eachCell((c,i)=>{const v=xv(c);if(typeof v==='string'&&/^\s*Total\s*$/i.test(v))tot=i});
+    let tot=false,wpd=false;row.eachCell((c,i)=>{const v=xv(c);if(typeof v==='string'){if(/^\s*Total\s*$/i.test(v))tot=i;if(/total\s*weight\s*per\s*dia/i.test(v))wpd=true}});
+    if(wpd){const o={};Object.entries(diaCol).forEach(([i,d])=>{const q=num(xv(row.getCell(+i)));if(q)o[d]=(o[d]||0)+q});cur.dia=o}
     if(tot){const q=num(xv(row.getCell(tot+1)));if(q!=null){cur.total=q;cur.unit=String(xv(row.getCell(tot+2))||'');const pg=xv(row.getCell(14));if(pg)cur.page=String(pg)}}});
   let last=null;blocks.forEach(b=>{if(b.date)last=b.date;else{b.date=last;b.inherited=!!last}});
   return {sheet:ws.name,blocks:blocks.filter(b=>b.total!=null)}}
 function workDaysBefore(iso,n){const out=[];const d=new Date(iso+'T00:00:00');while(out.length<n){d.setDate(d.getDate()-1);if(d.getDay()!==0)out.unshift(isoD(d))}return out}
-function planCement(blocks){return blocks.map((b,i)=>{const s=CEM_STD.find(x=>x.k.test(b.desc));
-  const sqm=/sq/i.test(b.unit);const ok=s&&((s.unit==='sqm')===sqm);
-  return {i,use:!!ok&&!!b.date,itemNo:b.itemNo,date:b.date,desc:b.desc,qty:b.total,unit:b.unit,page:b.page,name:elemName(b.desc),per:ok?s.per:0,days:Math.max(1,Math.ceil(b.total/dayRate(b.desc,b.unit)))}})}
+/* MB block → kis register mein jayega */
+function concGrade(desc){const s=CEM_STD.find(x=>x.k.test(desc));if(!s||!/^M|PCC/.test(s.lab))return null;return s.lab.startsWith('M15')?'M15':s.lab}
+function planMB(blocks){return blocks.map((b,i)=>{const s=CEM_STD.find(x=>x.k.test(b.desc));
+  const sqm=/sq/i.test(b.unit);const cemOk=!!s&&((s.unit==='sqm')===sqm);
+  const steel=/kg/i.test(b.unit)&&/steel|tmt|reinforce|\bbar/i.test(b.desc);
+  const grade=cemOk&&!sqm?concGrade(b.desc):null;
+  const kind=steel?'steel':grade?'conc':cemOk?'cem':'other';
+  return {i,kind,use:kind!=='other'&&!!b.date&&(!steel||!!b.dia),itemNo:b.itemNo,date:b.date,desc:b.desc,qty:b.total,unit:b.unit,page:b.page,dia:b.dia,grade,
+    name:steel?'Steel (TMT)':elemName(b.desc),per:cemOk?s.per:0,days:Math.max(1,Math.ceil(b.total/dayRate(b.desc,b.unit)))}})}
+const planCement=planMB;
+/* qty ko din mein baanto: [{d,q,f}] f = hissa (0-1) */
+function splitDays(p){const days=workDaysBefore(p.date,Math.max(1,+p.days||1));const n=days.length;let ql=p.qty;
+  return days.map((d,k)=>{const last=k===n-1;const q=last?Math.round(ql*100)/100:Math.round(p.qty/n*100)/100;ql-=q;return {d,q,f:1/n}})}
+const mbRef=p=>`MB ${p.date?fdate(p.date):''}${p.page?' '+p.page:''}`;
 function cementEntries(plan){const out=[];let c=Date.now();
-  plan.filter(p=>p.use&&p.per>0&&p.date).forEach(p=>{const bags=Math.round(p.qty*p.per);const days=workDaysBefore(p.date,Math.max(1,+p.days||1));
-    let left=bags,qleft=p.qty;days.forEach((d,k)=>{const last=k===days.length-1;const bg=last?left:Math.round(bags/days.length);const q=last?qleft:Math.round(p.qty/days.length*100)/100;left-=bg;qleft=Math.round((qleft-q)*100)/100;
-      out.push({id:uid(),_c:c++,date:d,itemNo:p.itemNo,item:p.name,workQty:`${fmt(q,2)} ${p.unit}`,used:String(bg),remarks:`MB ${p.date?fdate(p.date):''}${p.page?' '+p.page:''} se (std. ${p.per} bags/${/sq/i.test(p.unit)?'sqm':'cum'})`,src:'mbx'})})});
+  plan.filter(p=>p.use&&p.per>0&&p.date&&p.kind!=='steel').forEach(p=>{const bags=Math.round(p.qty*p.per);const sp=splitDays(p);let left=bags;
+    sp.forEach((x,k)=>{const bg=k===sp.length-1?left:Math.round(bags/sp.length);left-=bg;
+      out.push({id:uid(),_c:c++,date:x.d,itemNo:p.itemNo,item:p.name,workQty:`${fmt(x.q,2)} ${p.unit}`,used:String(bg),remarks:`${mbRef(p)} se (std. ${p.per} bags/${/sq/i.test(p.unit)?'sqm':'cum'})`,src:'mbx'})})});
   return out}
+function steelEntries(plan){const out=[];let c=Date.now();
+  plan.filter(p=>p.use&&p.kind==='steel'&&p.dia).forEach(p=>{const sp=splitDays(p);const left={};Object.keys(p.dia).forEach(d=>left[d]=Math.round(p.dia[d])/1000);
+    sp.forEach((x,k)=>{const last=k===sp.length-1;const r={id:uid(),_c:c++,date:x.d,item:`Item ${p.itemNo} – TMT steel${(/Fe[-\s]?\d+\s*D?/i.exec(p.desc||'')||[''])[0]?' '+(/Fe[-\s]?\d+\s*D?/i.exec(p.desc)[0]):''}`,remarks:`${mbRef(p)} se`,src:'mbx'};
+      Object.keys(p.dia).forEach(d=>{const v=last?Math.round(left[d]*1000)/1000:Math.round(p.dia[d]/1000/sp.length*1000)/1000;left[d]-=v;if(DIAS.includes(+d))r['d'+d]=String(+v.toFixed(3))});out.push(r)})});
+  return out}
+const slumpReq=desc=>/foundation|footing|mass concrete|1\s*:\s*[34]\s*:\s*[68]/i.test(desc)?'25-75':'50-100';
+function slumpEntries(plan){const out=[];let c=Date.now();
+  plan.filter(p=>p.use&&p.kind==='conc').forEach(p=>splitDays(p).forEach(x=>out.push({id:uid(),_c:c++,date:x.d,grade:GRADES.includes(p.grade)?p.grade:'',structure:`${p.name.split(' – ')[0]} (Item ${p.itemNo}) – ${fmt(x.q,2)} ${p.unit}`,req:slumpReq(p.desc),remarks:`${mbRef(p)} se – slump site par naap ke bharo`,src:'mbx'})));
+  return out}
+function cubeEntries(plan){const out=[];let c=Date.now();
+  plan.filter(p=>p.use&&p.kind==='conc'&&fck(p.grade)).forEach(p=>splitDays(p).forEach(x=>out.push({id:uid(),_c:c++,date:x.d,grade:p.grade,mark:`${p.name.split(' – ')[0]} (Item ${p.itemNo})`,qty:String(x.q),cubeSize:'15 સે.મી.',remarks:`${mbRef(p)} se – reading lab report se bharo`,src:'mbx'})));
+  return out}
+const MBF=[{k:'cement4',lab:'Cement Patrak-4 (roj vapras)',fn:cementEntries},{k:'steel2',lab:'Steel Patrak-2 (roj vapras, dia-wise)',fn:steelEntries},
+  {k:'slump',lab:'Slump Test Register (tarikh, grade, jagah – slump khaali)',fn:slumpEntries},{k:'cube3',lab:'Cube Patrak-3 (tarikh, grade, jaththo, kitne cube – reading khaali)',fn:cubeEntries}];
+const KINDL={steel:'Steel',conc:'Concrete',cem:'Cement kaam',other:'—'};
+function openMbFill(r){const plan=planMB(r.blocks);const on={cement4:true,steel2:true,slump:true,cube3:true};
+  const rowsH=()=>plan.map(p=>`<tr><td><input type="checkbox" data-u="${p.i}" ${p.use?'checked':''} ${p.kind==='other'?'disabled':''} aria-label="Use"></td><td>${esc(p.itemNo)}</td><td class="d">${fdate(p.date)||'<span class="chip bad">date nahi</span>'}${r.blocks[p.i].inherited?'<div class="note">pichhli date</div>':''}</td>
+    <td>${esc(p.name)}<div class="note">${esc((p.desc||'').slice(0,80))}</div>${p.kind==='steel'?`<div class="note">${p.dia?Object.entries(p.dia).map(([d,v])=>`${d}ø ${fmt(v,0)} kg`).join(' · '):'<span class="chip bad">dia-wise vajan nahi mila</span>'}</div>`:''}</td>
+    <td><span class="chip ${p.kind==='other'?'':'ok'}">${KINDL[p.kind]}</span></td><td class="n">${fmt(p.qty,2)} ${esc(p.unit)}</td>
+    <td>${p.per?`<input data-per="${p.i}" value="${p.per}" inputmode="decimal" style="width:60px">`:'–'}</td><td><input data-days="${p.i}" value="${p.days}" inputmode="numeric" style="width:46px"></td><td class="n" data-bags="${p.i}">${p.use&&p.per?Math.round(p.qty*p.per):''}</td></tr>`).join('');
+  openCustom('MB se registers bharo',`<div class="fld wide note"><div>Sheet: <b>${esc(r.sheet)}</b> · ${r.blocks.length} item block mile. Har item ki quantity MB ki tarikh se <b>pehle ke kaam ke dino</b> (Ravivar chhod ke) mein baanti jayegi. Har register mein ek jaisi tarikhein aayengi. Din aur bags/unit badal sakte ho.</div></div>
+    <div class="fld wide"><b>Kaunse register bharne hain</b>${MBF.map(f=>`<label class="chk"><input type="checkbox" data-reg="${f.k}" checked> ${f.lab}</label>`).join('')}</div>
+    <div class="fld wide"><div class="tablewrap"><table class="reg"><thead><tr><th></th><th>Item</th><th>MB date</th><th>Kaam</th><th>Prakar</th><th>Qty</th><th>Bags / unit</th><th>Din</th><th>Kul bags</th></tr></thead><tbody id="mbxBody">${rowsH()}</tbody></table></div></div>
+    <div class="fld wide note" id="mbxSum"></div>
+    <div class="fld"><label for="mbxOpen">Cement khulti silak (bags) – pata ho to</label><input id="mbxOpen" inputmode="numeric" placeholder="khaali chhod sakte ho"></div>
+    <div class="fld"><label for="mbxOpenS">Steel khulti silak (MT) – pata ho to</label><input id="mbxOpenS" inputmode="decimal" placeholder="khaali chhod sakte ho"></div>
+    <div class="fld wide note"><div>Pehle MB se bhari gayi entries hat kar nayi aayengi; haath se bhari entries waisi hi rahengi. <b>Slump aur cube ki reading app khud nahi bharta</b> – wo site / lab ka asli naap hai, wo aap bharoge. Cement / steel ki aavak (receipt) bhi aapko bharni hai.</div></div>`,
+   ()=>{const sel=MBF.filter(f=>on[f.k]);if(!sel.length)return toast('Koi register chuno');const w=W();const msg=[];
+     sel.forEach(f=>{const ents=f.fn(plan).sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
+       if(ents.length&&f.k==='cement4'){const op=num(gv('mbxOpen'));if(op!=null)ents[0].opening=String(op)}
+       if(ents.length&&f.k==='steel2'){const op=num(gv('mbxOpenS'));if(op!=null)ents[0].opening=String(op)}
+       const keep=rowsOf(f.k).filter(x=>x.src!=='mbx');state.data[w.id][f.k]=[...keep,...ents];persist(f.k);msg.push(`${REG[f.k].short}: ${ents.length}`)});
+     $('#dlg').close();go(sel[0].k);toast('Bhar diya – '+msg.join(' · '),6000)});
+  const sum=()=>{const u=plan.filter(p=>p.use);const bags=u.filter(p=>p.per&&p.kind!=='steel').reduce((a,p)=>a+Math.round(p.qty*p.per),0);const st=u.filter(p=>p.kind==='steel').reduce((a,p)=>a+p.qty,0);
+    const pours=u.filter(p=>p.kind==='conc').reduce((a,p)=>a+Math.max(1,+p.days||1),0);
+    $('#mbxSum').innerHTML=`Cement: <b>${bags} bags</b> (${fmt(bags*0.05,2)} MT) · Steel: <b>${fmt(st/1000,3)} MT</b> · Concrete ke din: <b>${pours}</b> (itni slump / cube lines)`};sum();
+  $('#dlgBody').querySelectorAll('[data-reg]').forEach(c=>c.onchange=()=>{on[c.dataset.reg]=c.checked});
+  $('#mbxBody').oninput=$('#mbxBody').onchange=e=>{const t=e.target;const i=+(t.dataset.u??t.dataset.per??t.dataset.days);const p=plan[i];if(!p)return;
+    if('u' in t.dataset)p.use=t.checked;if('per' in t.dataset)p.per=num(t.value)||0;if('days' in t.dataset)p.days=Math.max(1,parseInt(t.value)||1);
+    const bc=$('#mbxBody').querySelector(`[data-bags="${i}"]`);bc.textContent=p.use&&p.per?Math.round(p.qty*p.per):'';sum()}}
 function openMbImport(){const inp=document.createElement('input');inp.type='file';inp.accept='.xlsx';
-  inp.onchange=async()=>{const f=inp.files[0];if(!f)return;let r;try{r=await parseMBExcel(f)}catch(e){return toast(e.message)}
-    const plan=planCement(r.blocks);
-    const rowsH=()=>plan.map(p=>`<tr><td><input type="checkbox" data-u="${p.i}" ${p.use?'checked':''} aria-label="Use"></td><td>${esc(p.itemNo)}</td><td class="d">${fdate(p.date)||'<span class="chip bad">date nahi</span>'}${r.blocks[p.i].inherited?'<div class="note">pichhli date</div>':''}</td><td>${esc(p.name)}<div class="note">${esc(p.desc.slice(0,80))}</div></td><td class="n">${fmt(p.qty,2)} ${esc(p.unit)}</td>
-      <td><input data-per="${p.i}" value="${p.per}" inputmode="decimal" style="width:64px"></td><td><input data-days="${p.i}" value="${p.days}" inputmode="numeric" style="width:48px"></td><td class="n" data-bags="${p.i}">${p.use?Math.round(p.qty*p.per):''}</td></tr>`).join('');
-    openCustom('MB Excel se Cement Patrak-4',`<div class="fld wide note">Sheet: <b>${esc(r.sheet)}</b> · ${r.blocks.length} item block mile. Cement wale items apne aap tick hain. Standard consumption (bags/cum ya bags/sqm) aur kitne din mein kaam hua, badal sakte ho. Cement measurement date se <b>pehle ke kaam ke dino</b> (Ravivar chhod ke) mein barabar baanti jayegi.</div>
-      <div class="fld wide"><div class="tablewrap"><table class="reg"><thead><tr><th></th><th>Item</th><th>MB date</th><th>Kaam</th><th>Qty</th><th>Bags / unit</th><th>Din</th><th>Kul bags</th></tr></thead><tbody id="mbxBody">${rowsH()}</tbody></table></div></div>
-      <div class="fld wide note" id="mbxSum"></div><div class="fld"><label for="mbxOpen">Shuru ki khulti silak (bags) – pata ho to</label><input id="mbxOpen" inputmode="numeric" placeholder="khaali chhod sakte ho"></div><div class="fld wide note">Pehle is tarah bhari gayi entries (MB se) hat kar nayi aayengi. Haath se bhari entries waisi hi rahengi. Cement ki aavak (receipt) aur khulti silak aapko bharni hogi.</div>`,
-     ()=>{const ents=cementEntries(plan);const op=num(gv('mbxOpen'));if(op!=null&&ents.length){ents.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);ents[0].opening=String(op)}const arr=rowsOf('cement4');const keep=arr.filter(x=>x.src!=='mbx');state.data[W().id].cement4=[...keep,...ents];persist('cement4');$('#dlg').close();go('cement4');toast(ents.length+' entries Patrak-4 mein bhar di')});
-    const sum=()=>{const n=plan.filter(p=>p.use&&p.per>0).reduce((a,p)=>a+Math.round(p.qty*p.per),0);$('#mbxSum').innerHTML=`Kul cement: <b>${n} bags</b> (${fmt(n*0.05,2)} MT)`};sum();
-    $('#mbxBody').oninput=$('#mbxBody').onchange=e=>{const t=e.target;const i=+(t.dataset.u??t.dataset.per??t.dataset.days);const p=plan[i];if(!p)return;
-      if('u' in t.dataset)p.use=t.checked;if('per' in t.dataset)p.per=num(t.value)||0;if('days' in t.dataset)p.days=Math.max(1,parseInt(t.value)||1);
-      $('#mbxBody').querySelector(`[data-bags="${i}"]`).textContent=p.use?Math.round(p.qty*p.per):'';sum()}};
+  inp.onchange=async()=>{const f=inp.files[0];if(!f)return;let r;try{r=await parseMBExcel(f)}catch(e){return toast(e.message)}openMbFill(r)};
   inp.click()}
 
 /* ===================== FIREBASE: LOGIN, SYNC, ADMIN ===================== */
@@ -1346,7 +1393,7 @@ async function renderAdmin(){
 }
 
 /* ===================== CHATBOT ===================== */
-const DOCT={ask:'Sirf sawaal',ts:'TS letter',tender:'Tender approval letter',wo:'Work order',boq:'BOQ / Schedule-B',estimate:'Estimate'};
+const DOCT={ask:'Sirf sawaal',mb:'MB Excel → sab register',ts:'TS letter',tender:'Tender approval letter',wo:'Work order',boq:'BOQ / Schedule-B',estimate:'Estimate'};
 const chat={msgs:[],busy:false};
 const SYS_X='You read Gujarat Roads & Buildings (PWD) government documents (English or Gujarati). Reply with ONLY one valid JSON object and nothing else. Use null when a value is not in the document. Dates as YYYY-MM-DD. Amounts as plain text exactly as written (e.g. "4,01,55,180.69").';
 const SCHEMA={
@@ -1389,19 +1436,26 @@ function applyFields(w,type,d){const c=mbOf(w).cover;const out=[];const set=(o,k
 function renderChat(){const w=W();
   const why=!FIREBASE_CONFIG||EMBED?'Chatbot GitHub wale app mein Google login aur Worker setup ke baad chalega.':!user?'Pehle login karo.':!canAI()?'Admin ne abhi aapko chatbot ki permission nahi di. Admin page se "Allow karo" karwao.':!appCfg.workerUrl?'Admin ne abhi Worker URL set nahi kiya (Admin page → Chatbot setting).':'';
   $('#main').innerHTML=`<div class="sheethead"><div><h2>Chatbot</h2><div class="sub">${esc(w.name)}</div></div></div>
-  ${why?`<div class="banner"><span>${esc(why)}</span></div>`:''}
+  ${why?`<div class="banner"><span>${esc(why)} ("MB Excel → sab register" iske bina bhi chalega.)</span></div>`:''}
   <div class="chatlog" id="chatlog">${chat.msgs.length?'':`<div class="empty">Letter, estimate ya BOQ upload karo, ya kaam ke baare mein sawaal poochho.<br>Jaise: "Item 5 ka ab tak kitna MB hua?" ya "Cement kitna bacha hai?"</div>`}</div>
   <form class="composer" id="chatForm"><div class="crow"><select id="c_type" aria-label="Kya upload kar rahe ho">${Object.entries(DOCT).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select>
    <label class="btn" for="c_file">File chuno</label><input type="file" id="c_file" accept=".pdf,.png,.jpg,.jpeg,.xlsx" hidden><span class="note" id="c_fname"></span></div>
-   <div class="crow"><textarea id="c_text" rows="2" placeholder="Sawaal ya note likho…"></textarea><button class="btn primary" id="c_send" ${why||chat.busy?'disabled':''}>${chat.busy?'Padh raha hai…':'Bhejo'}</button></div></form>`;
+   <div class="crow"><textarea id="c_text" rows="2" placeholder="Sawaal ya note likho…"></textarea><button class="btn primary" id="c_send" ${chat.busy?'disabled':''}>${chat.busy?'Padh raha hai…':'Bhejo'}</button></div></form>`;
   drawChat();
-  $('#c_file').onchange=e=>{const f=e.target.files[0];$('#c_fname').textContent=f?f.name:'';if(f&&$('#c_type').value==='ask')$('#c_type').value=/boq|schedule/i.test(f.name)?'boq':/estimate/i.test(f.name)?'estimate':/work.?order/i.test(f.name)?'wo':/tender/i.test(f.name)?'tender':/ts/i.test(f.name)?'ts':'ask'};
+  $('#c_file').onchange=e=>{const f=e.target.files[0];$('#c_fname').textContent=f?f.name:'';if(f&&$('#c_type').value==='ask')$('#c_type').value=/\.xlsx$/i.test(f.name)&&/\bmb\b|measure|ra.?\d|bill/i.test(f.name)?'mb':/boq|schedule/i.test(f.name)?'boq':/estimate/i.test(f.name)?'estimate':/work.?order/i.test(f.name)?'wo':/tender/i.test(f.name)?'tender':/ts/i.test(f.name)?'ts':'ask'};
   $('#chatForm').onsubmit=e=>{e.preventDefault();sendChat()}}
 function drawChat(){const el=$('#chatlog');if(!el||!chat.msgs.length)return;
   el.innerHTML=chat.msgs.map((m,i)=>`<div class="msg ${m.role}"><div class="bub">${m.html||esc(m.text||'').replace(/\n/g,'<br>')}</div></div>`).join('');el.scrollTop=el.scrollHeight;
   el.querySelectorAll('[data-apply]').forEach(b=>b.onclick=()=>applyResult(+b.dataset.apply))}
 async function sendChat(){const w=W();const type=$('#c_type').value;const f=$('#c_file').files[0];const text=$('#c_text').value.trim();
   if(!f&&!text)return toast('File chuno ya sawaal likho');if(type!=='ask'&&!f)return toast(DOCT[type]+' ki file chuno');
+  if(type==='mb'){if(!/\.xlsx$/i.test(f.name))return toast('MB ki .xlsx file chuno');
+    chat.msgs.push({role:'user',text:`📎 ${f.name} (${DOCT[type]})`+(text?'\n'+text:'')});
+    try{const r=await parseMBExcel(f);const i=chat.msgs.length;const pl=planMB(r.blocks);const c=k=>pl.filter(p=>p.kind===k).length;
+      chat.msgs.push({role:'bot',type:'mb',data:r,html:`<b>MB padh liya</b> (sheet: ${esc(r.sheet)}): ${r.blocks.length} item block – concrete ${c('conc')}, steel ${c('steel')}, baaki cement kaam ${c('cem')}.<br>Isse Cement Patrak-4, Steel Patrak-2, Slump aur Cube Patrak-3 bharenge. Agle page par check karke save karo.<br><button class="btn primary small" data-apply="${i}">Registers bharo…</button>`})}
+    catch(e){chat.msgs.push({role:'bot',text:'Dikkat: '+e.message})}
+    $('#c_file').value='';$('#c_text').value='';renderChat();return}
+  if(!FIREBASE_CONFIG||EMBED||!user||!canAI()||!appCfg.workerUrl)return toast('Chatbot abhi chalu nahi – upar likha kaaran dekho');
   chat.msgs.push({role:'user',text:(f?`📎 ${f.name} (${DOCT[type]})\n`:'')+text});chat.busy=true;renderChat();
   try{
     if(type!=='ask'){const blocks=await fileToBlocks(f);
@@ -1418,6 +1472,7 @@ async function sendChat(){const w=W();const type=$('#c_type').value;const f=$('#
   }catch(e){chat.msgs.push({role:'bot',text:'Dikkat: '+e.message})}
   chat.busy=false;renderChat();$('#c_text').value=''}
 function applyResult(i){const m=chat.msgs[i];const w=W();
+  if(m.type==='mb')return openMbFill(m.data);
   if(m.type==='boq'){m.data.items.forEach(x=>{const o={id:uid(),no:String(x.no).trim(),qty:num(x.qty),unit:x.unit||'',rate:num(x.rate),desc:x.desc};const k=w.items.findIndex(y=>String(y.no)===o.no);if(k>=0){o.id=w.items[k].id;w.items[k]=o}else w.items.push(o)});
     w.items.sort((a,b)=>(parseFloat(a.no)||0)-(parseFloat(b.no)||0));toast(m.data.items.length+' items Tender Items mein save')}
   else if(m.type==='estimate'){w.estItems=m.data.items;toast(m.data.items.length+' estimate items save')}
