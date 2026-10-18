@@ -280,6 +280,7 @@ function gradeCheck(c){let spec=c.spec||'20 mm graded (IS 383)';
 const toMpa=(v,u)=>{const x=num(v);if(x==null)return null;return /N\/mm/.test(u||'')?x:x*1000/22500};
 
 /* IS 456 cl.15.2.2 sampling frequency */
+const cpsOf=r=>/^3/.test(r?.cps||'')?3:6;
 function reqSamples(q){q=+q||0;if(q<=0)return 0;if(q<=5)return 1;if(q<=15)return 2;if(q<=30)return 3;if(q<=50)return 4;return 4+Math.ceil((q-50)/50)}
 /* 150 mm cube: N/mm2 = kN*1000/22500 */
 const cubeStr=kn=>{const x=num(kn);return x==null?null:x*1000/22500};
@@ -499,13 +500,14 @@ const REGS=[
 
 {id:'cube3',grp:'Concrete',short:'Cube Testing Patrak-3',gu:true,
  title:'કોંક્રીટના ક્યુબના ટેસ્ટીંગ પરિણામો દર્શાવતું પત્રક - ૩',
- note:'Ek set (3 cube) ki ek line. Kaam ka jaththo daalte hi IS 456 se kitne cube lene hain wo aata hai. 7/28 din ki due date Dashboard par. Reading kN (150 mm cube) ya N/mm² mein daalo; register mein kg/cm² chhapega (×10.197). Column 12/13: 28 din = fck, 7 din = 2/3 fck (sirf andaaz, IS 456 mein acceptance 28 din par hi). Acceptance IS 456 Table 11: har set ≥ fck−4 (M20 aur upar) / fck−3 (M15); 4 set ka mean ≥ fck+4 / fck+3. Set ke 3 cube average se ±15% se zyada alag ho to sample invalid (cl. 15.4).',
+ note:'Ek din ki dhalai ki ek line. Kaam ka jaththo daalte hi IS 456 cl. 15.2.2 se kitne sample (aur cube) lene hain wo aata hai – har sample mein 6 cube (3 – 7 din, 3 – 28 din); sirf 28 din ka test ho to form mein 3 chuno. 7/28 din ki due date Dashboard par. Reading kN (150 mm cube) ya N/mm² mein daalo; register mein kg/cm² chhapega (×10.197). Column 12/13: 28 din = fck, 7 din = 2/3 fck (sirf andaaz, IS 456 mein acceptance 28 din par hi). Acceptance IS 456 Table 11: har set ≥ fck−4 (M20 aur upar) / fck−3 (M15); 4 set ka mean ≥ fck+4 / fck+3. Set ke 3 cube average se ±15% se zyada alag ho to sample invalid (cl. 15.4).',
  sortKey:'date',
  cols:[C('_sr','અનુક્રમ નંબર','sr'),C('date','ક્યુબ લીધાની તારીખ','date'),
   C('grade','Grade (M20/M25...)','sel',{options:['',...GRADES],formOnly:true}),
   C('mark','ક્યુબ ઉપરનું નિશાન તથા કોન્ક્રીટના વપરાશનું સ્થળ'),
   C('qty','ટેન્ડર મુજબ થયેલ કામનો રોજિંદો જથ્થો (ઘ.મી.)','num',{dp:2}),
-  C('reqNos','કામની નિર્દિષ્ઠ વિગતો પ્રમાણે ક્યુબ લેવાની સંખ્યા','calc',{dp:0,fn:r=>reqSamples(r.qty)*3||null,xf:x=>{const q=x.R('qty');return `IF(${q}="","",3*IF(${q}<=5,1,IF(${q}<=15,2,IF(${q}<=30,3,IF(${q}<=50,4,4+ROUNDUP((${q}-50)/50,0))))))`}}),
+  C('cps','Ek sample mein kitne cube','sel',{options:['6 (3 – 7 din + 3 – 28 din)','3 (sirf 28 din)'],formOnly:true}),
+  C('reqNos','કામની નિર્દિષ્ઠ વિગતો પ્રમાણે ક્યુબ લેવાની સંખ્યા','calc',{dp:0,fn:r=>reqSamples(r.qty)*cpsOf(r)||null,xf:x=>{const q=x.R('qty');return `IF(${q}="","",${cpsOf(x.c)}*IF(${q}<=5,1,IF(${q}<=15,2,IF(${q}<=30,3,IF(${q}<=50,4,4+ROUNDUP((${q}-50)/50,0))))))`}}),
   C('cubesN','લીધેલ ક્યુબની સંખ્યા','num',{dp:0,formOnly:true}),C('cubeSize','ક્યુબનું માપ','text',{formOnly:true,def:'15 સે.મી.'}),
   C('cubes','લેવામાં આવેલ ક્યુબના સંખ્યા તથા માપ','calc',{fn:r=>r.cubesN!=null?`${r.cubesN} નંગ, ${r.cubeSize||''}`:''}),
   C('curing','ક્યોરીંગનો સમય ગાળો'),
