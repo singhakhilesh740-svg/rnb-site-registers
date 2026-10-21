@@ -502,7 +502,7 @@ const REGS=[
 
 {id:'cube3',grp:'Concrete',short:'Cube Testing Patrak-3',gu:true,
  title:'કોંક્રીટના ક્યુબના ટેસ્ટીંગ પરિણામો દર્શાવતું પત્રક - ૩',
- note:'One line per day of concreting. Entering the quantity gives the number of samples (and cubes) required by IS 456 cl. 15.2.2 – 6 cubes per sample (3 for 7 days, 3 for 28 days); choose 3 in the form if only the 28-day test is done. 7/28-day due dates are shown on the Dashboard. Enter readings in kN (150 mm cube) or N/mm²; the register prints kg/cm² (×10.197). Columns 12/13: 28 days = fck, 7 days = 2/3 fck (indicative only; acceptance under IS 456 is at 28 days). Acceptance per IS 456 Table 11: each set ≥ fck−4 (M20 and above) / fck−3 (M15); mean of 4 sets ≥ fck+4 / fck+3. A sample is invalid if any cube differs from the set average by more than ±15% (cl. 15.4).',
+ note:'One line per day of concreting. Entering the quantity gives the number of samples (and cubes) required by IS 456 cl. 15.2.2 – 6 cubes per sample (3 for 7 days, 3 for 28 days); choose 3 in the form if only the 28-day test is done. 7/28-day due dates are shown on the Dashboard. Enter readings in kN (150 mm cube) or N/mm²; the register prints kg/cm² (×10.197). Columns 12/13: 28 days = fck, 7 days = 2/3 fck (indicative only; acceptance under IS 456 is at 28 days). Acceptance per IS 456 Table 11 (as amended): each set ≥ fck−3; mean of 4 non-overlapping sets ≥ fck + 0.825 S (rounded to 0.5) or fck+3, whichever is greater (assumed S: 3.5 up to M15, 4.0 for M20–M25, 5.0 above). A sample is invalid if any cube differs from the set average by more than ±15% (cl. 15.4).',
  sortKey:'date',
  cols:[C('_sr','અનુક્રમ નંબર','sr'),C('date','ક્યુબ લીધાની તારીખ','date'),
   C('grade','Grade (M20/M25...)','sel',{options:['',...GRADES],formOnly:true}),
@@ -528,8 +528,8 @@ const REGS=[
  flag:r=>{const f=fck(r.grade);const m28=avg(r.n28||[]),m7=avg(r.n7||[]);
   const sp=(a,s)=>a&&s.filter(v=>v!=null).some(v=>Math.abs(v-a)/a>0.15);
   if(r.reqNos&&r.cubesN!=null&&r.cubesN<r.reqNos)return['bad',`Insufficient cubes: ${r.reqNos} required`];
-  const dd=f&&f<20?3:4;
-  if(m28!=null&&f){if(sp(m28,r.n28||[]))return['warn','Cube differs by more than ±15% – sample invalid'];if(m28<f-dd)return['bad',`28d ${m28.toFixed(1)} N/mm² < fck−${dd}`];if(m28<f+dd)return['warn',`28d < fck+${dd}: check mean of 4 sets`];return['ok','28d OK']}
+  const dd=3,S=f<=15?3.5:f<=25?4:5,mm=Math.max(3,Math.round(0.825*S*2)/2);
+  if(m28!=null&&f){if(sp(m28,r.n28||[]))return['warn','Cube differs by more than ±15% – sample invalid'];if(m28<f-dd)return['bad',`28d ${m28.toFixed(1)} N/mm² < fck−${dd}`];if(m28<f+mm)return['warn',`28d < fck+${mm}: check mean of 4 sets`];return['ok','28d OK']}
   if(m7!=null&&f)return m7<2/3*f?['warn',`7d ${m7.toFixed(1)} N/mm² (below 2/3 fck)`]:['ok','7d OK'];
   if(!f&&(m7!=null||m28!=null))return['warn','Enter grade'];
   return null}},
@@ -654,10 +654,10 @@ function renderShelf(){
     ${dd('Work',['works','items'],btn('works','My works',state.works.length)+btn('items','Tender Items',w0.items.length))}
     ${dd('MB',['mbCover','mbRecord','mbAbstract','mbup'],btn('mbup','Uploaded MB (Excel)',(w0.mbFiles||[]).length)+'<h4>Measurement Book</h4>'+btn('mbCover','CMB Page 1–5')+btn('mbRecord','For Record',w0.mb.entries.length)+btn('mbAbstract','Abstract'))}`;
   for(const g in groups){const rs=groups[g].map(r=>{const rows=compute(r);return {r,n:rows.length,bad:rows.some(x=>x._flag?.[0]==='bad')}});
-    h+=dd(g,groups[g].map(r=>r.id).concat(g==='Summary'?['tests']:[]),`<h4>${esc(g)}</h4>`+(g==='Summary'?btn('tests','Test Schedule (IS / CPWD)'):'')+rs.map(o=>btn(o.r.id,o.r.short,o.n,o.bad)).join(''),rs.some(o=>o.bad))}
+    h+=dd(g,groups[g].map(r=>r.id).concat(g==='Summary'?['tests','tforms']:[]),`<h4>${esc(g)}</h4>`+(g==='Summary'?btn('tests','Test Schedule (IS / CPWD)')+btn('tforms','Test Formats & Calculations'):'')+rs.map(o=>btn(o.r.id,o.r.short,o.n,o.bad)).join(''),rs.some(o=>o.bad))}
   h+=` <span class="spacer"></span>${tab('settings','⚙ Settings')}<button class="tab" data-act="pickRegs" title="Choose the registers for this work">☰ Registers <span class="cnt">${myRegs().length}/${REGS.length}</span></button>${isAdmin()?tab('admin','Admin'):''}</div>`;
   const opt=(id,l)=>`<option value="${id}" ${view.reg===id?'selected':''}>${esc(l)}</option>`;
-  h=`<select class="mobsel" id="mobSel" aria-label="Select page">${opt('dash','Dashboard')}${opt('chat','Assistant')}${opt('aavak','Material Planning')}${opt('settings','⚙ Settings')}${opt('tests','Test Schedule')}${isAdmin()?opt('admin','Admin'):''}<optgroup label="Work / MB">${opt('works','My works')}${opt('mbup','Uploaded MB')}${Object.entries(MBV).map(([k,v])=>opt(k,v)).join('')}</optgroup>${Object.keys(groups).map(g=>`<optgroup label="${g}">${groups[g].map(r=>opt(r.id,r.short)).join('')}</optgroup>`).join('')}<option value="__pick">☰ Choose registers…</option></select>`+h;
+  h=`<select class="mobsel" id="mobSel" aria-label="Select page">${opt('dash','Dashboard')}${opt('chat','Assistant')}${opt('aavak','Material Planning')}${opt('settings','⚙ Settings')}${opt('tests','Test Schedule')}${opt('tforms','Test Formats')}${isAdmin()?opt('admin','Admin'):''}<optgroup label="Work / MB">${opt('works','My works')}${opt('mbup','Uploaded MB')}${Object.entries(MBV).map(([k,v])=>opt(k,v)).join('')}</optgroup>${Object.keys(groups).map(g=>`<optgroup label="${g}">${groups[g].map(r=>opt(r.id,r.short)).join('')}</optgroup>`).join('')}<option value="__pick">☰ Choose registers…</option></select>`+h;
   $('#shelf').innerHTML=h;$('#mobSel').onchange=e=>{if(e.target.value==='__pick'){e.target.value=view.reg;return openRegPicker()}go(e.target.value)};
 }
 document.addEventListener('click',e=>{const t=e.target.closest('.ddbtn');document.querySelectorAll('.dd.open').forEach(d=>{if(!t||d!==t.parentElement)d.classList.remove('open')});if(t)t.parentElement.classList.toggle('open')});
@@ -767,7 +767,7 @@ function renderReg(){
   $('#xls')?.addEventListener('click',()=>exportReg(reg));
   document.querySelectorAll('#main tbody tr[data-id]').forEach(tr=>tr.onclick=()=>openForm(reg,rowsOf(reg.id).find(r=>r.id===tr.dataset.id)));
 }
-function render(){renderWorks();renderShelf();view.reg==='dash'?renderDash():view.reg==='chat'?renderChat():view.reg==='works'?renderWorksList():view.reg==='admin'?renderAdmin():view.reg==='mbup'?renderMbUp():view.reg==='aavak'?renderAavak():view.reg==='settings'?renderSettings():view.reg==='tests'?renderTests():MBV[view.reg]?renderMB(view.reg):renderReg()}
+function render(){renderWorks();renderShelf();view.reg==='dash'?renderDash():view.reg==='chat'?renderChat():view.reg==='works'?renderWorksList():view.reg==='admin'?renderAdmin():view.reg==='mbup'?renderMbUp():view.reg==='aavak'?renderAavak():view.reg==='settings'?renderSettings():view.reg==='tests'?renderTests():view.reg==='tforms'?renderTForms():MBV[view.reg]?renderMB(view.reg):renderReg()}
 function go(id){view.reg=id;try{localStorage.setItem(LS_KEY+'_view',id)}catch(e){}render();window.scrollTo(0,0)}
 
 /* ===================== FORM ===================== */
@@ -1723,7 +1723,7 @@ const TESTS=[
  {st:'2. Materials on receipt',mat:'Fly ash / concrete blocks',test:'Dimensions, compressive strength, water absorption, block density, drying shrinkage',code:'IS 12894:2002 (fly ash bricks), IS 2185 (Part 1) (blocks)',freq:'Each lot as per sampling clause of the code',when:'Each lot, before use',acc:'As per class / grade in the code',src:'IS'},
  {st:'3. During concreting',mat:'Fresh concrete – workability',test:'Slump test',code:'IS 1199 (Part 2):2018; IS 456 cl. 7',freq:'Design-mix RCC: 1 per 50 cum (min. 10 cum). Nominal-mix RCC: columns every 5 cum, slabs / beams / connected columns every 20 cum. PCC: every 15 cum or part. Below these quantities per day – as decided by the Engineer-in-Charge',when:'At the point of placing (for RMC also at loading and discharge, within 20 minutes of mixing)',acc:'As per mix design; IS 456 cl. 7.1 ranges (25–75, 50–100, 75–100 mm)',src:'CPWD 2019 cl. 4.2.2, 5.4.1, 5.11.4',
   calc:N=>N.slumps,done:w=>rowsOf('slump',w).filter(r=>num(r.s1)!=null).length},
- {st:'3. During concreting',mat:'Concrete – compressive strength',test:'Cube test – 6 cubes per sample (3 tested at 7 days, 3 at 28 days)',code:'IS 456:2000 cl. 15.2.2; IS 1199 (Part 1):2018; IS 516 (Part 1/Sec 1):2021',freq:'IS 456 (per day of concreting): 1–5 cum – 1 sample; 6–15 – 2; 16–30 – 3; 31–50 – 4; above 50 – 4 + 1 per additional 50 cum. CPWD 2019: design mix – 1 per 50 cum or 10 batches; nominal mix – columns every 5 cum, slabs / beams every 20 cum. Follow the stricter / tender requirement',when:'Cast at the pour; test at 7 and 28 days',acc:'IS 456 Table 11: each sample ≥ fck − 4 (M20 & above) / fck − 3 (M15); mean of 4 ≥ fck + 4 / fck + 3; cubes within ±15% of sample average',src:'IS 456 cl. 15.2.2; CPWD 2019 cl. 5.4.9'
+ {st:'3. During concreting',mat:'Concrete – compressive strength',test:'Cube test – 6 cubes per sample (3 tested at 7 days, 3 at 28 days)',code:'IS 456:2000 cl. 15.2.2; IS 1199 (Part 1):2018; IS 516 (Part 1/Sec 1):2021',freq:'IS 456 (per day of concreting): 1–5 cum – 1 sample; 6–15 – 2; 16–30 – 3; 31–50 – 4; above 50 – 4 + 1 per additional 50 cum. CPWD 2019: design mix – 1 per 50 cum or 10 batches; nominal mix – columns every 5 cum, slabs / beams every 20 cum. Follow the stricter / tender requirement',when:'Cast at the pour; test at 7 and 28 days',acc:'IS 456 Table 11 (as amended): mean of 4 non-overlapping consecutive samples ≥ fck + 0.825 S or fck + 3, whichever is greater; each sample ≥ fck − 3; cubes within ±15% of sample average',src:'IS 456 cl. 15.2.2; CPWD 2019 cl. 5.4.9'
   ,calc:N=>N.samples,done:w=>rowsOf('cube3',w).filter(r=>(r.r28||[]).some(v=>num(v)!=null)).length},
  {st:'3. During concreting',mat:'Reinforcement & formwork inspection',test:'Bar size, spacing, laps, cover blocks, chairs; formwork line, level, staging',code:'IS 456 cl. 26.4 (cover), IS 14687 (formwork)',freq:'Every member / pour',when:'Before concreting (pour card / checklist)',acc:'Nominal cover as per exposure (moderate: 30 mm slab/beam, 40 mm column, 50 mm footing)',src:'IS'},
  {st:'4. Hardened concrete (when required)',mat:'Concrete in structure',test:'Rebound hammer, ultrasonic pulse velocity; core test',code:'IS 13311 (Parts 1 & 2); IS 516 (core testing); IS 456 cl. 17',freq:'Only when cube results are below acceptance or quality is in doubt',when:'After 28 days',acc:'Core strength ≥ 0.85 fck on average and no individual core < 0.75 fck (IS 456 cl. 17.4)',src:'IS 456'},
@@ -1767,11 +1767,12 @@ function renderTests(){const w=W();const F=freqOf(w);const N=testCtx(w);const AP
   const head=print=>`<thead><tr><th>Material / work</th><th>Tests</th><th>Code</th><th>Frequency</th><th>When to perform</th><th>Acceptance</th>${print?'':'<th>Required for this work</th><th>Recorded in registers</th>'}<th>Basis</th></tr></thead>`;
   const tables=print=>stages.map(sg=>`<h3 style="margin:18px 0 6px">${esc(sg)}</h3><div class="tablewrap"><table class="${print?'p':'reg'}">${head(print)}<tbody>${TESTS.filter(t=>t.st===sg).map(t=>rowH(t,print)).join('')}</tbody></table></div>`).join('');
   $('#main').innerHTML=`<div class="sheethead"><div><h2>Test Schedule – Building Works</h2><div class="sub">${esc(w.name)}</div></div>
-    <div class="actions"><button class="btn" id="tsPdf">PDF</button><button class="btn" id="tsXls">Excel</button></div></div>
+    <div class="actions"><button class="btn" id="tsFmt">Test formats &amp; calculations</button><button class="btn" id="tsPdf">PDF</button><button class="btn" id="tsXls">Excel</button></div></div>
     <p class="note" style="margin:0">Tests, frequencies and timing as per CPWD Specifications 2019 (Vol. 1 – lists of mandatory tests in Sub-heads 3, 4, 5, 6, 7, 8, 10 and 11), IS 456:2000 and the current Indian Standards for each material. "Required for this work" is calculated from the MB quantities filled in the registers (cement and steel from Patrak-4 / Patrak-2, aggregates and bricks from Material Planning, cubes and slump from Cube Patrak-3) using the frequencies in ⚙ Settings. Where the tender or the Gujarat R&B Quality Control Manual specifies a different frequency, that frequency governs – change it in ⚙ Settings.</p>
     ${aggSec(false)}
     ${tables(false)}
     <div class="list" style="margin-top:18px"><h3>Codes followed</h3>${CODES.map(([c,t])=>`<div class="li"><b>${esc(c)}</b><span class="note" style="flex:1;margin-left:12px">${esc(t)}</span></div>`).join('')}</div>`;
+  $('#tsFmt').onclick=()=>go('tforms');
   $('#tsPdf').onclick=()=>printNow(`<div class="pg"><div class="ph"><h2>Test Schedule – Building Works – ${esc(w.name)}</h2></div>${aggSec(true)}${tables(true)}<h3>Codes followed</h3><table class="p"><tbody>${CODES.map(([c,t])=>`<tr><td><b>${esc(c)}</b></td><td>${esc(t)}</td></tr>`).join('')}</tbody></table></div>`,`Test Schedule - ${w.name}`);
   $('#tsXls').onclick=async()=>{if(typeof ExcelJS==='undefined')return toast('The Excel library could not be loaded (internet connection required).');const wb=new ExcelJS.Workbook();const ws=wb.addWorksheet('Test Schedule');
     ws.addRow([`Test Schedule – Building Works – ${w.name}`]).font={bold:true,size:13};ws.addRow([]);
@@ -1784,6 +1785,261 @@ function renderTests(){const w=W();const F=freqOf(w);const N=testCtx(w);const AP
     [26,12,12,44,30,12,50].forEach((v,i)=>ws3.getColumn(i+1).width=v);
     const ws2=wb.addWorksheet('Codes');ws2.addRow(['Code','Title']).font={bold:true};CODES.forEach(c=>ws2.addRow(c));ws2.getColumn(1).width=34;ws2.getColumn(2).width=90;
     await xlSave(wb,`Test Schedule - ${w.name}`)}}
+
+/* ===================== TEST FORMATS – observation sheets, calculation, pass / fail ===================== */
+const TFn=v=>v==null||!isFinite(v)?'–':fmt(v,2);
+const TFavg=a=>{a=a.filter(x=>x!=null&&isFinite(x));return a.length?a.reduce((s,x)=>s+x,0)/a.length:null};
+const TFok=(c)=>c==null?null:!!c;
+const TFrow=(o,k)=>num(o?.[k]);
+/* grading limits: [sieve mm, min % passing, max % passing] */
+const CA_GR={'Graded 20 mm (IS 383 Table 7)':[[40,100,100],[20,95,100],[10,25,55],[4.75,0,10]],
+ 'Single size 20 mm (IS 383 Table 7)':[[40,100,100],[20,85,100],[10,0,20],[4.75,0,5]],
+ 'Single size 10 mm (IS 383 Table 7)':[[12.5,100,100],[10,85,100],[4.75,0,20],[2.36,0,5]],
+ 'Graded 40 mm (IS 383 Table 7)':[[80,100,100],[40,95,100],[20,30,70],[10,10,35],[4.75,0,5]],
+ 'Single size 40 mm (IS 383 Table 7)':[[63,100,100],[40,85,100],[20,0,20],[10,0,5]]};
+const CA_D={'Graded 20 mm (IS 383 Table 7)':[0,250,14200,9300,1250],'Single size 20 mm (IS 383 Table 7)':[0,1800,20500,2300,400],'Single size 10 mm (IS 383 Table 7)':[0,350,3800,700,150],'Graded 40 mm (IS 383 Table 7)':[0,1500,24000,13000,10500,1000],'Single size 40 mm (IS 383 Table 7)':[0,4000,40000,5000,1000]};
+const SAND_SV=[10,4.75,2.36,1.18,0.6,0.3,0.15];
+const SAND_Z={'Zone I':[[100,100],[90,100],[60,95],[30,70],[15,34],[5,20],[0,10]],'Zone II':[[100,100],[90,100],[75,100],[55,90],[35,59],[8,30],[0,10]],
+ 'Zone III':[[100,100],[90,100],[85,100],[75,100],[60,79],[12,40],[0,10]],'Zone IV':[[100,100],[95,100],[95,100],[90,100],[80,100],[15,50],[0,15]]};
+const SAND_M={'Masonry mortar (IS 2116)':[[100,100],[100,100],[90,100],[70,100],[40,100],[5,70],[0,15]],'Plaster (IS 1542)':[[100,100],[95,100],[95,100],[90,100],[80,100],[20,65],[0,15]]};
+const STEEL_G={'Fe 415':[415,1.10,485,14.5],'Fe 415D':[415,1.12,500,18],'Fe 500':[500,1.08,545,12],'Fe 500D':[500,1.10,565,16],'Fe 550':[550,1.06,585,10],'Fe 550D':[550,1.08,600,14.5],'Fe 600':[600,1.06,660,10]};
+const CEM_S={'OPC 33 (IS 269)':[16,22,33,225],'OPC 43 (IS 269)':[23,33,43,225],'OPC 53 (IS 269)':[27,37,53,225],'PPC (IS 1489-1)':[16,22,33,300],'PSC (IS 455)':[16,22,33,225]};
+const BRICK_CL=[3.5,5,7.5,10,12.5,15,17.5,20,25,30,35];
+const sieveCalc=(rows,lim,sv)=>{const W=rows.map(r=>TFrow(r,'w')||0);const tot=W.reduce((a,b)=>a+b,0)+(TFrow(rows.pan,'w')||0);let cum=0;
+  return sv.map((s,i)=>{cum+=W[i];const ret=tot?cum/tot*100:null;const pass=ret==null?null:100-ret;const L=lim?.[i];return {s,w:W[i],cw:cum,tot,cr:ret,p:pass,L,ok:L&&pass!=null?pass>=L[0]-1e-9&&pass<=L[1]+1e-9:null}})};
+
+const TF=[
+/* ---------- 1. Before start ---------- */
+{id:'water',mat:'Water for construction',name:'Water – chemical tests',code:'IS 456 cl. 5.4; IS 3025',
+ proc:'Lab test of a 5 litre sample from each source. Acidity: 100 ml sample titrated with 0.02 N NaOH (phenolphthalein). Alkalinity: 100 ml sample titrated with 0.02 N H₂SO₄ (mixed indicator).',
+ inp:[{k:'use',l:'Use',opt:['RCC','PCC']},{k:'ph',l:'pH',d:7.4},{k:'acid',l:'Acidity – 0.02 N NaOH to neutralise 100 ml',u:'ml',d:1.2},{k:'alk',l:'Alkalinity – 0.02 N H₂SO₄ to neutralise 100 ml',u:'ml',d:12},
+  {k:'org',l:'Organic solids',u:'mg/l',d:60},{k:'inorg',l:'Inorganic solids',u:'mg/l',d:850},{k:'so4',l:'Sulphates (as SO₃)',u:'mg/l',d:120},{k:'cl',l:'Chlorides (as Cl)',u:'mg/l',d:210},{k:'ss',l:'Suspended matter',u:'mg/l',d:180}],
+ calc:v=>{const clL=v.use==='PCC'?2000:500;return {s:[],c:[['pH',v.ph,'≥ 6',TFok(v.ph!=null&&v.ph>=6)],['Acidity',v.acid,'≤ 5 ml',TFok(v.acid!=null&&v.acid<=5)],['Alkalinity',v.alk,'≤ 25 ml',TFok(v.alk!=null&&v.alk<=25)],
+  ['Organic solids',v.org,'≤ 200 mg/l',TFok(v.org!=null&&v.org<=200)],['Inorganic solids',v.inorg,'≤ 3000 mg/l',TFok(v.inorg!=null&&v.inorg<=3000)],['Sulphates (SO₃)',v.so4,'≤ 400 mg/l',TFok(v.so4!=null&&v.so4<=400)],
+  [`Chlorides (${v.use||'RCC'})`,v.cl,`≤ ${clL} mg/l`,TFok(v.cl!=null&&v.cl<=clL)],['Suspended matter',v.ss,'≤ 2000 mg/l',TFok(v.ss!=null&&v.ss<=2000)]]}}},
+{id:'mixd',mat:'Mix design',name:'Mix design – target strength and trial mix',code:'IS 10262:2019; IS 456:2000 Table 5',
+ proc:'Target mean strength f′ck = fck + 1.65 S or fck + X, whichever is higher (IS 10262:2019 cl. 4.2). Assumed S: M10–M15 3.5, M20–M25 4.0, M30–M60 5.0 N/mm². X: 5.0 / 5.5 / 6.5 N/mm².',
+ inp:[{k:'fck',l:'Grade fck',u:'N/mm²',d:25},{k:'S',l:'Standard deviation S (blank = assumed)',u:'N/mm²'},{k:'t1',l:'Trial mix 28-day cube 1',u:'N/mm²',d:33.8},{k:'t2',l:'Trial mix cube 2',u:'N/mm²',d:34.6},{k:'t3',l:'Trial mix cube 3',u:'N/mm²',d:32.9},
+  {k:'wc',l:'w/c ratio adopted',d:0.45},{k:'wcmax',l:'Max. w/c for exposure (IS 456 Table 5; moderate RCC 0.50)',d:0.5},{k:'cem',l:'Cement content adopted',u:'kg/cum',d:380},{k:'cmin',l:'Min. cement for exposure (moderate RCC 300)',u:'kg/cum',d:300}],
+ calc:v=>{const f=v.fck;const S=v.S??(f<=15?3.5:f<=25?4:5);const X=f<=15?5:f<=25?5.5:6.5;const t=f!=null?Math.max(f+1.65*S,f+X):null;const a=TFavg([v.t1,v.t2,v.t3]);
+  return {s:[['Standard deviation S',v.S!=null?'entered':'assumed (IS 10262 Table 2)',S],['fck + 1.65 S',`${f} + 1.65 × ${S}`,f+1.65*S],['fck + X',`${f} + ${X}`,f+X],['Target mean strength f′ck','higher of the two',t],['Trial mix average (28 days)',`(${[v.t1,v.t2,v.t3].join(' + ')}) / 3`,a]],
+  c:[['Trial mix average ≥ f′ck',a,`≥ ${TFn(t)} N/mm²`,TFok(a!=null&&t!=null&&a>=t)],['w/c ratio',v.wc,`≤ ${v.wcmax}`,TFok(v.wc!=null&&v.wc<=v.wcmax)],['Cement content',v.cem,`${v.cmin} – 450 kg/cum (IS 456 cl. 8.2.4.2)`,TFok(v.cem!=null&&v.cem>=v.cmin&&v.cem<=450)]]}}},
+{id:'calib',mat:'Batching plant / weigh batcher',name:'Weigh batcher calibration',code:'IS 456 cl. 10.2.2',
+ proc:'Place standard weights (or weigh the batched material on a calibrated platform scale) and compare with the batcher reading. Error % = (Batcher reading − Actual weight) / Actual weight × 100.',
+ inp:[{k:'r',t:'tab',l:'Readings',rows:['Cement','Fly ash','Sand','Aggregate 20 mm','Aggregate 10 mm','Water','Admixture'],cols:[{k:'a',l:'Actual weight (kg)'},{k:'b',l:'Batcher reading (kg)'}],
+   d:[{a:100,b:101},{},{a:200,b:204},{a:200,b:197},{a:200,b:203},{a:50,b:50.8},{a:2,b:2.03}]}],
+ calc:v=>{const s=[],c=[];v.r.forEach((r,i)=>{const a=TFrow(r,'a'),b=TFrow(r,'b');if(a==null||b==null)return;const e=(b-a)/a*100;const tol=i<2?2:3;const nm=['Cement','Fly ash','Sand','Aggregate 20 mm','Aggregate 10 mm','Water','Admixture'][i];
+   s.push([`${nm} – error`,`(${b} − ${a}) / ${a} × 100`,e]);c.push([nm,e,`± ${tol}%`,Math.abs(e)<=tol])});return {s,c}}},
+{id:'fdd',mat:'Earth / murrum filling',name:'Field dry density – core cutter',code:'IS 2720 (Part 29); MDD/OMC – IS 2720 (Part 8)',
+ proc:'Drive the core cutter into the compacted layer, trim, weigh. Take a moisture sample from the core. Degree of compaction = field dry density / MDD × 100.',
+ inp:[{k:'w1',l:'Weight of empty core cutter',u:'g',d:1050},{k:'w2',l:'Weight of core cutter + wet soil',u:'g',d:3080},{k:'vol',l:'Volume of core cutter',u:'cm³',d:1000},
+  {k:'mw',l:'Moisture sample – wet weight',u:'g',d:100},{k:'md',l:'Moisture sample – oven-dry weight',u:'g',d:89.6},{k:'mdd',l:'MDD of the material (lab)',u:'g/cm³',d:1.9},{k:'omc',l:'OMC',u:'%',d:11.5},{k:'req',l:'Required compaction',u:'%',d:95}],
+ calc:v=>{const gb=(v.w2-v.w1)/v.vol;const w=(v.mw-v.md)/v.md*100;const gd=gb/(1+w/100);const dc=gd/v.mdd*100;
+  return {s:[['Bulk density γb','(W2 − W1) / V',gb],['Moisture content w %','(Wwet − Wdry) / Wdry × 100',w],['Dry density γd','γb / (1 + w/100)',gd],['Degree of compaction','γd / MDD × 100',dc]],
+  c:[['Degree of compaction',dc,`≥ ${v.req}%`,TFok(dc>=v.req)],['Moisture vs OMC',w,`OMC ± 2% (${TFn(v.omc-2)} – ${TFn(v.omc+2)})`,v.omc==null?null:Math.abs(w-v.omc)<=2]]}}},
+{id:'atc',mat:'Anti-termite chemical',name:'Anti-termite emulsion – dilution and rate of application',code:'IS 6313 (Part 2):2013',
+ proc:'Litres of concentrate = required concentration × emulsion volume / concentration of the product. Rate of application = emulsion used / area treated.',
+ inp:[{k:'pc',l:'Concentration of product (e.g. Chlorpyriphos 20 EC)',u:'%',d:20},{k:'rc',l:'Required concentration in emulsion',u:'%',d:1},{k:'em',l:'Emulsion prepared',u:'litre',d:500},{k:'cu',l:'Concentrate actually added',u:'litre',d:25},
+  {k:'area',l:'Area treated',u:'sqm',d:95},{k:'used',l:'Emulsion used',u:'litre',d:480},{k:'rate',l:'Specified rate',u:'litre/sqm',d:5}],
+ calc:v=>{const need=v.rc*v.em/v.pc;const ac=v.cu*v.pc/v.em;const r=v.used/v.area;
+  return {s:[['Concentrate required','Creq × V / Cproduct',need],['Concentration achieved','Cadded × Cproduct / V',ac],['Rate of application','Emulsion used / area',r]],
+  c:[['Concentration',ac,`≥ ${v.rc}%`,TFok(ac>=v.rc-1e-9)],['Rate of application',r,`≥ ${v.rate} litre/sqm`,TFok(r>=v.rate-1e-9)]]}}},
+/* ---------- 2. Cement ---------- */
+{id:'cemcon',mat:'Cement',name:'Cement – standard consistency',code:'IS 4031 (Part 4)',
+ proc:'400 g cement, trial water quantities; standard consistency is the water at which the Vicat plunger stops 5–7 mm from the bottom of the mould. P = water / cement × 100.',
+ inp:[{k:'c',l:'Weight of cement',u:'g',d:400},{k:'wt',l:'Water added (plunger 5–7 mm from bottom)',u:'ml',d:122},{k:'pen',l:'Plunger reading from bottom',u:'mm',d:6}],
+ calc:v=>{const P=v.wt/v.c*100;return {s:[['Standard consistency P','W / C × 100',P],['Water for setting time test','0.85 × P × C / 100',0.85*P*v.c/100]],c:[['Plunger reading from bottom',v.pen,'5 – 7 mm',TFok(v.pen>=5&&v.pen<=7)],['Consistency P (report)',P,'Typically 26 – 33%',null]]}}},
+{id:'cemset',mat:'Cement',name:'Cement – initial and final setting time',code:'IS 4031 (Part 5); IS 269 / IS 1489',
+ proc:'Gauge 400 g cement with 0.85 P water. Initial set: Vicat needle fails to pierce 5 ± 0.5 mm from the bottom. Final set: annular attachment makes no mark.',
+ inp:[{k:'t0',l:'Time water added (hh:mm)',d:'10:00',txt:1},{k:'ti',l:'Time of initial set (hh:mm)',d:'11:35',txt:1},{k:'tf',l:'Time of final set (hh:mm)',d:'14:50',txt:1}],
+ calc:v=>{const m=t=>{const x=/^(\d{1,2}):(\d{2})$/.exec(String(t||'').trim());return x?+x[1]*60+ +x[2]:null};const a=m(v.t0),b=m(v.ti),c=m(v.tf);const I=a!=null&&b!=null?(b-a+1440)%1440:null,Fn=a!=null&&c!=null?(c-a+1440)%1440:null;
+  return {s:[['Initial setting time','T(initial) − T(water added)',I],['Final setting time','T(final) − T(water added)',Fn]],c:[['Initial setting time',I,'≥ 30 minutes',TFok(I!=null&&I>=30)],['Final setting time',Fn,'≤ 600 minutes',TFok(Fn!=null&&Fn<=600)]]}}},
+{id:'cemsnd',mat:'Cement',name:'Cement – soundness (Le Chatelier)',code:'IS 4031 (Part 3)',
+ proc:'Fill the Le Chatelier mould with paste at 0.78 P, keep 24 h in water at 27 °C, measure the distance between the indicator points (L1), boil 3 h, cool and measure again (L2). Expansion = L2 − L1.',
+ inp:[{k:'r',t:'tab',l:'Moulds',rows:['Mould 1','Mould 2'],cols:[{k:'l1',l:'L1 (mm)'},{k:'l2',l:'L2 after boiling (mm)'}],d:[{l1:12,l2:13.5},{l1:11,l2:12}]}],
+ calc:v=>{const e=v.r.map(r=>TFrow(r,'l2')-TFrow(r,'l1'));const a=TFavg(e);return {s:e.map((x,i)=>[`Expansion – mould ${i+1}`,'L2 − L1',x]).concat([['Average expansion','mean',a]]),c:[['Le Chatelier expansion',a,'≤ 10 mm',TFok(a!=null&&a<=10)]]}}},
+{id:'cemfin',mat:'Cement',name:'Cement – fineness (Blaine air permeability)',code:'IS 4031 (Part 2); IS 269 / IS 1489',
+ inp:[{k:'type',l:'Cement type',opt:Object.keys(CEM_S),def:'OPC 53 (IS 269)'},{k:'f',l:'Specific surface (lab result)',u:'m²/kg',d:310}],
+ calc:v=>{const L=(CEM_S[v.type]||CEM_S['OPC 43 (IS 269)'])[3];return {s:[],c:[['Specific surface',v.f,`≥ ${L} m²/kg`,TFok(v.f>=L)]]}}},
+{id:'cemcs',mat:'Cement',name:'Cement – compressive strength (70.6 mm mortar cubes)',code:'IS 4031 (Part 6); IS 269 / IS 1489',
+ proc:'Cement : standard sand 1 : 3 (200 g : 600 g), water (P/4 + 3)% of combined mass, 70.6 mm cubes (area 5000 mm²) vibrated, cured in water. Strength = P × 1000 / 5000 N/mm².',
+ inp:[{k:'type',l:'Cement type',opt:Object.keys(CEM_S),def:'OPC 53 (IS 269)'},{k:'age',l:'Age',opt:['3 days','7 days','28 days'],def:'7 days'},{k:'p1',l:'Load cube 1',u:'kN',d:186},{k:'p2',l:'Load cube 2',u:'kN',d:179},{k:'p3',l:'Load cube 3',u:'kN',d:191}],
+ calc:v=>{const L=CEM_S[v.type]||CEM_S['OPC 43 (IS 269)'];const ai=v.age==='3 days'?0:v.age==='28 days'?2:1;const st=[v.p1,v.p2,v.p3].map(p=>p!=null?p*1000/5000:null);const a=TFavg(st);
+  return {s:st.map((x,i)=>[`Cube ${i+1}`,`${[v.p1,v.p2,v.p3][i]} × 1000 / 5000`,x]).concat([['Average','mean of 3',a]]),c:[[`Compressive strength at ${v.age||'7 days'}`,a,`≥ ${L[ai]} N/mm²`,TFok(a!=null&&a>=L[ai])]]}}},
+/* ---------- Coarse aggregate ---------- */
+{id:'casv',mat:'Coarse aggregate',name:'Coarse aggregate – sieve analysis (grading)',code:'IS 2386 (Part 1); IS 383:2016 Table 7',
+ proc:'Oven-dry sample (20 mm: 25 kg, 10 mm: 5 kg), sieve, weigh the material retained on each sieve. % passing = 100 − cumulative % retained.',
+ inp:[{k:'g',l:'Grading',opt:Object.keys(CA_GR)},{k:'r',t:'tab',l:'Weight retained',rowsFn:v=>(CA_GR[v.g]||CA_GR[Object.keys(CA_GR)[0]]).map(x=>`${x[0]} mm`).concat(['Pan']),cols:[{k:'w',l:'Weight retained (g)'}],dFn:v=>(CA_D[v.g]||CA_D[Object.keys(CA_D)[0]]).map(w=>({w}))}],
+ calc:v=>{const L=CA_GR[v.g]||CA_GR[Object.keys(CA_GR)[0]];const rows=v.r.slice(0,L.length);rows.pan=v.r[L.length];const R=sieveCalc(rows,L.map(x=>[x[1],x[2]]),L.map(x=>x[0]));
+  return {s:R.map(x=>[`${x.s} mm – % passing`,`100 − (${TFn(x.cw)} / ${TFn(x.tot)} × 100)`,x.p]),c:R.map(x=>[`Passing ${x.s} mm`,x.p,`${x.L[0]} – ${x.L[1]}%`,x.ok])}}},
+{id:'cafe',mat:'Coarse aggregate',name:'Flakiness and elongation index',code:'IS 2386 (Part 1); IS 383:2016',
+ proc:'Flaky: pieces passing the thickness gauge. Elongated: non-flaky pieces retained on the length gauge. FI = W(flaky) / W(total) × 100; EI = W(elongated) / W(non-flaky) × 100.',
+ inp:[{k:'wt',l:'Total weight of sample',u:'g',d:5000},{k:'wf',l:'Weight passing thickness gauge (flaky)',u:'g',d:820},{k:'we',l:'Weight of non-flaky retained on length gauge (elongated)',u:'g',d:910}],
+ calc:v=>{const FI=v.wf/v.wt*100;const EI=v.we/(v.wt-v.wf)*100;return {s:[['Flakiness index FI','Wf / Wt × 100',FI],['Elongation index EI','We / (Wt − Wf) × 100',EI],['Combined index','FI + EI',FI+EI]],c:[['Combined FI + EI',FI+EI,'≤ 40%',TFok(FI+EI<=40)]]}}},
+{id:'caiv',mat:'Coarse aggregate',name:'Aggregate impact value',code:'IS 2386 (Part 4); IS 383:2016',
+ proc:'Aggregate passing 12.5 mm, retained on 10 mm, filled in the cup in 3 layers (25 tamps each), 15 blows of the 14 kg hammer from 380 mm. AIV = W2 / W1 × 100, where W2 = fines passing 2.36 mm. Two tests – mean.',
+ inp:[{k:'use',l:'Use',opt:['Concrete other than wearing surface','Wearing surface (roads, floors, runways)']},{k:'r',t:'tab',l:'Trials',rows:['Trial 1','Trial 2'],cols:[{k:'w1',l:'W1 – sample weight (g)'},{k:'w2',l:'W2 – passing 2.36 mm (g)'}],d:[{w1:340,w2:62},{w1:338,w2:60}]}],
+ calc:v=>{const x=v.r.map(r=>TFrow(r,'w2')/TFrow(r,'w1')*100);const a=TFavg(x);const L=/Wearing/.test(v.use)?30:45;return {s:x.map((y,i)=>[`Trial ${i+1}`,'W2 / W1 × 100',y]).concat([['Mean AIV','mean',a]]),c:[['Aggregate impact value',a,`≤ ${L}%`,TFok(a!=null&&a<=L)]]}}},
+{id:'cacv',mat:'Coarse aggregate',name:'Aggregate crushing value',code:'IS 2386 (Part 4); IS 383:2016',
+ proc:'Aggregate 12.5–10 mm in the cylinder, 400 kN applied in 10 minutes. ACV = W2 / W1 × 100, where W2 = fines passing 2.36 mm.',
+ inp:[{k:'use',l:'Use',opt:['Concrete other than wearing surface','Wearing surface (roads, floors, runways)']},{k:'r',t:'tab',l:'Trials',rows:['Trial 1','Trial 2'],cols:[{k:'w1',l:'W1 – sample weight (g)'},{k:'w2',l:'W2 – passing 2.36 mm (g)'}],d:[{w1:2850,w2:640},{w1:2860,w2:655}]}],
+ calc:v=>{const x=v.r.map(r=>TFrow(r,'w2')/TFrow(r,'w1')*100);const a=TFavg(x);const L=/Wearing/.test(v.use)?30:45;return {s:x.map((y,i)=>[`Trial ${i+1}`,'W2 / W1 × 100',y]).concat([['Mean ACV','mean',a]]),c:[['Aggregate crushing value',a,`≤ ${L}%`,TFok(a!=null&&a<=L)]]}}},
+{id:'cala',mat:'Coarse aggregate',name:'Los Angeles abrasion value',code:'IS 2386 (Part 4); IS 383:2016',
+ proc:'Graded sample with the specified charge of steel balls, 500 revolutions (1000 for grading E–G). LAA = (W1 − W2) / W1 × 100, where W2 = retained on 1.70 mm after the test.',
+ inp:[{k:'use',l:'Use',opt:['Concrete other than wearing surface','Wearing surface (roads, floors, runways)']},{k:'w1',l:'W1 – original weight',u:'g',d:5000},{k:'w2',l:'W2 – retained on 1.70 mm after test',u:'g',d:3820}],
+ calc:v=>{const a=(v.w1-v.w2)/v.w1*100;const L=/Wearing/.test(v.use)?30:50;return {s:[['Abrasion value','(W1 − W2) / W1 × 100',a]],c:[['Los Angeles abrasion value',a,`≤ ${L}%`,TFok(a<=L)]]}}},
+{id:'casg',mat:'Coarse aggregate',name:'Specific gravity and water absorption',code:'IS 2386 (Part 3)',
+ proc:'Wire basket method: soak 24 h, weigh in water (A = basket + sample, B = basket alone), surface dry (C), oven dry (D).',
+ inp:[{k:'a',l:'A – basket + saturated sample in water',u:'g',d:3370},{k:'b',l:'B – empty basket in water',u:'g',d:1240},{k:'c',l:'C – saturated surface-dry sample in air',u:'g',d:3420},{k:'d',l:'D – oven-dry sample in air',u:'g',d:3395}],
+ calc:v=>{const ws=v.a-v.b;const sg=v.d/(v.c-ws),ap=v.d/(v.d-ws),wa=(v.c-v.d)/v.d*100;return {s:[['Weight of saturated aggregate in water','A − B',ws],['Specific gravity (oven-dry)','D / (C − (A − B))',sg],['Apparent specific gravity','D / (D − (A − B))',ap],['Water absorption','(C − D) / D × 100',wa]],
+  c:[['Specific gravity (report – used in mix design)',sg,'Typically 2.6 – 2.9',null],['Water absorption',wa,'Report; > 2% – check soundness (IS 2386 Part 5) / tender limit',null]]}}},
+{id:'cabd',mat:'Coarse aggregate',name:'Bulk density (loose and rodded)',code:'IS 2386 (Part 3)',
+ inp:[{k:'v',l:'Volume of cylindrical measure',u:'litre',d:15},{k:'e',l:'Weight of empty measure',u:'kg',d:6.2},{k:'l',l:'Measure + loose aggregate',u:'kg',d:28.7},{k:'r',l:'Measure + rodded aggregate',u:'kg',d:31.1}],
+ calc:v=>{const L=(v.l-v.e)/v.v*1000,R=(v.r-v.e)/v.v*1000;return {s:[['Loose bulk density','(W loose − W empty) / V',L],['Rodded bulk density','(W rodded − W empty) / V',R]],c:[['Loose bulk density (kg/cum, report)',L,'Used to convert kg ↔ cum',null]]}}},
+{id:'cafn',mat:'Coarse aggregate / sand',name:'Material finer than 75 µm and clay lumps',code:'IS 2386 (Part 1, Part 2); IS 383:2016 Table 1',
+ proc:'Finer than 75 µm: wash the oven-dry sample (B) over 1.18 mm + 75 µm sieves, dry and weigh (C). % = (B − C) / B × 100. Clay lumps: soak 24 h, crumble with fingers, wet-sieve.',
+ inp:[{k:'m',l:'Material',opt:['Coarse aggregate','Natural sand','Crushed / manufactured sand']},{k:'b',l:'B – original dry weight',u:'g',d:2500},{k:'c',l:'C – dry weight after washing',u:'g',d:2478},{k:'cl',l:'Clay lumps',u:'% by weight',d:0.4}],
+ calc:v=>{const p=(v.b-v.c)/v.b*100;const L=v.m==='Natural sand'?3:/Crushed/.test(v.m||'')?15:1;return {s:[['Finer than 75 µm','(B − C) / B × 100',p]],c:[['Material finer than 75 µm',p,`≤ ${L}%`,TFok(p<=L)],['Clay lumps',v.cl,'≤ 1%',v.cl==null?null:v.cl<=1]]}}},
+/* ---------- Sand ---------- */
+{id:'ssilt',mat:'Sand',name:'Silt content – field test (by volume)',code:'CPWD 2019 Sub-head 3, Appendix C',
+ proc:'Fill a 250 ml measuring cylinder with 50 ml of 1% salt solution, add sand up to the 100 ml mark, add solution to 150 ml, shake and allow to settle for 3 hours. Silt % = silt layer / sand layer × 100.',
+ inp:[{k:'v1',l:'Volume of sand (settled, below silt layer)',u:'ml',d:100},{k:'v2',l:'Volume of silt layer',u:'ml',d:5}],
+ calc:v=>{const p=v.v2/v.v1*100;return {s:[['Silt content','V silt / V sand × 100',p]],c:[['Silt content by volume',p,'≤ 8%',TFok(p<=8)]]}}},
+{id:'sbulk',mat:'Sand',name:'Bulking of sand',code:'CPWD 2019 Sub-head 3, Appendix D; IS 2386 (Part 3)',
+ proc:'Fill a container with moist loose sand to height h1. Inundate fully with water and stir; measure the settled height h2. Bulking % = (h1 − h2) / h2 × 100. Increase the sand volume in volume batching by this percentage.',
+ inp:[{k:'h1',l:'h1 – height of moist loose sand',u:'mm',d:200},{k:'h2',l:'h2 – height after inundation',u:'mm',d:164},{k:'sv',l:'Sand volume as per mix (per batch)',u:'litre',d:70}],
+ calc:v=>{const b=(v.h1-v.h2)/v.h2*100;return {s:[['Bulking','(h1 − h2) / h2 × 100',b],['Sand to be measured per batch','V × (1 + bulking/100)',v.sv*(1+b/100)]],c:[['Bulking (report – apply correction)',b,'Correct volume batching',null]]}}},
+{id:'ssv',mat:'Sand',name:'Sand – sieve analysis, grading zone and fineness modulus',code:'IS 2386 (Part 1); IS 383:2016 Table 9; IS 2116; IS 1542',
+ proc:'500 g oven-dry sand sieved through 10 mm, 4.75 mm, 2.36 mm, 1.18 mm, 600 µm, 300 µm, 150 µm. FM = Σ cumulative % retained (4.75 mm to 150 µm) / 100.',
+ inp:[{k:'u',l:'Use',opt:['Concrete (IS 383 zones)','Masonry mortar (IS 2116)','Plaster (IS 1542)']},{k:'r',t:'tab',l:'Weight retained',rows:SAND_SV.map(s=>s>=1?`${s} mm`:`${s*1000} µm`).concat(['Pan']),cols:[{k:'w',l:'Weight retained (g)'}],d:[{w:0},{w:12},{w:38},{w:84},{w:142},{w:131},{w:68},{w:25}]}],
+ calc:v=>{const rows=v.r.slice(0,7);rows.pan=v.r[7];const R=sieveCalc(rows,null,SAND_SV);const FM=R.slice(1).reduce((a,x)=>a+(x.cr||0),0)/100;
+  let lim,lab;if(/Masonry|Plaster/.test(v.u||'')){lab=/Masonry/.test(v.u)?'Masonry mortar (IS 2116)':'Plaster (IS 1542)';lim=SAND_M[lab]}else{const p6=R[4].p;lab=p6>=80?'Zone IV':p6>=60?'Zone III':p6>=35?'Zone II':'Zone I';lim=SAND_Z[lab]}
+  const c=R.map((x,i)=>[`Passing ${x.s>=1?x.s+' mm':x.s*1000+' µm'} (${lab})`,x.p,`${lim[i][0]} – ${lim[i][1]}%`,x.p==null?null:x.p>=lim[i][0]-1e-9&&x.p<=lim[i][1]+1e-9]);
+  if(!/Masonry|Plaster/.test(v.u||''))c.push(['Grading zone (by 600 µm passing)',null,lab,true]);if(/Plaster/.test(v.u||''))c.push(['Fineness modulus',FM,'≥ 1.5 (plaster)',FM>=1.5]);
+  return {s:R.map(x=>[`${x.s>=1?x.s+' mm':x.s*1000+' µm'} – cumulative % retained`,`${TFn(x.cw)} / ${TFn(x.tot)} × 100`,x.cr]).concat([['Fineness modulus','Σ cumulative % retained (4.75 mm – 150 µm) / 100',FM]]),c}}},
+{id:'sorg',mat:'Sand',name:'Organic impurities (colour test)',code:'IS 2386 (Part 2); CPWD 2019 Sub-head 3, Appendix A',
+ proc:'Fill a 350 ml bottle with sand to 75 ml, add 3% NaOH solution to 125 ml, shake, keep 24 hours. Compare the colour of the liquid with the standard colour solution.',
+ inp:[{k:'col',l:'Colour of liquid compared with standard',opt:['Lighter than standard','Same as standard','Darker than standard']}],
+ calc:v=>({s:[],c:[['Colour of liquid',null,'Lighter than standard',v.col!=='Darker than standard'&&v.col!=='Same as standard'?true:false]]})},
+/* ---------- Steel ---------- */
+{id:'stt',mat:'Reinforcement steel',name:'TMT bar – tensile test and mass per metre',code:'IS 1786:2008; IS 1608; IS 1599',
+ proc:'Stress = load / nominal area (π d² / 4). Gauge length 5.65 √A. Elongation = (Lf − L0) / L0 × 100. Nominal mass = d² / 162 kg/m.',
+ inp:[{k:'g',l:'Grade',opt:Object.keys(STEEL_G),def:'Fe 500D'},{k:'d',l:'Nominal diameter',u:'mm',d:12},{k:'py',l:'Load at 0.2% proof / yield',u:'kN',d:62.4},{k:'pu',l:'Maximum load',u:'kN',d:70.1},{k:'lf',l:'Final gauge length',u:'mm',d:71},
+  {k:'len',l:'Length of sample for mass',u:'mm',d:1000},{k:'mass',l:'Mass of sample',u:'kg',d:0.873},{k:'bend',l:'Bend and rebend test',opt:['No transverse cracks','Cracks observed']}],
+ calc:v=>{const G=STEEL_G[v.g]||STEEL_G['Fe 500D'];const A=Math.PI*v.d*v.d/4;const ys=v.py*1000/A,uts=v.pu*1000/A;const L0=5.65*Math.sqrt(A);const el=(v.lf-L0)/L0*100;const nm=v.d*v.d/162;const am=v.mass/(v.len/1000);const dv=(am-nm)/nm*100;const tol=v.d<10?8:v.d<=16?6:4;
+  return {s:[['Nominal area A','π d² / 4',A],['Yield / 0.2% proof stress','Py × 1000 / A',ys],['Ultimate tensile strength','Pu × 1000 / A',uts],['UTS / YS ratio','UTS / YS',uts/ys],['Gauge length L0','5.65 √A',L0],['Elongation','(Lf − L0) / L0 × 100',el],['Nominal mass','d² / 162',nm],['Actual mass per metre','mass / length',am],['Variation in mass','(actual − nominal) / nominal × 100',dv]],
+  c:[['Yield stress',ys,`≥ ${G[0]} N/mm²`,TFok(ys>=G[0])],['UTS',uts,`≥ ${G[2]} N/mm²`,TFok(uts>=G[2])],['UTS / YS',uts/ys,`≥ ${G[1]}`,TFok(uts/ys>=G[1])],['Elongation',el,`≥ ${G[3]}%`,TFok(el>=G[3])],
+   ['Mass variation (individual sample)',dv,`± ${tol}%`,TFok(Math.abs(dv)<=tol)],['Bend / rebend',null,'No transverse cracks',v.bend!=='Cracks observed']]}}},
+/* ---------- Bricks ---------- */
+{id:'brcs',mat:'Burnt clay bricks',name:'Bricks – compressive strength',code:'IS 3495 (Part 1); IS 1077:1992',
+ proc:'5 bricks: frog filled with 1:1 mortar, immersed 24 h, tested flat. Strength = load / area of bed face. Individual brick may not be below the class value by more than 20%.',
+ inp:[{k:'cl',l:'Class designation',opt:BRICK_CL.map(String),def:'7.5'},{k:'r',t:'tab',l:'Bricks',rows:['Brick 1','Brick 2','Brick 3','Brick 4','Brick 5'],cols:[{k:'l',l:'Length (mm)'},{k:'b',l:'Width (mm)'},{k:'p',l:'Load (kN)'}],
+   d:[{l:190,b:90,p:152},{l:191,b:90,p:139},{l:189,b:91,p:160},{l:190,b:89,p:131},{l:190,b:90,p:148}]}],
+ calc:v=>{const cl=+(v.cl||7.5);const x=v.r.map(r=>TFrow(r,'p')*1000/(TFrow(r,'l')*TFrow(r,'b')));const a=TFavg(x);const mn=Math.min(...x.filter(isFinite));
+  return {s:x.map((y,i)=>[`Brick ${i+1}`,'P × 1000 / (L × B)',y]).concat([['Average','mean of 5',a]]),c:[['Average compressive strength',a,`≥ ${cl} N/mm²`,TFok(a>=cl)],['Lowest individual',mn,`≥ ${TFn(cl*0.8)} N/mm² (class − 20%)`,TFok(mn>=cl*0.8)]]}}},
+{id:'brwa',mat:'Burnt clay bricks',name:'Bricks – water absorption',code:'IS 3495 (Part 2); IS 1077:1992',
+ proc:'Dry bricks at 105–115 °C to constant mass (W1), immerse 24 h in water at 27 °C, wipe and weigh (W2). Absorption = (W2 − W1) / W1 × 100.',
+ inp:[{k:'cl',l:'Class designation',opt:BRICK_CL.map(String),def:'7.5'},{k:'r',t:'tab',l:'Bricks',rows:['Brick 1','Brick 2','Brick 3','Brick 4','Brick 5'],cols:[{k:'w1',l:'W1 dry (g)'},{k:'w2',l:'W2 wet (g)'}],d:[{w1:2910,w2:3390},{w1:2885,w2:3372},{w1:2930,w2:3401},{w1:2902,w2:3388},{w1:2895,w2:3369}]}],
+ calc:v=>{const L=+(v.cl||7.5)<=12.5?20:15;const x=v.r.map(r=>(TFrow(r,'w2')-TFrow(r,'w1'))/TFrow(r,'w1')*100);const a=TFavg(x);return {s:x.map((y,i)=>[`Brick ${i+1}`,'(W2 − W1) / W1 × 100',y]).concat([['Average','mean of 5',a]]),c:[['Average water absorption',a,`≤ ${L}%`,TFok(a<=L)]]}}},
+{id:'breff',mat:'Burnt clay bricks',name:'Bricks – efflorescence',code:'IS 3495 (Part 3); IS 1077:1992',
+ proc:'Place the brick on end in 25 mm of distilled water till absorbed and evaporated (twice). Rating: Nil – none; Slight – up to 10% area; Moderate – up to 50%; Heavy – over 50%; Serious – with powdering / flaking.',
+ inp:[{k:'cl',l:'Class designation',opt:BRICK_CL.map(String),def:'7.5'},{k:'e',l:'Observation',opt:['Nil','Slight','Moderate','Heavy','Serious']}],
+ calc:v=>{const hi=+(v.cl||7.5)>12.5;const ord=['Nil','Slight','Moderate','Heavy','Serious'];const ok=ord.indexOf(v.e||'Nil')<=(hi?1:2);return {s:[],c:[['Efflorescence',null,hi?'Not more than slight':'Not more than moderate',ok]]}}},
+{id:'brdim',mat:'Burnt clay bricks',name:'Bricks – dimensions (20 bricks)',code:'IS 1077:1992; IS 3495',
+ proc:'Place 20 bricks in contact in a straight line on a level surface and measure the overall length, then the overall width and the overall height.',
+ inp:[{k:'sz',l:'Brick size',opt:['Modular 190 × 90 × 90','Modular 190 × 90 × 40','Non-modular 230 × 110 × 70']},{k:'L',l:'Overall length of 20 bricks',u:'mm',d:3830},{k:'B',l:'Overall width of 20 bricks',u:'mm',d:1815},{k:'H',l:'Overall height of 20 bricks',u:'mm',d:1790}],
+ calc:v=>{const S={'Modular 190 × 90 × 90':[3800,1800,1800],'Modular 190 × 90 × 40':[3800,1800,800],'Non-modular 230 × 110 × 70':[4600,2200,1400]}[v.sz]||[3800,1800,1800];
+  return {s:[],c:[['Length (20 bricks)',v.L,`${S[0]} ± 80 mm`,TFok(Math.abs(v.L-S[0])<=80)],['Width (20 bricks)',v.B,`${S[1]} ± 40 mm`,TFok(Math.abs(v.B-S[1])<=40)],['Height (20 bricks)',v.H,`${S[2]} ± 40 mm`,TFok(Math.abs(v.H-S[2])<=40)]]}}},
+/* ---------- Concrete ---------- */
+{id:'slump',mat:'Fresh concrete',name:'Slump test',code:'IS 1199 (Part 2):2018; IS 456 cl. 7; IS 4926',
+ proc:'Fill the cone in 4 layers, 25 tamps each, lift vertically, measure the drop of the highest point. Tolerance on specified slump: ± 25 mm or ± 1/3 of the specified value, whichever is less.',
+ inp:[{k:'sp',l:'Specified slump (mix design)',u:'mm',d:100},{k:'m',l:'Measured slump',u:'mm',d:90},{k:'type',l:'Type of slump',opt:['True slump','Shear slump – repeat test','Collapse']}],
+ calc:v=>{const t=Math.min(25,v.sp/3);return {s:[['Tolerance','lesser of 25 mm and specified / 3',t],['Deviation','measured − specified',v.m-v.sp]],c:[['Measured slump',v.m,`${TFn(v.sp-t)} – ${TFn(v.sp+t)} mm`,TFok(Math.abs(v.m-v.sp)<=t)&&v.type!=='Collapse'&&v.type!=='Shear slump – repeat test']]}}},
+{id:'cube',mat:'Concrete',name:'Concrete cube – compressive strength (one sample)',code:'IS 516 (Part 1/Sec 1):2021; IS 456 cl. 15.4, Table 11',
+ proc:'3 cubes of 150 mm (area 22500 mm²) per age. Strength = P × 1000 / 22500. Sample result = average of 3; individual cubes must be within ± 15% of the average, otherwise the sample is invalid.',
+ inp:[{k:'fck',l:'Grade fck',u:'N/mm²',d:25},{k:'age',l:'Age',opt:['28 days','7 days']},{k:'p1',l:'Load cube 1',u:'kN',d:690},{k:'p2',l:'Load cube 2',u:'kN',d:712},{k:'p3',l:'Load cube 3',u:'kN',d:668}],
+ calc:v=>{const st=[v.p1,v.p2,v.p3].map(p=>p!=null?p*1000/22500:null);const a=TFavg(st);const dev=st.map(x=>(x-a)/a*100);const c=[['All cubes within ± 15% of average',Math.max(...dev.map(Math.abs)),'≤ 15%',TFok(Math.max(...dev.map(Math.abs))<=15)]];
+  if(v.age==='7 days')c.push(['7-day strength (indicative)',a,`≈ 2/3 fck = ${TFn(2/3*v.fck)} N/mm² (not an acceptance criterion)`,null]);else c.push(['Individual sample (IS 456 Table 11)',a,`≥ fck − 3 = ${TFn(v.fck-3)} N/mm²`,TFok(a>=v.fck-3)]);
+  return {s:st.map((x,i)=>[`Cube ${i+1}`,`${[v.p1,v.p2,v.p3][i]} × 1000 / 22500`,x]).concat([['Sample average','mean of 3',a]]).concat(dev.map((x,i)=>[`Cube ${i+1} deviation`,'(f − mean) / mean × 100',x])),c}}},
+{id:'cubeacc',mat:'Concrete',name:'Concrete – acceptance (IS 456 Table 11, 4 consecutive samples)',code:'IS 456:2000 cl. 16, Table 11 (as amended)',
+ proc:'Mean of any 4 non-overlapping consecutive sample results ≥ fck + 0.825 × S (rounded to 0.5) or fck + 3 N/mm², whichever is greater; each sample ≥ fck − 3 N/mm². S = established standard deviation (assumed per IS 456 Table 8 until 30 results: M10–M15 3.5, M20–M25 4.0, M30–M50 5.0).',
+ inp:[{k:'fck',l:'Grade fck',u:'N/mm²',d:25},{k:'S',l:'Established standard deviation (blank = assumed)',u:'N/mm²'},{k:'s1',l:'Sample 1 (28-day average)',u:'N/mm²',d:30.6},{k:'s2',l:'Sample 2',u:'N/mm²',d:31.2},{k:'s3',l:'Sample 3',u:'N/mm²',d:28.9},{k:'s4',l:'Sample 4',u:'N/mm²',d:32.4}],
+ calc:v=>{const f=v.fck;const S=v.S??(f<=15?3.5:f<=25?4:5);const r1=Math.round((f+0.825*S)*2)/2;const req=Math.max(r1,f+3);const x=[v.s1,v.s2,v.s3,v.s4];const m=TFavg(x);const mn=Math.min(...x.filter(y=>y!=null));
+  return {s:[['Standard deviation S',v.S!=null?'established':'assumed (IS 456 Table 8)',S],['fck + 0.825 S (rounded to 0.5)',`${f} + 0.825 × ${S}`,r1],['fck + 3','',f+3],['Required mean','greater of the two',req],['Mean of 4 samples','mean',m]],
+  c:[['Mean of 4 samples',m,`≥ ${TFn(req)} N/mm²`,TFok(m>=req)],['Lowest individual sample',mn,`≥ ${TFn(f-3)} N/mm²`,TFok(mn>=f-3)]]}}},
+{id:'core',mat:'Hardened concrete',name:'Core test',code:'IS 516 (Part 4); IS 456 cl. 17.4',
+ proc:'Cylinder strength = P / (π d² / 4). Correction for l/d (1 to 2): F = 0.11 n + 0.78. Equivalent cube strength = 1.25 × corrected cylinder strength. Acceptable if the average of 3 cores ≥ 0.85 fck and no core < 0.75 fck.',
+ inp:[{k:'fck',l:'Grade fck',u:'N/mm²',d:25},{k:'r',t:'tab',l:'Cores',rows:['Core 1','Core 2','Core 3'],cols:[{k:'d',l:'Diameter (mm)'},{k:'l',l:'Length after capping (mm)'},{k:'p',l:'Load (kN)'}],d:[{d:100,l:150,p:178},{d:100,l:148,p:165},{d:100,l:152,p:171}]}],
+ calc:v=>{const s=[],e=[];v.r.forEach((r,i)=>{const d=TFrow(r,'d'),l=TFrow(r,'l'),p=TFrow(r,'p');if(!d||!l||!p)return;const cy=p*1000/(Math.PI*d*d/4);const n=Math.min(2,Math.max(1,l/d));const F=0.11*n+0.78;const eq=1.25*cy*F;e.push(eq);
+   s.push([`Core ${i+1} – cylinder strength`,'P / (π d² / 4)',cy],[`Core ${i+1} – l/d correction`,`0.11 × ${TFn(n)} + 0.78`,F],[`Core ${i+1} – equivalent cube`,'1.25 × F × cylinder',eq])});const a=TFavg(e);
+  return {s:s.concat([['Average equivalent cube strength','mean',a]]),c:[['Average of cores',a,`≥ 0.85 fck = ${TFn(0.85*v.fck)}`,TFok(a>=0.85*v.fck)],['Lowest core',Math.min(...e),`≥ 0.75 fck = ${TFn(0.75*v.fck)}`,TFok(Math.min(...e)>=0.75*v.fck)]]}}},
+{id:'upv',mat:'Hardened concrete',name:'Ultrasonic pulse velocity',code:'IS 13311 (Part 1)',
+ proc:'Direct transmission preferred. Velocity = path length / transit time. Quality: above 4.5 km/s excellent, 3.5–4.5 good, 3.0–3.5 medium, below 3.0 doubtful.',
+ inp:[{k:'L',l:'Path length',u:'mm',d:300},{k:'T',l:'Transit time',u:'µs',d:72.5}],
+ calc:v=>{const V=v.L/v.T;const q=V>4.5?'Excellent':V>=3.5?'Good':V>=3?'Medium':'Doubtful';return {s:[['Pulse velocity','L / T (mm/µs = km/s)',V]],c:[['Concrete quality grading',V,`Good or better (≥ 3.5 km/s) – result: ${q}`,TFok(V>=3.5)]]}}},
+/* ---------- Finishing ---------- */
+{id:'cct',mat:'Cement concrete / terrazzo tiles',name:'CC tiles – wet transverse strength, water absorption, wear',code:'IS 1237:2012',
+ proc:'Transverse: tile soaked 24 h, supported on span L, load P at centre; f = 3 P L / (2 b t²). Absorption: (W2 − W1) / W1 × 100. Wear: average loss in thickness on the abrasion machine.',
+ inp:[{k:'duty',l:'Type',opt:['General purpose','Heavy duty']},{k:'r',t:'tab',l:'Transverse strength (6 tiles)',rows:['Tile 1','Tile 2','Tile 3','Tile 4','Tile 5','Tile 6'],cols:[{k:'b',l:'Width b (mm)'},{k:'t',l:'Thickness t (mm)'},{k:'L',l:'Span L (mm)'},{k:'p',l:'Load P (N)'}],
+   d:[{b:250,t:22,L:200,p:1250},{b:250,t:22,L:200,p:1310},{b:250,t:22,L:200,p:1190},{b:250,t:22,L:200,p:1280},{b:250,t:22,L:200,p:1220},{b:250,t:22,L:200,p:1270}]},
+  {k:'wa',l:'Average water absorption (6 tiles)',u:'%',d:7.8},{k:'wv',l:'Average wear (loss in thickness)',u:'mm',d:2.9},{k:'wi',l:'Maximum individual wear',u:'mm',d:3.4}],
+ calc:v=>{const x=v.r.map(r=>3*TFrow(r,'p')*TFrow(r,'L')/(2*TFrow(r,'b')*TFrow(r,'t')**2));const a=TFavg(x);const hd=v.duty==='Heavy duty';
+  return {s:x.map((y,i)=>[`Tile ${i+1}`,'3 P L / (2 b t²)',y]).concat([['Average wet transverse strength','mean',a]]),c:[['Wet transverse strength',a,'≥ 3 N/mm²',TFok(a>=3)],['Water absorption',v.wa,'≤ 10%',v.wa==null?null:v.wa<=10],
+   ['Wear – average',v.wv,`≤ ${hd?2:3.5} mm`,v.wv==null?null:v.wv<=(hd?2:3.5)],['Wear – individual',v.wi,`≤ ${hd?2.5:4} mm`,v.wi==null?null:v.wi<=(hd?2.5:4)]]}}},
+{id:'cert',mat:'Ceramic / vitrified tiles',name:'Ceramic tiles – water absorption and modulus of rupture',code:'IS 13630 (Parts 2, 6); IS 15622',
+ proc:'Water absorption: boil 2 h, cool 4 h; E = (W2 − W1) / W1 × 100. Modulus of rupture from the breaking load (lab).',
+ inp:[{k:'grp',l:'Group (IS 15622)',opt:['BIa – vitrified (E ≤ 0.5%)','BIb (0.5 < E ≤ 3%)','BIIa (3 < E ≤ 6%)','BIIb (6 < E ≤ 10%)','BIII – wall tiles (E > 10%)']},{k:'w1',l:'W1 – dry weight',u:'g',d:2410},{k:'w2',l:'W2 – after boiling',u:'g',d:2418},{k:'mor',l:'Modulus of rupture (lab)',u:'N/mm²',d:38}],
+ calc:v=>{const E=(v.w2-v.w1)/v.w1*100;const g=(v.grp||'BIa').slice(0,4).trim();const T={BIa:[0,0.5,35],BIb:[0.5,3,30],BIIa:[3,6,22],'BIIa':[3,6,22],BIIb:[6,10,18],BIII:[10,99,15]};const k=/^BIII/.test(g)?'BIII':/^BIIb/.test(g)?'BIIb':/^BIIa/.test(g)?'BIIa':/^BIb/.test(g)?'BIb':'BIa';const L=T[k];
+  return {s:[['Water absorption E','(W2 − W1) / W1 × 100',E]],c:[['Water absorption',E,k==='BIII'?'> 10%':`${L[0]} – ${L[1]}%`,TFok(k==='BIa'?E<=0.5:E>L[0]&&E<=L[1])],['Modulus of rupture',v.mor,`≥ ${L[2]} N/mm²`,v.mor==null?null:v.mor>=L[2]]]}}},
+{id:'stone',mat:'Stone (granite / marble / kota / masonry)',name:'Stone – water absorption',code:'IS 1124; IS 1130 (marble); CPWD 2019 Sub-heads 7, 8',
+ proc:'Dry the specimen to constant weight (W1), immerse 24 h, surface dry and weigh (W2). Absorption = (W2 − W1) / W1 × 100.',
+ inp:[{k:'t',l:'Stone',opt:['Marble (IS 1130) – 0.4%','Granite – 0.5%','Stone for masonry (CPWD) – 5%']},{k:'w1',l:'W1 – dry weight',u:'g',d:1250},{k:'w2',l:'W2 – after 24 h immersion',u:'g',d:1253.6}],
+ calc:v=>{const p=(v.w2-v.w1)/v.w1*100;const L=/Marble/.test(v.t||'Marble')?0.4:/Granite/.test(v.t)?0.5:5;return {s:[['Water absorption','(W2 − W1) / W1 × 100',p]],c:[['Water absorption',p,`≤ ${L}%`,TFok(p<=L)]]}}},
+{id:'pond',mat:'Roof / toilet waterproofing',name:'Ponding test',code:'CPWD 2019 Sub-head 22',
+ proc:'Make bunds, fill water to 50 mm depth, keep 48–72 hours, check the underside and junctions for dampness or leakage.',
+ inp:[{k:'loc',l:'Location',txt:1,d:'Terrace – Block A'},{k:'h1',l:'Initial water depth',u:'mm',d:50},{k:'hrs',l:'Duration',u:'hours',d:72},{k:'h2',l:'Final water depth',u:'mm',d:46},{k:'damp',l:'Dampness / leakage on underside',opt:['None','Observed']}],
+ calc:v=>({s:[['Drop in water level','h1 − h2 (evaporation)',v.h1-v.h2]],c:[['Duration',v.hrs,'≥ 48 hours',TFok(v.hrs>=48)],['Dampness / leakage',null,'None',v.damp!=='Observed']]})},
+{id:'pipe',mat:'Water supply & sanitary piping',name:'Hydraulic pressure test',code:'CPWD 2019 Sub-heads 17–19',
+ proc:'Close all openings, fill with water, raise to the specified test pressure with a hand pump and hold for the specified period. No pressure drop and no leakage at joints.',
+ inp:[{k:'loc',l:'Line / floor',txt:1,d:'GF – toilet block'},{k:'tp',l:'Test pressure',u:'kg/cm²',d:7.5},{k:'tm',l:'Duration held',u:'minutes',d:30},{k:'p1',l:'Gauge at start',u:'kg/cm²',d:7.5},{k:'p2',l:'Gauge at end',u:'kg/cm²',d:7.5},{k:'leak',l:'Leakage at joints',opt:['None','Observed']}],
+ calc:v=>({s:[['Pressure drop','start − end',v.p1-v.p2]],c:[['Pressure drop',v.p1-v.p2,'Nil',TFok(v.p1-v.p2<=0)],['Leakage',null,'None',v.leak!=='Observed']]})}
+];
+const TF_GRP=[...new Set(TF.map(t=>t.mat))];
+let tfSel=null;
+function tfVals(w,t){w.tfv??={};const sv=w.tfv[t.id]||{};const o={};
+  t.inp.forEach(i=>{if(i.t==='tab'){const rows=i.rowsFn?i.rowsFn(o):i.rows;const dd=i.dFn?i.dFn(o):i.d;o[i.k]=rows.map((_,r)=>({...((dd||[])[r]||{}),...((sv[i.k]||[])[r]||{})}))}
+    else{const x=sv[i.k]!==undefined?sv[i.k]:i.opt?(i.def??i.opt[0]):i.d;o[i.k]=i.opt||i.txt?x:num(x)}});return o}
+function tfRun(t,v){try{return t.calc(v)}catch(e){return {s:[],c:[],err:e.message}}}
+function tfHTML(w,t,print){const v=tfVals(w,t);const R=tfRun(t,v);const H=w.tfh?.[t.id]||{};
+  const inpH=t.inp.map(i=>{if(i.t==='tab'){const rows=i.rowsFn?i.rowsFn(v):i.rows;return `<tr><td colspan="2"><b>${esc(i.l)}</b><div class="tablewrap"><table class="${print?'p':'reg ln'}"><thead><tr><th></th>${i.cols.map(c=>`<th>${esc(c.l)}</th>`).join('')}</tr></thead><tbody>${rows.map((rl,r)=>`<tr><td>${esc(rl)}</td>${i.cols.map(c=>`<td class="n">${print?esc(v[i.k][r]?.[c.k]??''):`<input data-tk="${i.k}" data-r="${r}" data-c="${c.k}" value="${esc(v[i.k][r]?.[c.k]??'')}" inputmode="decimal">`}</td>`).join('')}</tr>`).join('')}</tbody></table></div></td></tr>`}
+    const val=v[i.k];return `<tr><td>${esc(i.l)}${i.u?` <span class="note">(${esc(i.u)})</span>`:''}</td><td>${print?esc(val??''):i.opt?`<select data-k="${i.k}">${i.opt.map(o=>`<option ${o===val?'selected':''}>${esc(o)}</option>`).join('')}</select>`:`<input data-k="${i.k}" value="${esc(val??'')}" ${i.txt?'':'inputmode="decimal"'}>`}</td></tr>`}).join('');
+  const pass=R.c.filter(c=>c[3]!=null);const all=pass.length&&pass.every(c=>c[3]);
+  const chip=p=>p==null?'<span class="chip">Report</span>':p?'<span class="chip ok">PASS</span>':'<span class="chip bad">FAIL</span>';
+  const hf=[['work','Name of work',w.name||''],['sample','Sample ID / lot',''],['source','Source / brand / supplier',''],['qty','Quantity represented',''],['ds','Date of sampling',''],['dt','Date of testing',''],['lab','Laboratory / tested at','Site laboratory']];
+  return `<div class="tf-sheet"><table class="${print?'p':'reg ln'}" style="margin-bottom:10px"><tbody>${hf.map(([k,l,d])=>`<tr><td style="width:34%">${l}</td><td>${print?esc(H[k]??d):`<input data-h="${k}" value="${esc(H[k]??d)}">`}</td></tr>`).join('')}</tbody></table>
+   ${t.proc?`<p class="note" style="margin:6px 0 10px"><b>Procedure:</b> ${esc(t.proc)}</p>`:''}
+   <h4 style="margin:8px 0 4px">Observations</h4><table class="${print?'p':'reg ln'}"><tbody>${inpH}</tbody></table>
+   ${R.s.length?`<h4 style="margin:12px 0 4px">Calculation</h4><table class="${print?'p':'reg'}"><thead><tr><th>Step</th><th>Formula / substitution</th><th>Result</th></tr></thead><tbody>${R.s.map(s=>`<tr><td>${esc(s[0])}</td><td>${esc(String(s[1]))}</td><td class="n"><b>${typeof s[2]==='number'?TFn(s[2]):esc(s[2]??'')}</b></td></tr>`).join('')}</tbody></table>`:''}
+   <h4 style="margin:12px 0 4px">Acceptance criteria and result</h4><table class="${print?'p':'reg'}"><thead><tr><th>Parameter</th><th>Result</th><th>Requirement</th><th>Remark</th></tr></thead><tbody>${R.c.map(c=>`<tr><td>${esc(c[0])}</td><td class="n">${c[1]==null?'–':TFn(c[1])}</td><td>${esc(c[2])}</td><td>${print?(c[3]==null?'Report':c[3]?'PASS':'FAIL'):chip(c[3])}</td></tr>`).join('')}</tbody></table>
+   ${R.err?`<p class="note" style="color:var(--bad)">Enter all observations (${esc(R.err)}).</p>`:''}
+   <p style="margin:10px 0"><b>Overall result: ${pass.length?(all?'<span style="color:var(--ok)">PASS – conforms to '+esc(t.code)+'</span>':'<span style="color:var(--bad)">FAIL – does not conform; reject the lot / retest as per specification</span>'):'Reported'}</b></p>
+   <table class="${print?'p':'reg'}" style="margin-top:${print?28:10}px"><tbody><tr><td style="height:${print?50:30}px;width:33%;vertical-align:bottom">Tested by (Agency)</td><td style="width:33%;vertical-align:bottom">Witnessed by (Junior Engineer)</td><td style="vertical-align:bottom">Checked by (Deputy Executive Engineer)</td></tr></tbody></table></div>`}
+function renderTForms(){const w=W();if(!tfSel||!TF.some(t=>t.id===tfSel))tfSel=TF[0].id;const t=TF.find(x=>x.id===tfSel);
+  $('#main').innerHTML=`<div class="sheethead"><div><h2>Test Formats – observation, calculation and acceptance</h2><div class="sub">${esc(w.name)} · sample values are pre-filled as a worked example – replace them with the actual readings</div></div>
+   <div class="actions"><button class="btn" id="tfPdf">PDF – this test</button><button class="btn" id="tfAll">PDF – all formats</button><button class="btn" id="tfReset">Reset to example</button><button class="btn small" data-go="tests">Test Schedule</button></div></div>
+   <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+    <div class="list" style="flex:0 0 280px;max-width:100%">${TF_GRP.map(g=>`<h3 style="font-size:13px">${esc(g)}</h3>${TF.filter(x=>x.mat===g).map(x=>`<div class="li" style="cursor:pointer;${x.id===tfSel?'background:var(--accent-soft,#EEF2FB);font-weight:600':''}" data-tf="${x.id}">${esc(x.name)}</div>`).join('')}`).join('')}</div>
+    <div class="list" style="flex:1 1 520px;min-width:0"><h3>${esc(t.name)}<div class="note" style="font-weight:400">${esc(t.mat)} · ${esc(t.code)}</div></h3><div style="padding:12px 16px" id="tfBody">${tfHTML(w,t,false)}</div></div></div>`;
+  const M=$('#main');M.querySelectorAll('[data-tf]').forEach(d=>d.onclick=()=>{tfSel=d.dataset.tf;renderTForms();window.scrollTo(0,0)});
+  M.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
+  const bind=()=>{const B=$('#tfBody');B.querySelectorAll('input,select').forEach(el=>el.onchange=()=>{w.tfv??={};const sv=w.tfv[t.id]??={};
+    if(el.dataset.h){w.tfh??={};(w.tfh[t.id]??={})[el.dataset.h]=el.value}
+    else if(el.dataset.tk){const a=sv[el.dataset.tk]??=[];const r=+el.dataset.r;a[r]={...(a[r]||{}),[el.dataset.c]:el.value};for(let i=0;i<a.length;i++)a[i]??={}}
+    else{sv[el.dataset.k]=el.value;if(t.id==='casv'&&el.dataset.k==='g')delete sv.r}persist();B.innerHTML=tfHTML(w,t,false);bind()})};bind();
+  $('#tfReset').onclick=()=>{if(w.tfv)delete w.tfv[t.id];persist();renderTForms()};
+  const pg=x=>`<div class="pg"><div class="ph"><h2>${esc(x.name)}</h2><div>${esc(x.mat)} · ${esc(x.code)}</div></div>${tfHTML(w,x,true)}</div>`;
+  $('#tfPdf').onclick=()=>printNow(pg(t),`${t.name} - ${w.name}`);
+  $('#tfAll').onclick=()=>printNow(TF.map(pg).join(''),`Test formats - ${w.name}`)}
 
 /* ===================== ⚙ SETTING (har kaam ki) ===================== */
 const WK_DEF=[['Steel|kg','Steel (TMT)','steel tmt','kg'],['PCC / foundation|cum','PCC / foundation / footing','foundation footing','cum'],['Plinth beam|cum','Plinth beam','plinth beam','cum'],
@@ -1978,7 +2234,7 @@ function undoSnap(w,s){const o=JSON.parse(s);Object.entries(o.w).forEach(([k,v])
 function autoApply(w,type,d){
   if(type==='mix'){const mx=(d.mixes||[]).filter(x=>x&&x.grade);w.mix??={};
     mx.forEach(x=>{const k=mixKey(x.grade);w.mix[k]={cement:num(x.cement),flyash:num(x.flyash),sand:num(x.sand),a20:num(x.a20),a10:num(x.a10),water:num(x.water),admixture:num(x.admixture),wc:num(x.wc),ref:x.labRef||'',src:'upload'};Object.keys(w.mix[k]).forEach(z=>w.mix[k][z]==null&&delete w.mix[k][z])});
-    return mx.length?`Saved to <b>Settings → Mix design</b> (per cum, kg):<div class="tablewrap" style="margin:6px 0"><table class="reg"><thead><tr><th>Grade</th><th>Cement</th><th>Fly ash</th><th>Sand</th><th>20 mm</th><th>10 mm</th><th>Water</th><th>Admixture</th><th>w/c</th></tr></thead><tbody>${mx.map(x=>`<tr><td>${esc(mixKey(x.grade))}</td>${['cement','flyash','sand','a20','a10','water','admixture','wc'].map(k=>`<td class="n">${x[k]??''}</td>`).join('')}</tr>`).join('')}</tbody></table></div><span class="note">Re-generate the registers (MB → Uploaded MB → Fill registers from all MBs) to apply the new cement content.</span>`:null}
+    return mx.length?`Saved to <b>Settings → Mix design</b> (per cum, kg):<div class="tablewrap" style="margin:6px 0"><table class="reg"><thead><tr><th>Grade</th><th>Cement</th><th>Fly ash</th><th>Sand</th><th>20 mm</th><th>10 mm</th><th>Water</th><th>Admixture</th><th>w/c</th></tr></thead><tbody>${mx.map(x=>`<tr><td>${esc(mixKey(x.grade))}</td>${['cement','flyash','sand','a20','a10','water','admixture','wc'].map(k=>`<td class="n">${x[k]??''}</td>`).join('')}</tr>`).join('')}</tbody></table></div><span class="note">Re-generate the registers (MB → Uploaded MB → Fill registers from all MBs) to apply the new cement, sand and aggregate contents. Sand / 10 mm / 20 mm quantities and the number of tests then appear in Summary → Test Schedule.</span>`:null}
   if(type==='boq'){const items=(d.items||[]).filter(x=>x&&x.desc);
     items.forEach(x=>{const o={id:uid(),no:String(x.no).trim(),qty:num(x.qty),unit:x.unit||'',rate:num(x.rate),desc:x.desc};const k=w.items.findIndex(y=>String(y.no)===o.no);if(k>=0){o.id=w.items[k].id;w.items[k]=o}else w.items.push(o)});
     w.items.sort((a,b)=>(parseFloat(a.no)||0)-(parseFloat(b.no)||0));
@@ -2050,7 +2306,7 @@ async function sendChat(){const w=W();const fs=[...(chat.files||[])];const text=
 function applyResult(i){const m=chat.msgs[i];if(m.type==='mb')return openMbFillAll()}
 
 /* ===================== BOOT ===================== */
-try{const v=localStorage.getItem(LS_KEY+'_view');if(v&&(v==='dash'||v==='chat'||v==='works'||v==='mbup'||v==='aavak'||v==='settings'||v==='tests'||REG[v]||MBV[v]))view.reg=v}catch(e){}
+try{const v=localStorage.getItem(LS_KEY+'_view');if(v&&(v==='dash'||v==='chat'||v==='works'||v==='mbup'||v==='aavak'||v==='settings'||v==='tests'||v==='tforms'||REG[v]||MBV[v]))view.reg=v}catch(e){}
 document.getElementById('shelf').addEventListener('click',e=>{if(e.target.closest('[data-act="pickRegs"]'))return openRegPicker();const b=e.target.closest('[data-reg]');if(b)go(b.dataset.reg)});
 render();initFirebase();
 if(!EMBED&&'serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
