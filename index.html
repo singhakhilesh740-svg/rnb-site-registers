@@ -196,6 +196,7 @@ table.xg td.n{text-align:right;font-family:var(--f-num);font-size:12px;white-spa
 table.xg td.b{font-weight:700}
 .segs{display:flex;gap:2px;border-bottom:1px solid var(--rule)}
 .list .li.sel{background:var(--accent-soft)}
+dialog:has(#mbxBody){width:min(1180px,calc(100vw - 24px))}
 .mbxg{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:4px 18px;margin-top:4px}
 </style>
 
@@ -653,9 +654,9 @@ function renderShelf(){
     ${dd('MB',['mbCover','mbRecord','mbAbstract','mbup'],btn('mbup','Upload ki hui MB (Excel)',(w0.mbFiles||[]).length)+'<h4>App mein bani MB</h4>'+btn('mbCover','CMB Page 1–5')+btn('mbRecord','For Record',w0.mb.entries.length)+btn('mbAbstract','Abstract'))}`;
   for(const g in groups){const rs=groups[g].map(r=>{const rows=compute(r);return {r,n:rows.length,bad:rows.some(x=>x._flag?.[0]==='bad')}});
     h+=dd(g,groups[g].map(r=>r.id),`<h4>${esc(g)}</h4>`+rs.map(o=>btn(o.r.id,o.r.short,o.n,o.bad)).join(''),rs.some(o=>o.bad))}
-  h+=`<span class="spacer"></span><button class="tab" data-act="pickRegs" title="Is kaam ke registers chuno">⚙ Registers <span class="cnt">${myRegs().length}/${REGS.length}</span></button>${isAdmin()?tab('admin','Admin'):''}</div>`;
+  h+=` <span class="spacer"></span>${tab('settings','⚙ Setting')}<button class="tab" data-act="pickRegs" title="Is kaam ke registers chuno">⚙ Registers <span class="cnt">${myRegs().length}/${REGS.length}</span></button>${isAdmin()?tab('admin','Admin'):''}</div>`;
   const opt=(id,l)=>`<option value="${id}" ${view.reg===id?'selected':''}>${esc(l)}</option>`;
-  h=`<select class="mobsel" id="mobSel" aria-label="Register chuno">${opt('dash','Dashboard')}${opt('chat','Chatbot')}${opt('aavak','Aavak planning')}${isAdmin()?opt('admin','Admin'):''}<optgroup label="Kaam / MB">${opt('works','Mere kaam')}${opt('mbup','Upload ki hui MB')}${Object.entries(MBV).map(([k,v])=>opt(k,v)).join('')}</optgroup>${Object.keys(groups).map(g=>`<optgroup label="${g}">${groups[g].map(r=>opt(r.id,r.short)).join('')}</optgroup>`).join('')}<option value="__pick">⚙ Registers chuno…</option></select>`+h;
+  h=`<select class="mobsel" id="mobSel" aria-label="Register chuno">${opt('dash','Dashboard')}${opt('chat','Chatbot')}${opt('aavak','Aavak planning')}${opt('settings','⚙ Setting')}${isAdmin()?opt('admin','Admin'):''}<optgroup label="Kaam / MB">${opt('works','Mere kaam')}${opt('mbup','Upload ki hui MB')}${Object.entries(MBV).map(([k,v])=>opt(k,v)).join('')}</optgroup>${Object.keys(groups).map(g=>`<optgroup label="${g}">${groups[g].map(r=>opt(r.id,r.short)).join('')}</optgroup>`).join('')}<option value="__pick">⚙ Registers chuno…</option></select>`+h;
   $('#shelf').innerHTML=h;$('#mobSel').onchange=e=>{if(e.target.value==='__pick'){e.target.value=view.reg;return openRegPicker()}go(e.target.value)};
 }
 document.addEventListener('click',e=>{const t=e.target.closest('.ddbtn');document.querySelectorAll('.dd.open').forEach(d=>{if(!t||d!==t.parentElement)d.classList.remove('open')});if(t)t.parentElement.classList.toggle('open')});
@@ -765,7 +766,7 @@ function renderReg(){
   $('#xls')?.addEventListener('click',()=>exportReg(reg));
   document.querySelectorAll('#main tbody tr[data-id]').forEach(tr=>tr.onclick=()=>openForm(reg,rowsOf(reg.id).find(r=>r.id===tr.dataset.id)));
 }
-function render(){renderWorks();renderShelf();view.reg==='dash'?renderDash():view.reg==='chat'?renderChat():view.reg==='works'?renderWorksList():view.reg==='admin'?renderAdmin():view.reg==='mbup'?renderMbUp():view.reg==='aavak'?renderAavak():MBV[view.reg]?renderMB(view.reg):renderReg()}
+function render(){renderWorks();renderShelf();view.reg==='dash'?renderDash():view.reg==='chat'?renderChat():view.reg==='works'?renderWorksList():view.reg==='admin'?renderAdmin():view.reg==='mbup'?renderMbUp():view.reg==='aavak'?renderAavak():view.reg==='settings'?renderSettings():MBV[view.reg]?renderMB(view.reg):renderReg()}
 function go(id){view.reg=id;try{localStorage.setItem(LS_KEY+'_view',id)}catch(e){}render();window.scrollTo(0,0)}
 
 /* ===================== FORM ===================== */
@@ -1247,25 +1248,82 @@ async function exportItems(){const w=W();await xlSave(itemsWorkbook(w),`Tender I
 
 /* ===================== MB EXCEL → CEMENT PATRAK-4 ===================== */
 /* Standard cement consumption (bags of 50 kg) – badla ja sakta hai */
-const CEM_STD=[
- {k:/m[\s-]*25\b|m[\s-]*250\b/i,lab:'M25',per:8.4,unit:'cum'},
- {k:/m[\s-]*20\b|m[\s-]*200\b|1\s*:\s*1\.5\s*:\s*3/i,lab:'M20',per:8.0,unit:'cum'},
- {k:/m[\s-]*15\b|m[\s-]*150\b|1\s*:\s*2\s*:\s*4/i,lab:'M15 / 1:2:4',per:6.4,unit:'cum'},
- {k:/1\s*:\s*3\s*:\s*6/i,lab:'PCC 1:3:6',per:4.4,unit:'cum'},
- {k:/1\s*:\s*4\s*:\s*8/i,lab:'PCC 1:4:8',per:3.4,unit:'cum'},
- {k:/half\s*brick.*1\s*:\s*4|half brick/i,lab:'Half brick CM 1:4',per:0.17,unit:'sqm'},
- {k:/brick.*1\s*:\s*6/i,lab:'Brick work CM 1:6',per:1.25,unit:'cum'},
- {k:/brick.*1\s*:\s*4/i,lab:'Brick work CM 1:4',per:1.6,unit:'cum'},
- {k:/plaster.*1\s*:\s*4/i,lab:'Plaster CM 1:4 (12 mm)',per:0.10,unit:'sqm'},
- {k:/plaster.*1\s*:\s*3/i,lab:'Plaster CM 1:3',per:0.13,unit:'sqm'}];
-/* roz kitna kaam hota hai (din nikalne ke liye) – badla ja sakta hai */
+/* ===== PWD cement consumption table (kg per unit) – sheet jo user ne di ===== */
+const CC_NOM=[['1:5:10',130,'',[5,10]],['1:4:8',170,'',[4,8]],['1:3:6',220,'M-100',[3,6]],['1:2:4',290,'M-150',[2,4]],['1:1.5:3',360,'M-200',[1.5,3]]];
+const CC_GRADE={10:220,15:290,20:360,25:380};
+const MORTAR={1:1020,2:680,3:510,4:380,5:310,6:250,8:191.4};
+const BRICKT={5:[74,65.1],6:[60,52.2],8:[45.94,40.19]};
+const HALFB={3:[14.28,12.75],4:[10.64,9.5],5:[8.08,7.75]};
+const PLAST={10:{3:5.82,4:4.33,6:2.85},15:{3:8.42,4:6.27,6:4.13},20:{3:11.42,4:8.51,6:5.60}};
+const PLAST_FC={10:{3:8.02,4:6.53,6:5.05},15:{3:10.62,4:8.47,6:6.33},20:{3:13.62,4:10.71,6:7.80}};
+const UCR={5:102.3,6:82.5},CRT={3:153,4:114,5:93,6:75},WSB={5:65.1,6:52.5};
+const POINT={brick:{3:1.53,4:1.14},stone:{3:1.17,4:1.17}};
+const FLOOR=[[/granite/,'Granite',12,9.52],[/kota|kotah/,'Kotah stone',null,12.52],[/vitrified/,'Vitrified tiles',10.44,9.52],[/glazed|ceramic/,'Glazed / ceramic tiles',10.44,9.52],[/chequer|checker/,'Chequered tiles',11.61,8.83]];
+const SWP={100:[2.17,6.19],150:[3.23,10.40]},NP3={300:1.02,450:2.04,600:2.38,750:3.06,900:3.74,1050:4.08,1200:5.10};
+const unitOf=u=>{u=String(u||'').toLowerCase();return /sq|m2|sqm/.test(u)?'sqm':/cu|m3|cum/.test(u)?'cum':/r\.?\s*m|rmt|running|metre|meter/.test(u)?'rmt':/kg|m\.?\s*t|tonne/.test(u)?'kg':/no|nos|each|number/.test(u)?'no':''};
+function mRatio(d){let m=/(?:c\.?\s*m\.?|cement\s*mortar|mortar)\s*\(?\s*1\s*[:\-]\s*(\d+)/.exec(d)||/1\s*-?\s*cement\s*:\s*(\d+)/.exec(d)||/\b1\s*:\s*(\d+)\b(?!\s*:)/.exec(d);return m?+m[1]:null}
+const thick=d=>{const m=/(\d+(?:\.\d+)?)\s*mm\b/.exec(d);return m?+m[1]:null};
+function interp(tab,t,r){const ks=Object.keys(tab).map(Number).sort((a,b)=>a-b);if(tab[t]?.[r]!=null)return tab[t][r];
+  let lo=ks.filter(k=>k<=t).pop(),hi=ks.find(k=>k>=t);if(lo==null)lo=ks[0];if(hi==null)hi=ks[ks.length-1];const a=tab[lo]?.[r],b=tab[hi]?.[r];if(a==null||b==null)return null;return lo===hi?a:a+(b-a)*(t-lo)/(hi-lo)}
+/* agg = per unit (kg / nos) – andaaz, mix design se badlega */
+const aggM=(c,r,u,brick)=>({sand:Math.round(c/1440*r*1550*10)/10,...(brick?{brick}:{})});
+/* item ka cement: {key,lab,kg,unit,kind,grade,ctrl,agg,src} */
+function cemRule(desc,unit,w=W()){const d=String(desc||'').toLowerCase().replace(/\s+/g,' ');const U=unitOf(unit);if(!d||U==='kg')return null;
+  const r=mRatio(d),t=thick(d),mod=/modular/.test(d)&&!/non[\s-]*modular/.test(d),cv=mod?1:0;
+  const R=(key,lab,kg,u,o={})=>kg==null||(u!==U)?null:{key,lab,kg:Math.round(kg*100)/100,unit:u,kind:o.kind||'cem',grade:o.grade||null,ctrl:!!o.ctrl,agg:o.agg||{},src:o.src||'PWD table'};
+  /* --- concrete --- */
+  if(/concrete|c\.c\.|\bpcc\b|\brcc\b/.test(d)&&!/block|plaster|pointing|tile|granite|kota|skirting|masonry|brick/.test(d)){
+    const gm=/\bm\s*-?\s*(\d{2,3})\b/.exec(d);let g=gm?+gm[1]:null;if(g&&g>=100)g=g/10;
+    const nm=CC_NOM.find(([rt])=>new RegExp('\\b'+rt.replace(/\./g,'\\.').replace(/:/g,'\\s*:\\s*')+'\\b').test(d));
+    const ctrl=/controlled|design\s*mix/.test(d)||(!nm&&g>=20);
+    let kg,lab,key,grade,agg,src='PWD table';
+    if(nm&&!ctrl){kg=nm[1];lab=`C.C. ${nm[0]}${nm[2]?` (${nm[2]})`:''}`;key='C.C. '+nm[0];const[a,b]=nm[3];grade=nm[0]==='1:2:4'?'M15':nm[0]==='1:1.5:3'?'M20':'PCC '+nm[0];
+      const vc=kg/1440;agg=b>=6?{sand:Math.round(vc*a*1550),a40:Math.round(vc*b*1500)}:{sand:Math.round(vc*a*1550),a20:Math.round(vc*b*1500*0.6),a10:Math.round(vc*b*1500*0.4)}}
+    else if(g){key='M'+g;grade='M'+g;const mx=w?.mix?.[key];
+      if(mx&&num(mx.cement)){kg=+mx.cement;src='mix design'}else{kg=CC_GRADE[g]??null;src=ctrl?'PWD table – mix design nahi':'PWD table'}
+      lab=`${ctrl?'Controlled ':''}C.C. M-${g*10}`;agg=g>=20?{sand:700,a20:720,a10:480}:{sand:Math.round(kg/1440*2*1550),a20:Math.round(kg/1440*4*1500*0.6),a10:Math.round(kg/1440*4*1500*0.4)}}
+    else return null;
+    if(kg==null)return {key,lab,kg:0,unit:'cum',kind:'conc',grade,ctrl,agg,src:'mix design chahiye'};
+    if(U==='sqm'&&t)return R(key,`${lab} – ${t} mm`,kg*t/1000,'sqm',{kind:'cem',grade,agg:Object.fromEntries(Object.entries(agg).map(([k,v])=>[k,Math.round(v*t/1000*10)/10])),src});
+    if(/parapet/.test(d)&&U==='rmt')return R(key,'Bridge parapet '+lab,g===20?48:39.6,'rmt');
+    return R(key,lab,kg,'cum',{kind:'conc',grade,ctrl,agg,src})}
+  /* --- masonry --- */
+  if(/half\s*brick|partition/.test(d)&&/brick/.test(d)&&r&&HALFB[r])return R(`Half brick CM 1:${r}${mod?' (Mod.)':''}`,`Half brick masonry CM 1:${r} (${mod?'Modular':'Conventional'})`,HALFB[r][cv],'sqm',{agg:aggM(HALFB[r][cv],r,'sqm',mod?50:55)});
+  if(/brick/.test(d)&&/masonry|brick\s*work|brickwork/.test(d)&&r&&BRICKT[r])return R(`Brick CM 1:${r}${mod?' (Mod.)':''}`,`Brick masonry CM 1:${r} (${mod?'Modular':'Conventional'})`,BRICKT[r][cv],'cum',{agg:aggM(BRICKT[r][cv],r,'cum',500)});
+  if(/block/.test(d)&&/masonry/.test(d))return U==='sqm'?R('Block CM 1:4 partition','Concrete block masonry CM 1:4 (partition)',4.09,'sqm',{agg:aggM(4.09,4)}):R('Block CM 1:6','Concrete block masonry CM 1:6',23.81,'cum',{agg:aggM(23.81,6)});
+  if(/bela/.test(d)&&r)return U==='sqm'?R('W.S. bela 1:4 partition','W.S. bela masonry CM 1:4 (partition)',5.7,'sqm',{agg:aggM(5.7,4)}):WSB[r]?R(`W.S. bela CM 1:${r}`,`W.S. bela masonry CM 1:${r}`,WSB[r],'cum',{agg:aggM(WSB[r],r)}):null;
+  if(/uncoursed|u\.\s*c\.\s*r/.test(d)&&r&&UCR[r])return R(`U.C.R. CM 1:${r}`,`U.C.R. masonry CM 1:${r}`,UCR[r],'cum',{agg:aggM(UCR[r],r)});
+  if(/coursed rubble|\bc\.\s*r\.?\b/.test(d)&&r&&CRT[r])return R(`C.R. CM 1:${r}`,`C.R. masonry CM 1:${r}`,CRT[r],'cum',{agg:aggM(CRT[r],r)});
+  /* --- pointing --- */
+  if(/pointing/.test(d)&&r){const tb=/stone/.test(d)?POINT.stone:POINT.brick;return tb[r]?R(`Pointing ${/stone/.test(d)?'stone':'brick'} 1:${r}`,`Pointing on ${/stone/.test(d)?'stone':'brick'} masonry CM 1:${r}`,tb[r],'sqm',{agg:aggM(tb[r],r)}):null}
+  /* --- plaster --- */
+  if(/plaster/.test(d)&&!/skirting|dado|tile|granite|kota/.test(d)){if(/sand\s*faced/.test(d))return R('Sand faced plaster 20mm','Sand faced plaster 20 mm',16.83,'sqm',{agg:aggM(16.83,4)});
+    const fc=/floating|neeru|neat cement/.test(d);const tt=t||12,rr=r||4;const kg=interp(fc?PLAST_FC:PLAST,tt,rr);
+    return R(`Plaster ${tt}mm 1:${rr}${fc?' + floating':''}`,`Cement plaster ${tt} mm CM 1:${rr}${fc?' (floating coat)':''}${PLAST[tt]?'':' (10/15/20 mm se)'}`,kg,'sqm',{agg:aggM(kg,rr)})}
+  /* --- flooring / skirting --- */
+  const fl=FLOOR.find(f=>f[0].test(d));
+  if(fl){const sk=/skirting|dado/.test(d);let kg=sk?fl[3]:fl[2];
+    if(fl[1]==='Kotah stone'&&!sk)kg=/30\s*mm/.test(d)?12.40:12.00;
+    if(fl[1]==='Vitrified tiles'&&!sk&&/20\s*mm/.test(d)&&/1\s*:\s*6/.test(d))kg=10.60;
+    return R(`${fl[1]} ${sk?'skirting':'flooring'}`,`${fl[1]} – ${sk?'skirting':'flooring'}`,kg,'sqm',{agg:aggM(kg,sk?3:6)})}
+  /* --- pipes / road furniture --- */
+  if(/stone\s*ware|s\.\s*w\.\s*pipe/.test(d)){const dia=/150/.test(d)?150:100;return R(`SW pipe ${dia}`,`Stone ware pipe ${dia} mm`,SWP[dia][/bedding|1\s*:\s*5\s*:\s*10/.test(d)?1:0],'rmt')}
+  if(/np\s*-?\s*3/.test(d)){const dm=/(300|450|600|750|900|1050|1200)\s*mm/.exec(d);return dm?R(`NP3 ${dm[1]}`,`NP-3 pipe ${dm[1]} mm fixing`,NP3[dm[1]],'rmt'):null}
+  if(/hectometer/.test(d))return R('Hectometer stone','Hectometer stone',6.38,'no');
+  if(/5th\s*km|fifth km/.test(d))return R('5th KM stone','5th KM stone',41.5,'no');
+  if(/km\.?\s*stone|kilometer stone/.test(d))return R('KM stone','Ordinary KM stone',34,'no');
+  if(/board/.test(d))return R(/2\s*legs?|two leg|village|junction|direction|info/.test(d)?'Board 2 legs':'Board 1 leg',/2\s*legs?|two leg|village|junction|direction|info/.test(d)?'Sign board (2 legs)':'Sign board (1 leg)',/2\s*legs?|two leg|village|junction|direction|info/.test(d)?83:41.5,'no');
+  /* --- sirf mortar --- */
+  if(/mortar/.test(d)&&r&&MORTAR[r])return R(`Mortar 1:${r}`,`Cement mortar 1:${r}`,MORTAR[r],'cum',{agg:{sand:Math.round(MORTAR[r]/1440*r*1550)}});
+  return null}
+/* roz kitna kaam hota hai – default (dialog mein badlo, kaam ke hisaab se yaad rehta hai) */
 function dayRate(desc,unit){const d=desc.toLowerCase();
   if(/kg/i.test(unit||'')&&/steel|tmt|reinforce|\bbar/.test(d))return 1500;
-  if(/half brick/.test(d))return 40;if(/brick/.test(d))return 8;if(/plaster/.test(d))return 60;if(/foundation|footing|mass concrete/.test(d))return 30;
+  if(/half brick/.test(d))return 40;if(/brick/.test(d))return 8;if(/plaster/.test(d))return 60;if(/flooring|skirting|tile/.test(d))return 40;if(/foundation|footing|mass concrete/.test(d))return 30;
   if(/slab/.test(d))return 120;if(/plinth/.test(d)&&/beam/.test(d))return 30;if(/beam/.test(d))return 60;if(/column|pillar/.test(d))return 10;
   if(/stair/.test(d))return 4;if(/lintel/.test(d))return 3;return 30}
-function elemName(desc){const d=desc.toLowerCase();const g=(CEM_STD.find(s=>s.k.test(desc))||{}).lab||'';
-  const e=/half brick/.test(d)?'Half brick masonry':/brick/.test(d)?(/in foundation|foundation and plinth/.test(d)?'Brick work (foundation)':'Brick work'):/plaster/.test(d)?'Plaster':
+function elemName(desc,unit){const d=desc.toLowerCase();const g=(cemRule(desc,unit||'cum')||cemRule(desc,'sqm')||{}).lab||'';
+  const e=/half brick/.test(d)?'Half brick masonry':/brick/.test(d)?(/in foundation|foundation and plinth/.test(d)?'Brick work (foundation)':'Brick work'):/plaster/.test(d)?'Plaster':/flooring|skirting|tile/.test(d)?'Flooring / tiles':
    /foundation|footing|mass concrete/.test(d)?'PCC / foundation':/plinth/.test(d)&&/beam/.test(d)?'Plinth beam':/slab/.test(d)?'Slab':/beam/.test(d)?'Beam':/column|pillar/.test(d)?(/upto plinth|up to plinth/.test(d)?'Column (plinth tak)':'Column'):/stair/.test(d)?'Staircase':/lintel/.test(d)?'Lintel':'Kaam';
   return `${e} – ${g}`}
 const xv=c=>{let v=c?.value;if(v&&typeof v==='object'&&!(v instanceof Date))v=v.result??v.text??(v.richText?v.richText.map(r=>r.text).join(''):null);return v};
@@ -1298,28 +1356,33 @@ function parseMBWorkbook(wb){
   return {sheet:ws.name,bill,blocks:blocks.filter(b=>b.total!=null),wb,ws}}
 function workDaysBefore(iso,n){const out=[];const d=new Date(iso+'T00:00:00');while(out.length<n){d.setDate(d.getDate()-1);if(d.getDay()!==0)out.unshift(isoD(d))}return out}
 /* MB block → kis register mein jayega */
-function concGrade(desc){const s=CEM_STD.find(x=>x.k.test(desc));if(!s||!/^M|PCC/.test(s.lab))return null;return s.lab.startsWith('M15')?'M15':s.lab}
-function planMB(blocks){return blocks.map((b,i)=>{const s=CEM_STD.find(x=>x.k.test(b.desc));
-  const sqm=/sq/i.test(b.unit);const cemOk=!!s&&((s.unit==='sqm')===sqm);
-  const steel=/kg/i.test(b.unit)&&/steel|tmt|reinforce|\bbar/i.test(b.desc);
-  const grade=cemOk&&!sqm?concGrade(b.desc):null;
-  const kind=steel?'steel':grade?'conc':cemOk?'cem':'other';
-  return {i,kind,bill:b.bill||'',use:kind!=='other'&&!!b.date&&(!steel||!!b.dia),itemNo:b.itemNo,date:b.date,desc:b.desc,qty:b.total,unit:b.unit,page:b.page,dia:b.dia,grade,lab:cemOk?s.lab:'',
-    name:steel?'Steel (TMT)':elemName(b.desc),per:cemOk?Math.round(mixOf(W(),s.lab).cement/50*1000)/1000:0,days:Math.max(1,Math.ceil(b.total/dayRate(b.desc,b.unit)))}})}
+const wkKey=p=>p.kind==='steel'?'Steel|kg':`${(p.name||'').split(' – ')[0]}|${unitOf(p.unit)||p.unit}`;
+function planMB(blocks){const w=W();return blocks.map((b,i)=>{const steel=/kg/i.test(b.unit)&&/steel|tmt|reinforce|\bbar/i.test(b.desc);
+  const ru=steel?null:cemRule(b.desc,b.unit,w);
+  const kind=steel?'steel':ru?(ru.kind==='conc'?'conc':'cem'):'other';
+  const name=steel?'Steel (TMT)':kind==='other'?'Cement ka kaam nahi':elemName(b.desc,b.unit);
+  const p={i,kind,bill:b.bill||'',use:kind!=='other'&&!!b.date&&(!steel||!!b.dia),itemNo:b.itemNo,date:b.date,desc:b.desc,qty:b.total,unit:b.unit,page:b.page,dia:b.dia,
+    grade:ru?.grade||null,lab:ru?.key||'',rlab:ru?.lab||'',src:ru?.src||'',ctrl:!!ru?.ctrl,agg:ru?.agg||{},name,per:ru?Math.round(ru.kg/50*10000)/10000:0};
+  p.wk=wkKey(p);p.avg=num(w.dayAvg?.[p.wk])||dayRate(b.desc,b.unit);p.days=Math.max(1,Math.round(b.total/p.avg));return p})}
 const planCement=planMB;
-/* qty ko din mein baanto: [{d,q,f}] f = hissa (0-1) */
-function splitDays(p){const days=workDaysBefore(p.date,Math.max(1,+p.days||1));const n=days.length;let ql=p.qty;
-  return days.map((d,k)=>{const last=k===n-1;const q=last?Math.round(ql*100)/100:Math.round(p.qty/n*100)/100;ql-=q;return {d,q,f:1/n}})}
+/* chhota seeded random – har baar wahi nateeja */
+function rng(seed){let h=1779033703^String(seed).length;for(const ch of String(seed)){h=Math.imul(h^ch.charCodeAt(0),3432918353);h=h<<13|h>>>19}
+  return()=>{h=Math.imul(h^h>>>16,2246822507);h=Math.imul(h^h>>>13,3266489909);return((h^=h>>>16)>>>0)/4294967296}}
+/* qty ko din mein baanto: roz ka avg ±5% (random), jod = poora qty. [{d,q,f}] f = hissa */
+function splitDays(p){const days=workDaysBefore(p.date,Math.max(1,+p.days||1));const n=days.length;const R=rng(`${p.itemNo}|${p.date}|${p.qty}|${n}`);
+  let dl=days.map(()=>R()*0.10-0.05);const mn=dl.reduce((a,v)=>a+v,0)/n;dl=dl.map(v=>v-mn);const mx=Math.max(...dl.map(Math.abs));if(mx>0.05)dl=dl.map(v=>v*0.05/mx);
+  const wt=dl.map(v=>1+v);const sw=n;let ql=p.qty;
+  return days.map((d,k)=>{const last=k===n-1;const q=last?Math.round(ql*100)/100:Math.round(p.qty*wt[k]/sw*100)/100;ql-=q;return {d,q,f:p.qty?q/p.qty:1/n}})}
 const mbRef=p=>`MB ${p.date?fdate(p.date):''}${p.page?' '+p.page:''}`;
 function cementEntries(plan){const out=[];let c=Date.now();
   plan.filter(p=>p.use&&p.per>0&&p.date&&p.kind!=='steel').forEach(p=>{const bags=Math.round(p.qty*p.per);const sp=splitDays(p);let left=bags;
-    sp.forEach((x,k)=>{const bg=k===sp.length-1?left:Math.round(bags/sp.length);left-=bg;
-      out.push({id:uid(),_c:c++,date:x.d,itemNo:p.itemNo,item:p.name,workQty:`${fmt(x.q,2)} ${p.unit}`,used:String(bg),remarks:`${mbRef(p)} se (${mixOf(W(),p.lab).src==='mix'?'mix design':'std.'} ${p.per} bags/${/sq/i.test(p.unit)?'sqm':'cum'})`,src:'mbx',mq:x.q,mk:p.lab})})});
+    sp.forEach((x,k)=>{const bg=k===sp.length-1?left:Math.round(bags*x.f);left-=bg;
+      out.push({id:uid(),_c:c++,date:x.d,itemNo:p.itemNo,item:p.name,workQty:`${fmt(x.q,2)} ${p.unit}`,used:String(bg),remarks:`${mbRef(p)} se (${p.src}: ${fmt(p.per*50,2)} kg/${unitOf(p.unit)})`,src:'mbx',mq:x.q,mk:p.lab,mf:{u:unitOf(p.unit),cement:p.per*50,...p.agg}})})});
   return out}
 function steelEntries(plan){const out=[];let c=Date.now();
   plan.filter(p=>p.use&&p.kind==='steel'&&p.dia).forEach(p=>{const sp=splitDays(p);const left={};Object.keys(p.dia).forEach(d=>left[d]=Math.round(p.dia[d])/1000);
     sp.forEach((x,k)=>{const last=k===sp.length-1;const r={id:uid(),_c:c++,date:x.d,item:`Item ${p.itemNo} – TMT steel${(/Fe[-\s]?\d+\s*D?/i.exec(p.desc||'')||[''])[0]?' '+(/Fe[-\s]?\d+\s*D?/i.exec(p.desc)[0]):''}`,remarks:`${mbRef(p)} se`,src:'mbx'};
-      Object.keys(p.dia).forEach(d=>{const v=last?Math.round(left[d]*1000)/1000:Math.round(p.dia[d]/1000/sp.length*1000)/1000;left[d]-=v;if(DIAS.includes(+d))r['d'+d]=String(+v.toFixed(3))});out.push(r)})});
+      Object.keys(p.dia).forEach(d=>{const v=last?Math.round(left[d]*1000)/1000:Math.round(p.dia[d]/1000*x.f*1000)/1000;left[d]-=v;if(DIAS.includes(+d))r['d'+d]=String(+v.toFixed(3))});out.push(r)})});
   return out}
 const slumpReq=desc=>/foundation|footing|mass concrete|1\s*:\s*[34]\s*:\s*[68]/i.test(desc)?'25-75':'50-100';
 function slumpEntries(plan){const out=[];let c=Date.now();
@@ -1393,38 +1456,40 @@ const MBGEN={
   return mkRows(R)}};
 const KINDL={steel:'Steel',conc:'Concrete',cem:'Cement kaam',other:'—'};
 const MBF_NOTE={cement4:'roz vapras',steel2:'roz vapras, dia-wise',slump:'har dhalai',cube3:'har dhalai, kitne cube',cement1:'bill ki line',steel1:'bill ka block',sampling:'kitne sample',cementTest:'har lot',cementCons:'har lot',petro:'har source',aggTest:'har lot',sieve:'kapchi + reti',brick:'har lot',tiles:'har lot',mixDesign:'har grade',calib:'har mahina',corrBatch:'har dhalai',batchPlant:'har dhalai',proforma3:'zaroori vs. MB'};
-function openMbFill(r){const plan=planMB(r.blocks);const on=Object.fromEntries(REGS.map(g=>[g.id,!!MBGEN[g.id]&&regOn(g.id)]));const F={...FREQ_DEF};
+function openMbFill(r){let D;const plan=planMB(r.blocks);const on=Object.fromEntries(REGS.map(g=>[g.id,!!MBGEN[g.id]&&regOn(g.id)]));const F={...FREQ_DEF,...(W().freq||{})};
   const rowsH=()=>plan.map(p=>`<tr><td><input type="checkbox" data-u="${p.i}" ${p.use?'checked':''} ${p.kind==='other'&&!isTile(p)?'disabled':''} aria-label="Use"></td><td>${esc(p.itemNo)}</td><td class="d">${fdate(p.date)||'<span class="chip bad">date nahi</span>'}${r.blocks[p.i].inherited?'<div class="note">pichhli date</div>':''}</td>
     <td>${esc(p.name)}<div class="note">${esc((p.desc||'').slice(0,80))}</div>${p.kind==='steel'?`<div class="note">${p.dia?Object.entries(p.dia).map(([d,v])=>`${d}ø ${fmt(v,0)} kg`).join(' · '):'<span class="chip bad">dia-wise vajan nahi mila</span>'}</div>`:''}</td>
     <td><span class="chip ${p.kind==='other'&&!isTile(p)?'':'ok'}">${isTile(p)?'Tiles':KINDL[p.kind]}</span></td><td class="n">${fmt(p.qty,2)} ${esc(p.unit)}</td>
-    <td>${p.per?`<input data-per="${p.i}" value="${p.per}" inputmode="decimal" style="width:60px">`:'–'}</td><td><input data-days="${p.i}" value="${p.days}" inputmode="numeric" style="width:46px"></td><td class="n" data-bags="${p.i}">${p.use&&p.per?Math.round(p.qty*p.per):''}</td></tr>`).join('');
+    <td>${p.per?`<input data-per="${p.i}" value="${p.per}" inputmode="decimal" style="width:64px"><div class="note">${fmt(p.per*50,2)} kg · <span class="chip ${/nahi|chahiye/.test(p.src)?'bad':p.src==='mix design'?'ok':''}">${esc(p.src)}</span></div>`:p.kind==='conc'||p.ctrl?'<span class="chip bad">mix design chahiye</span>':'–'}</td><td><input data-days="${p.i}" value="${p.days}" inputmode="numeric" style="width:46px"><div class="note">≈${fmt(p.qty/Math.max(1,p.days),1)}/din</div></td><td class="n" data-bags="${p.i}">${p.use&&p.per?Math.round(p.qty*p.per):''}</td></tr>`).join('');
   plan.forEach(p=>{if(isTile(p)&&p.date)p.use=true});
   const grp=[...new Set(REGS.filter(g=>MBGEN[g.id]).map(g=>g.grp))];
-  openCustom('MB se saare registers',`<div class="fld wide note"><div>${r.bills?`Saari save ki hui MB milakar: <b>${r.bills.map(esc).join(', ')}</b>`:`Sheet: <b>${esc(r.sheet)}</b>${r.bill?` · <b>${esc(r.bill)}</b>`:''}`} · ${r.blocks.length} item block mile. Har item ki quantity MB ki tarikh se <b>pehle ke kaam ke dino</b> (Ravivar chhod ke) mein baanti jayegi – sab register mein wahi tarikhein. MB mein jo hai (tarikh, item, jaththo) wahi bharega; <b>test ki reading / result, aavak aur sahi app khud nahi bharta</b>.</div></div>
+  openCustom('MB se saare registers',`<div class="fld wide note"><div>${r.bills?`Saari save ki hui MB milakar: <b>${r.bills.map(esc).join(', ')}</b>`:`Sheet: <b>${esc(r.sheet)}</b>${r.bill?` · <b>${esc(r.bill)}</b>`:''}`} · ${r.blocks.length} item block mile. Har item ki quantity MB ki tarikh se <b>pehle ke kaam ke dino</b> (Ravivar chhod ke) mein baanti jayegi – sab register mein wahi tarikhein. Cement: controlled concrete ka <b>mix design</b> se, baaki <b>PWD cement consumption table</b> se. MB mein jo hai (tarikh, item, jaththo) wahi bharega; <b>test ki reading / result, aavak aur sahi app khud nahi bharta</b>.</div></div>
     <div class="fld wide"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>Kaunse register bharne hain</b><button type="button" class="btn small" id="mbxAll">Sab</button><button type="button" class="btn small" id="mbxNone">Koi nahi</button></div>
      <div class="mbxg">${grp.map(gn=>`<div><div class="note"><b>${esc(gn)}</b></div>${REGS.filter(g=>g.grp===gn&&MBGEN[g.id]).map(g=>`<label class="chk"><input type="checkbox" data-reg="${g.id}" ${on[g.id]?'checked':''}> ${esc(g.short)} <span class="note">– ${MBF_NOTE[g.id]||''}</span></label>`).join('')}</div>`).join('')}</div></div>
     <div class="fld wide"><b>Test ki frequency</b> <span class="note">(tender / QC manual mein alag ho to badlo)</span><div class="mbxg">${Object.keys(FREQ_DEF).map(k=>`<label class="chk">${FREQ_L[k].split('__')[0]}<input data-fq="${k}" value="${F[k]}" inputmode="numeric" style="width:80px">${FREQ_L[k].split('__')[1]}</label>`).join('')}</div></div>
+    <div class="fld wide"><b>Roz ka average kaam</b> <span class="note">(kitne din lage = jaththo ÷ roz ka average; har din ±5% ka fark apne aap; ye is kaam ke liye yaad rahega)</span><div class="mbxg" id="mbxAvg">${[...new Map(plan.filter(p=>p.kind!=='other'&&p.date).map(p=>[p.wk,p])).values()].map(p=>`<label class="chk">${esc(p.wk.split('|')[0])} <input data-avg="${esc(p.wk)}" value="${p.avg}" inputmode="decimal" style="width:80px"> ${esc(p.kind==='steel'?'kg':unitOf(p.unit)||p.unit)}/din</label>`).join('')}</div></div>
     <div class="fld wide"><div class="tablewrap"><table class="reg"><thead><tr><th></th><th>Item</th><th>MB date</th><th>Kaam</th><th>Prakar</th><th>Qty</th><th>Bags / unit</th><th>Din</th><th>Kul bags</th></tr></thead><tbody id="mbxBody">${rowsH()}</tbody></table></div></div>
     <div class="fld wide note" id="mbxSum"></div>
     <div class="fld"><label for="mbxOpen">Cement khulti silak (bags) – pata ho to</label><input id="mbxOpen" inputmode="numeric" placeholder="khaali chhod sakte ho"></div>
     <div class="fld"><label for="mbxOpenS">Steel khulti silak (MT) – pata ho to</label><input id="mbxOpenS" inputmode="decimal" placeholder="khaali chhod sakte ho"></div>
     <div class="fld wide note"><div>Jo register yahan band karoge wo is kaam ke menu se bhi chhup jayega (baad mein "⚙ Registers chuno" se wapas). Pehle MB se bhari gayi entries hat kar nayi aayengi; haath se bhari entries waisi hi rahengi. Is bill ka MB dobara upload karo to sirf us bill ki nahi, <b>saari MB wali entries</b> nayi file se banengi – isliye har baar <b>upto-date MB</b> (pichhle bill sahit) upload karo.</div></div>`,
    ()=>{const sel=REGS.filter(g=>on[g.id]&&MBGEN[g.id]);if(!sel.length)return toast('Koi register chuno');const w=W();const x=mbCtx(plan,F,r);const msg=[];let tot=0;
-     w.regsOff=REGS.filter(g=>MBGEN[g.id]?!on[g.id]:!regOn(g.id,w)).map(g=>g.id);persist();
+     w.regsOff=REGS.filter(g=>MBGEN[g.id]?!on[g.id]:!regOn(g.id,w)).map(g=>g.id);w.freq={...F};w.dayAvg??={};D.querySelectorAll('[data-avg]').forEach(c=>{const v=num(c.value);if(v>0)w.dayAvg[c.dataset.avg]=v});persist();
      sel.forEach(g=>{const ents=MBGEN[g.id](x);const key=g.sortKey||'date';
        if(ents.length&&g.id==='cement4'){ents.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);const op=num(gv('mbxOpen'));if(op!=null)ents[0].opening=String(op)}
        if(ents.length&&g.id==='steel2'){ents.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);const op=num(gv('mbxOpenS'));if(op!=null)ents[0].opening=String(op)}
        const keep=rowsOf(g.id).filter(e=>e.src!=='mbx');state.data[w.id][g.id]=[...keep,...ents];persist(g.id);tot+=ents.length;if(ents.length)msg.push(`${g.short}: ${ents.length}`)});
      $('#dlg').close();go('aavak');toast(`${tot} entries ${msg.length} register mein bhari – ab dekho kis din tak kitna maal chahiye`,7000)});
   const sum=()=>{const u=plan.filter(p=>p.use);const bags=u.filter(p=>p.per&&p.kind!=='steel').reduce((a,p)=>a+Math.round(p.qty*p.per),0);const st=u.filter(p=>p.kind==='steel').reduce((a,p)=>a+p.qty,0);
-    const pours=u.filter(p=>p.kind==='conc').reduce((a,p)=>a+Math.max(1,+p.days||1),0);
+    const pours=u.filter(p=>p.kind==='conc').reduce((a,p)=>a+Math.max(1,+p.days||1),0);D=$('#dlgBody');
     $('#mbxSum').innerHTML=`Cement: <b>${bags} bags</b> (${fmt(bags*0.05,2)} MT) · Steel: <b>${fmt(st/1000,3)} MT</b> · Concrete ke din: <b>${pours}</b>`};sum();
-  const D=$('#dlgBody');D.querySelectorAll('[data-reg]').forEach(c=>c.onchange=()=>{on[c.dataset.reg]=c.checked});
+  D.querySelectorAll('[data-reg]').forEach(c=>c.onchange=()=>{on[c.dataset.reg]=c.checked});
+  D.querySelectorAll('[data-avg]').forEach(c=>c.oninput=()=>{const v=num(c.value);if(!(v>0))return;plan.filter(p=>p.wk===c.dataset.avg).forEach(p=>{p.avg=v;p.days=Math.max(1,Math.round(p.qty/v));const di=D.querySelector(`[data-days="${p.i}"]`);if(di){di.value=p.days;di.nextElementSibling.textContent=`≈${fmt(p.qty/p.days,1)}/din`}});sum()});
   D.querySelectorAll('[data-fq]').forEach(c=>c.oninput=()=>{const v=num(c.value);if(v>0)F[c.dataset.fq]=v});
   $('#mbxAll').onclick=()=>D.querySelectorAll('[data-reg]').forEach(c=>{c.checked=true;on[c.dataset.reg]=true});
   $('#mbxNone').onclick=()=>D.querySelectorAll('[data-reg]').forEach(c=>{c.checked=false;on[c.dataset.reg]=false});
   $('#mbxBody').oninput=$('#mbxBody').onchange=e=>{const t=e.target;const i=+(t.dataset.u??t.dataset.per??t.dataset.days);const p=plan[i];if(!p)return;
-    if('u' in t.dataset)p.use=t.checked;if('per' in t.dataset)p.per=num(t.value)||0;if('days' in t.dataset)p.days=Math.max(1,parseInt(t.value)||1);
+    if('u' in t.dataset)p.use=t.checked;if('per' in t.dataset)p.per=num(t.value)||0;if('days' in t.dataset){p.days=Math.max(1,parseInt(t.value)||1);t.nextElementSibling.textContent=`≈${fmt(p.qty/p.days,1)}/din`}
     const bc=$('#mbxBody').querySelector(`[data-bags="${i}"]`);bc.textContent=p.use&&p.per?Math.round(p.qty*p.per):'';sum()}}
 /* ===================== UPLOAD KI HUI MB (MB + Abstract sheet save) ===================== */
 const IDB={db:null,async open(){if(this.db)return this.db;return this.db=await new Promise((ok,no)=>{const q=indexedDB.open('rnb-mbfiles',1);q.onupgradeneeded=()=>q.result.createObjectStore('f');q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error)})},
@@ -1549,17 +1614,14 @@ function blocksFromEntries(w){const L=mbLayout(w);const bn=Object.fromEntries(mb
     if(c.steel){blk.dia={};MBDIAS.forEach(d=>{if(c.wt[d])blk.dia[d]=c.wt[d]});blk.total=c.kg;blk.unit='Kg.'}return blk}).filter(b=>b.total)}
 /* ===================== AAVAK PLANNING: kis din tak kitna maal chahiye ===================== */
 /* per cum (ya sqm) – kg; int nos. Mix design daalo to wahi lagega, warna ye andaaz */
-const MIXDEF={'M25':{u:'cum',cement:420,sand:680,a20:700,a10:470},'M20':{u:'cum',cement:400,sand:700,a20:720,a10:480},
- 'M15 / 1:2:4':{u:'cum',cement:320,sand:660,a20:790,a10:530},'PCC 1:3:6':{u:'cum',cement:220,sand:700,a40:1410},'PCC 1:4:8':{u:'cum',cement:170,sand:720,a40:1440},
- 'Brick work CM 1:6':{u:'cum',cement:62.5,sand:400,brick:500},'Brick work CM 1:4':{u:'cum',cement:80,sand:390,brick:500},'Half brick CM 1:4':{u:'sqm',cement:8.5,sand:33,brick:55},
- 'Plaster CM 1:4 (12 mm)':{u:'sqm',cement:5,sand:23},'Plaster CM 1:3':{u:'sqm',cement:6.5,sand:22}};
+const MIXDEF={};
 const MATS=[['cement','Cement','kg'],['sand','Reti (sand)','kg'],['a20','Kapchi 20 mm','kg'],['a10','Kapchi 10 mm','kg'],['a40','Metal 40 mm','kg'],['water','Paani','L'],['brick','Int','nos']];
-function mixOf(w,k){const d=MIXDEF[k]||{};const m=w?.mix?.[k];return m?{...d,...Object.fromEntries(Object.entries(m).filter(([,v])=>v!==''&&v!=null)),src:'mix'}:{...d,src:'andaaz'}}
+function mixOf(w,k,def){const d=def||MIXDEF[k]||{};const m=w?.mix?.[k];return m?{...d,...Object.fromEntries(Object.entries(m).filter(([,v])=>v!==''&&v!=null)),src:'mix'}:{...d,src:'andaaz'}}
 function needTable(w=W()){const day={};const D=d=>day[d]??={cem:0,stl:{},sand:0,a20:0,a10:0,a40:0,brick:0,rc:0,rs:0,rsd:{}};
   let cOpen=0,sOpen=0;const sdOpen={};
   const c4=rowsOf('cement4',w).slice().sort((a,b)=>a.date<b.date?-1:1);
   c4.forEach((r,i)=>{if(!r.date)return;const o=D(r.date);o.cem+=+r.used||0;o.rc+=+r.receipt||0;if(i===0&&num(r.opening)!=null)cOpen=+r.opening;
-    if(r.mk&&r.mq){const f=mixOf(w,r.mk);['sand','a20','a10','a40','brick'].forEach(k=>{if(f[k])o[k]+=r.mq*f[k]})}});
+    if(r.mk&&r.mq){const f=mixOf(w,r.mk,r.mf);['sand','a20','a10','a40','brick'].forEach(k=>{if(f[k])o[k]+=r.mq*f[k]})}});
   const s2=rowsOf('steel2',w).slice().sort((a,b)=>a.date<b.date?-1:1);
   s2.forEach((r,i)=>{if(!r.date)return;const o=D(r.date);DIAS.forEach(d=>{const v=+r['d'+d]||0;if(v)o.stl[d]=(o.stl[d]||0)+v});o.rs+=+r.receipt||0;if(i===0&&num(r.opening)!=null)sOpen=+r.opening});
   rowsOf('steel1',w).forEach((r,i)=>{if(r.date)DIAS.forEach(d=>{const v=+r['r'+d]||0;if(v)D(r.date).rsd[d]=(D(r.date).rsd[d]||0)+v});DIAS.forEach(d=>{if(i===0&&+r['op'+d])sdOpen[d]=+r['op'+d]})});
@@ -1576,6 +1638,7 @@ function needBanner(regId){if(!['cement4','cement1','steel2','steel1'].includes(
   const last=N.rows[N.rows.length-1].d;const fs=cem?N.firstShort.cem:N.firstShort.stl;
   return `<div class="banner" style="${short>1e-6?'':'background:var(--ok-soft);border-color:#A6DCC0;border-left-color:var(--ok)'}"><span>${fdate(last)} tak kul <b>${f(need)} ${u}</b> chahiye · aavak (khulti silak sahit) <b>${f(rcv)} ${u}</b>${short>1e-6?` · <b style="color:var(--bad)">${f(short)} ${u} kam</b> – ${fdate(fs)} se kami shuru, utni aavak jodo`:' · poora hai ✓'}</span><button class="btn small" data-go="aavak">Aavak planning dekho</button></div>`}
 function renderAavak(){const w=W();const N=needTable(w);const keys=[...new Set([...N.keys,...Object.keys(w.mix||{})])];
+  const defs={};rowsOf('cement4',w).forEach(r=>{if(r.mk&&r.mf&&!defs[r.mk])defs[r.mk]=r.mf});
   const fsC=N.firstShort.cem,fsS=N.firstShort.stl;const C=N.C;
   const card=(k,v,sub,bad)=>`<div class="card" ${bad?'style="border-left-color:var(--bad)"':''}><div class="k">${k}</div><div class="v">${v}</div><div class="note">${sub}</div></div>`;
   $('#main').innerHTML=`<div class="sheethead"><div><h2>Aavak planning – kis din tak kitna maal</h2><div class="sub">${esc(w.name)}</div></div>
@@ -1587,24 +1650,55 @@ function renderAavak(){const w=W();const N=needTable(w);const keys=[...new Set([
      ${card('Kapchi 20 / 10 mm',`${fT(C.a20)} / ${fT(C.a10)} MT`,`≈ ${fmt(C.a20/1500,1)} / ${fmt(C.a10/1500,1)} cum${C.a40?` · 40 mm ${fT(C.a40)} MT`:''}`)}
      ${card('Reti (sand)',`${fT(C.sand)} MT`,`≈ ${fmt(C.sand/1550,1)} cum`)}
      ${card('Int',`${fmt(C.brick,0)} nos`,'chinai ke hisaab se')}</div>
-    <div class="list"><h3>Mix design (per cum; chinai / plaster per cum ya sqm) – kg</h3><div style="padding:12px 16px">
-     <p class="note" style="margin-top:0">Mix design report chatbot mein "Mix design" chun ke upload karo, ya yahan khud bharo. Khaali khana = andaaz (halka). Cement ka aankda Patrak-4 ke bags bhi badal deta hai (registers dobara bharne par).</p>
-     <div class="tablewrap"><table class="reg ln"><thead><tr><th>Kaam / grade</th><th>Unit</th>${MATS.map(m=>`<th>${m[1]} (${m[2]})</th>`).join('')}<th>Lab report / ref</th><th></th></tr></thead><tbody>
-     ${keys.map(k=>{const f=mixOf(w,k);const m=w.mix?.[k]||{};return `<tr data-mk="${esc(k)}"><td><b>${esc(k)}</b></td><td>${MIXDEF[k]?.u||'cum'}</td>${MATS.map(([mk])=>`<td><input data-mf="${mk}" value="${m[mk]??''}" placeholder="${f[mk]??''}" inputmode="decimal"></td>`).join('')}<td><input data-mf="ref" value="${esc(m.ref||'')}"></td><td><span class="chip ${f.src==='mix'?'ok':'warn'}">${f.src==='mix'?'mix design':'andaaz'}</span></td></tr>`}).join('')}
-     </tbody></table></div><div class="actions" style="margin-top:8px"><button class="btn primary small" id="mixSave">Mix design save karo</button><span class="note">Save ke baad "MB se registers bharo" dobara chalao taaki Patrak-4 bhi isi se bane.</span></div></div></div>
+    <div class="banner" style="background:var(--accent-soft);border-color:#C9D4F2;border-left-color:var(--accent)"><span>Controlled concrete ka cement / reti / kapchi (mix design) aur roz ka average kaam <b>⚙ Setting</b> mein badlo.</span><button class="btn small" data-go="settings">⚙ Setting kholo</button></div>
     <div class="tablewrap"><table class="reg"><thead><tr><th rowspan="2">Tarikh</th><th colspan="4">Cement (bags)</th><th colspan="4">Steel (MT)</th><th colspan="3">Kul chahiye is din tak (MT)</th><th rowspan="2">Int kul</th></tr>
      <tr><th>Us din</th><th>Kul</th><th>Aavak kul</th><th>Kam</th><th>Us din</th><th>Kul</th><th>Aavak kul</th><th>Kam</th><th>20 mm</th><th>10 mm</th><th>Reti</th></tr></thead><tbody>
      ${N.rows.map(r=>{const kc=r.C.cem-r.C.rc,ks=r.C.stl-r.C.rs;return `<tr><td class="d">${fdate(r.d)}</td><td class="n">${r.o.cem?fmt(r.o.cem,0):''}</td><td class="n">${fmt(r.C.cem,0)}</td><td class="n">${fmt(r.C.rc,0)}</td><td class="n" style="${kc>0?'color:var(--bad);font-weight:700':''}">${kc>0?fmt(kc,0):'–'}</td>
        <td class="n">${r.st?fmt(r.st,3):''}</td><td class="n">${fmt(r.C.stl,3)}</td><td class="n">${fmt(r.C.rs,3)}</td><td class="n" style="${ks>1e-9?'color:var(--bad);font-weight:700':''}">${ks>1e-9?fmt(ks,3):'–'}</td>
        <td class="n">${fT(r.C.a20)}</td><td class="n">${fT(r.C.a10)}</td><td class="n">${fT(r.C.sand)}</td><td class="n">${fmt(r.C.brick,0)}</td></tr>`}).join('')}
     </tbody></table></div>`:'<div class="empty">Abhi Cement Patrak-4 / Steel Patrak-2 mein vapras nahi hai. MB upload karke registers bharo.</div>'}`;
-  $('#mixSave')?.addEventListener('click',()=>{w.mix??={};document.querySelectorAll('[data-mk]').forEach(tr=>{const k=tr.dataset.mk;const o={};tr.querySelectorAll('[data-mf]').forEach(i=>{const v=i.value.trim();if(v!=='')o[i.dataset.mf]=i.dataset.mf==='ref'?v:num(v)});
-    if(Object.keys(o).filter(x=>x!=='ref').length)w.mix[k]=o;else delete w.mix[k]});persist();render();toast('Mix design save')});
+  $('#main').querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
   const tbl=()=>$('#main').querySelectorAll('.tablewrap')[1]?.outerHTML||'';
   $('#avPdf').onclick=()=>printNow(`<div class="pg"><div class="ph"><h2>Aavak planning – ${esc(w.name)}</h2></div>${tbl().replace(/class="reg"/,'class="p"')}</div>`,`Aavak planning - ${w.name}`);
   $('#avXls').onclick=async()=>{const wb=new ExcelJS.Workbook();const ws=wb.addWorksheet('Aavak planning');ws.addRow(['Tarikh','Cement us din (bags)','Cement kul','Cement aavak kul','Cement kam','Steel us din (MT)','Steel kul','Steel aavak kul','Steel kam','20mm kul (MT)','10mm kul (MT)','40mm kul (MT)','Reti kul (MT)','Int kul']).font={bold:true};
     N.rows.forEach(r=>ws.addRow([fdate(r.d),r.o.cem,r.C.cem,r.C.rc,Math.max(0,r.C.cem-r.C.rc),+r.st.toFixed(3),+r.C.stl.toFixed(3),+r.C.rs.toFixed(3),+Math.max(0,r.C.stl-r.C.rs).toFixed(3),+(r.C.a20/1000).toFixed(2),+(r.C.a10/1000).toFixed(2),+(r.C.a40/1000).toFixed(2),+(r.C.sand/1000).toFixed(2),Math.round(r.C.brick)]));
     ws.columns.forEach(c=>c.width=14);await xlSave(wb,`Aavak planning - ${w.name}`)}}
+/* ===================== ⚙ SETTING (har kaam ki) ===================== */
+const WK_DEF=[['Steel|kg','Steel (TMT)','steel tmt','kg'],['PCC / foundation|cum','PCC / foundation / footing','foundation footing','cum'],['Plinth beam|cum','Plinth beam','plinth beam','cum'],
+ ['Column (plinth tak)|cum','Column (plinth tak)','column','cum'],['Column|cum','Column','column','cum'],['Beam|cum','Beam','beam','cum'],['Slab|cum','Slab','slab','cum'],['Staircase|cum','Staircase','stair','cum'],
+ ['Lintel|cum','Lintel','lintel','cum'],['Brick work (foundation)|cum','Brick work (foundation)','brick','cum'],['Brick work|cum','Brick work','brick','cum'],['Half brick masonry|sqm','Half brick masonry','half brick','sqm'],
+ ['Plaster|sqm','Plaster','plaster','sqm'],['Flooring / tiles|sqm','Flooring / tiles','flooring','sqm'],['Kaam|cum','Doosra cement ka kaam','x','cum']];
+const MIX_GR=['M10','M15','M20','M25','M30','M35','M40'];
+const MIX_F=[['cement','Cement','kg'],['flyash','Fly ash','kg'],['sand','Reti (sand)','kg'],['a20','Kapchi 20 mm','kg'],['a10','Kapchi 10 mm','kg'],['water','Paani','L'],['admixture','Admixture','kg'],['wc','w/c',''],['ref','Lab report / tarikh','']];
+function renderSettings(){const w=W();w.mix??={};w.dayAvg??={};
+  const gr=[...new Set([...MIX_GR,...Object.keys(w.mix).filter(k=>/^M\d+$/.test(k))])].sort((a,b)=>+a.slice(1)-+b.slice(1));
+  const wks=[...WK_DEF];Object.keys(w.dayAvg).forEach(k=>{if(!wks.some(x=>x[0]===k)){const[n,u]=k.split('|');wks.push([k,n,n.toLowerCase(),u])}});
+  const F={...FREQ_DEF,...(w.freq||{})};
+  $('#main').innerHTML=`<div class="sheethead"><div><h2>⚙ Setting – is kaam ki</h2><div class="sub">${esc(w.name)}</div></div>
+    <div class="actions"><button class="btn primary" id="setSave">Save</button></div></div>
+   <div class="list"><h3>1. Controlled concrete – mix design (1 cum ke liye)</h3><div style="padding:12px 16px">
+    <p class="note" style="margin-top:0">Controlled cement concrete (M-150, M-200, M-250…) ka cement yahan se lagta hai (Patrak-4, Batch plant, Aavak planning). Mix design report <b>chatbot mein "Mix design report"</b> chun ke upload karo – yahan apne aap aa jayegi; ya khud bharo / badlo. Khaali cement = PWD table (M-100 220, M-150 290, M-200 360, M-250 380 kg) aur laal nishan.</p>
+    <div class="tablewrap"><table class="reg ln"><thead><tr><th>Grade</th>${MIX_F.map(f=>`<th>${f[1]}${f[2]?` (${f[2]})`:''}</th>`).join('')}<th>Cement bags/cum</th><th></th></tr></thead><tbody>
+    ${gr.map(g=>{const m=w.mix[g]||{};const c=num(m.cement);return `<tr data-g="${g}"><td><b>${g}</b><div class="note">M-${+g.slice(1)*10}</div></td>${MIX_F.map(([k])=>`<td><input data-k="${k}" value="${esc(m[k]??'')}" ${k==='ref'?'':'inputmode="decimal"'} style="min-width:${k==='ref'?150:70}px"></td>`).join('')}
+      <td class="n" data-bg>${c?fmt(c/50,2):''}</td><td>${c?`<span class="chip ok">${m.src==='upload'?'upload se':'mix design'}</span>`:CC_GRADE[+g.slice(1)]?`<span class="chip warn">PWD table ${CC_GRADE[+g.slice(1)]} kg</span>`:'<span class="chip bad">mix design chahiye</span>'}</td></tr>`}).join('')}
+    </tbody></table></div>
+    <div class="actions" style="margin-top:8px"><input id="newG" placeholder="aur grade, jaise M45" style="width:170px;padding:6px 9px;border:1px solid var(--rule-strong);border-radius:7px"><button class="btn small" id="addG">+ Grade</button><button class="btn small" data-go="chat">Chatbot se mix design upload</button></div></div></div>
+   <div class="list"><h3>2. Roz ka average kaam</h3><div style="padding:12px 16px">
+    <p class="note" style="margin-top:0">MB ka jaththo ÷ roz ka average = kitne din. Har din ±5% ka fark apne aap. MB se registers bharte waqt bhi badal sakte ho – wo yahan yaad rehta hai.</p>
+    <div class="tablewrap"><table class="reg ln"><thead><tr><th>Kaam</th><th>Roz ka average</th><th>Unit</th><th>Default</th></tr></thead><tbody>
+    ${wks.map(([k,n,d,u])=>`<tr><td>${esc(n)}</td><td><input data-wk="${esc(k)}" value="${w.dayAvg[k]??''}" placeholder="${dayRate(d,u==='kg'?'kg':'')}" inputmode="decimal" style="width:110px"></td><td>${u}/din</td><td class="n">${dayRate(d,u==='kg'?'kg':'')}</td></tr>`).join('')}
+    </tbody></table></div></div></div>
+   <div class="list"><h3>3. Test ki frequency</h3><div style="padding:12px 16px"><div class="mbxg">${Object.keys(FREQ_DEF).map(k=>`<label class="chk" style="display:flex;gap:8px;align-items:center">${FREQ_L[k].split('__')[0]}<input data-fq="${k}" value="${F[k]}" inputmode="numeric" style="width:90px;padding:5px 8px;border:1px solid var(--rule-strong);border-radius:6px">${FREQ_L[k].split('__')[1]}</label>`).join('')}</div></div></div>
+   <p class="note">Setting badalne ke baad <b>MB → Upload ki hui MB → "Saari MB se registers bharo"</b> dobara chalao, taaki registers naye aankdon se banein.</p>`;
+  const M=$('#main');
+  M.querySelectorAll('tr[data-g] input[data-k="cement"]').forEach(i=>i.oninput=()=>{const v=num(i.value);i.closest('tr').querySelector('[data-bg]').textContent=v?fmt(v/50,2):''});
+  M.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
+  const save=(quiet)=>{M.querySelectorAll('tr[data-g]').forEach(tr=>{const g=tr.dataset.g;const o={...(w.mix[g]||{})};tr.querySelectorAll('[data-k]').forEach(i=>{const v=i.value.trim();if(v==='')delete o[i.dataset.k];else o[i.dataset.k]=i.dataset.k==='ref'?v:num(v)});
+      if(Object.keys(o).some(k=>!['ref','src'].includes(k)))w.mix[g]=o;else delete w.mix[g]});
+    M.querySelectorAll('[data-wk]').forEach(i=>{const v=num(i.value);if(v>0)w.dayAvg[i.dataset.wk]=v;else delete w.dayAvg[i.dataset.wk]});
+    const fq={};M.querySelectorAll('[data-fq]').forEach(i=>{const v=num(i.value);if(v>0)fq[i.dataset.fq]=v});w.freq=fq;persist();if(!quiet)toast('Setting save')};
+  $('#setSave').onclick=()=>{save();render()};
+  $('#addG').onclick=()=>{const g=($('#newG').value||'').toUpperCase().replace(/[^M0-9]/g,'');if(!/^M\d+$/.test(g))return toast('Jaise M45 likho');save(true);w.mix[g]??={};persist();render()}}
 function openRegPicker(){const w=W();const on=Object.fromEntries(REGS.map(g=>[g.id,regOn(g.id,w)]));const grp=[...new Set(REGS.map(g=>g.grp))];
   openCustom('Is kaam ke registers',`<div class="fld wide note"><div>Jo register is kaam mein nahi chahiye uska tick hata do. Wo menu, Dashboard, "Sab register Excel" aur MB upload se hat jayega. Uski purani entries mitti nahi – tick wapas lagao to sab wapas.</div></div>
     <div class="fld wide"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button type="button" class="btn small" id="rpAll">Sab</button><button type="button" class="btn small" id="rpNone">Koi nahi</button></div>
@@ -1774,7 +1868,7 @@ async function sendChat(){const w=W();const type=$('#c_type').value;const fs=cha
       const t=await callAI({system:SYS_X,max:type==='boq'||type==='estimate'?16000:2000,messages:[{role:'user',content:[...blocks,{type:'text',text:`${XPROMPT[type]}\n${SCHEMA[type]}${text?'\nNote: '+text:''}`}]}]});
       const d=parseJSON(t);const i=chat.msgs.length;
       if(type==='mix'){const mx=(d.mixes||[]).filter(x=>x&&x.grade);
-        chat.msgs.push({role:'bot',type,data:{mixes:mx},html:`<b>Mix design mila</b> (per cum, kg):<div class="tablewrap" style="margin:6px 0"><table class="reg"><thead><tr><th>Grade</th><th>Cement</th><th>Fly ash</th><th>Reti</th><th>20 mm</th><th>10 mm</th><th>Paani</th><th>Admix</th><th>w/c</th></tr></thead><tbody>${mx.map(x=>`<tr><td>${esc(x.grade)}</td>${['cement','flyash','sand','a20','a10','water','admixture','wc'].map(k=>`<td class="n">${x[k]??''}</td>`).join('')}</tr>`).join('')}</tbody></table></div><button class="btn primary small" data-apply="${i}">Aavak planning mein save karo</button>`})}
+        chat.msgs.push({role:'bot',type,data:{mixes:mx},html:`<b>Mix design mila</b> (per cum, kg):<div class="tablewrap" style="margin:6px 0"><table class="reg"><thead><tr><th>Grade</th><th>Cement</th><th>Fly ash</th><th>Reti</th><th>20 mm</th><th>10 mm</th><th>Paani</th><th>Admix</th><th>w/c</th></tr></thead><tbody>${mx.map(x=>`<tr><td>${esc(x.grade)}</td>${['cement','flyash','sand','a20','a10','water','admixture','wc'].map(k=>`<td class="n">${x[k]??''}</td>`).join('')}</tr>`).join('')}</tbody></table></div><button class="btn primary small" data-apply="${i}">⚙ Setting mein save karo</button>`})}
       else if(type==='boq'||type==='estimate'){const items=(d.items||[]).filter(x=>x&&x.desc);
         chat.msgs.push({role:'bot',type,data:{items},html:`<b>${items.length} item mile</b> (${DOCT[type]}). Check karo:<div class="tablewrap" style="margin:6px 0"><table class="reg"><thead><tr><th>No.</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Item</th></tr></thead><tbody>${items.slice(0,40).map(x=>`<tr><td>${esc(x.no)}</td><td class="n">${x.qty??''}</td><td>${esc(x.unit||'')}</td><td class="n">${x.rate??''}</td><td>${esc((x.desc||'').slice(0,90))}</td></tr>`).join('')}${items.length>40?`<tr><td colspan="5" class="note">…aur ${items.length-40}</td></tr>`:''}</tbody></table></div>
           <button class="btn primary small" data-apply="${i}">${type==='boq'?'Tender Items mein save karo':'Estimate items save karo'}</button>`})}
@@ -1787,9 +1881,9 @@ async function sendChat(){const w=W();const type=$('#c_type').value;const fs=cha
   chat.busy=false;chat.files=[];renderChat();$('#c_text').value=''}
 function applyResult(i){const m=chat.msgs[i];const w=W();
   if(m.type==='mb')return openMbFillAll();
-  if(m.type==='mix'){w.mix??={};const map=g=>{const x=String(g).toUpperCase().replace(/\s/g,'');const n=/M-?(\d+)/.exec(x);return n?(+n[1]===15?'M15 / 1:2:4':'M'+n[1]):String(g)};
-    m.data.mixes.forEach(x=>{const k=map(x.grade);w.mix[k]={cement:num(x.cement),sand:num(x.sand),a20:num(x.a20),a10:num(x.a10),water:num(x.water),ref:x.labRef||''};Object.keys(w.mix[k]).forEach(z=>w.mix[k][z]==null&&delete w.mix[k][z])});
-    persist();m.html=m.html.replace(/<button[^>]*data-apply[^>]*>.*?<\/button>/,'<span class="chip ok">Save ho gaya</span>');renderChat();toast('Mix design save – Aavak planning dekho');return}
+  if(m.type==='mix'){w.mix??={};const map=g=>{const x=String(g).toUpperCase().replace(/\s/g,'');const n=/M-?(\d+)/.exec(x);return n?'M'+(+n[1]>=100?+n[1]/10:+n[1]):String(g)};
+    m.data.mixes.forEach(x=>{const k=map(x.grade);w.mix[k]={cement:num(x.cement),flyash:num(x.flyash),sand:num(x.sand),a20:num(x.a20),a10:num(x.a10),water:num(x.water),admixture:num(x.admixture),wc:num(x.wc),ref:x.labRef||'',src:'upload'};Object.keys(w.mix[k]).forEach(z=>w.mix[k][z]==null&&delete w.mix[k][z])});
+    persist();m.html=m.html.replace(/<button[^>]*data-apply[^>]*>.*?<\/button>/,'<span class="chip ok">Save ho gaya</span>');renderChat();toast('Mix design ⚙ Setting mein save');return}
   if(m.type==='boq'){m.data.items.forEach(x=>{const o={id:uid(),no:String(x.no).trim(),qty:num(x.qty),unit:x.unit||'',rate:num(x.rate),desc:x.desc};const k=w.items.findIndex(y=>String(y.no)===o.no);if(k>=0){o.id=w.items[k].id;w.items[k]=o}else w.items.push(o)});
     w.items.sort((a,b)=>(parseFloat(a.no)||0)-(parseFloat(b.no)||0));toast(m.data.items.length+' items Tender Items mein save')}
   else if(m.type==='estimate'){w.estItems=m.data.items;toast(m.data.items.length+' estimate items save')}
@@ -1797,7 +1891,7 @@ function applyResult(i){const m=chat.msgs[i];const w=W();
   persist();m.html=m.html.replace(/<button[^>]*data-apply[^>]*>.*?<\/button>/,'<span class="chip ok">Save ho gaya</span>');renderChat()}
 
 /* ===================== BOOT ===================== */
-try{const v=localStorage.getItem(LS_KEY+'_view');if(v&&(v==='dash'||v==='chat'||v==='works'||v==='mbup'||v==='aavak'||REG[v]||MBV[v]))view.reg=v}catch(e){}
+try{const v=localStorage.getItem(LS_KEY+'_view');if(v&&(v==='dash'||v==='chat'||v==='works'||v==='mbup'||v==='aavak'||v==='settings'||REG[v]||MBV[v]))view.reg=v}catch(e){}
 document.getElementById('shelf').addEventListener('click',e=>{if(e.target.closest('[data-act="pickRegs"]'))return openRegPicker();const b=e.target.closest('[data-reg]');if(b)go(b.dataset.reg)});
 render();initFirebase();
 if(!EMBED&&'serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
