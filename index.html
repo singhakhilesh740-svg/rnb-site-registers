@@ -1328,6 +1328,9 @@ function elemName(desc,unit){const d=desc.toLowerCase();const g=(cemRule(desc,un
    /foundation|footing|mass concrete/.test(d)?'PCC / foundation':/plinth/.test(d)&&/beam/.test(d)?'Plinth beam':/slab/.test(d)?'Slab':/beam/.test(d)?'Beam':/column|pillar/.test(d)?(/upto plinth|up to plinth/.test(d)?'Column (up to plinth)':'Column'):/stair/.test(d)?'Staircase':/lintel/.test(d)?'Lintel':'Other work';
   return `${e} – ${g}`}
 const xv=c=>{let v=c?.value;if(v&&typeof v==='object'&&!(v instanceof Date))v=v.result??v.text??(v.richText?v.richText.map(r=>r.text).join(''):null);return v};
+/* a date written by a formula such as =""&P10&"/"&Q10&"/"&R10 that has no cached result – rebuild it from the referenced cells */
+function fxDate(c,row){let f='';try{f=c.formula||c.value?.formula||''}catch(e){}if(!f)return null;const m=/([A-Z]{1,2})\d+\s*&\s*"\/"\s*&\s*([A-Z]{1,2})\d+\s*&\s*"\/"\s*&\s*([A-Z]{1,2})\d+/.exec(f);if(!m)return null;
+  const g=k=>num(xv(row.getCell([...k].reduce((n,ch)=>n*26+ch.charCodeAt(0)-64,0))));const d=g(m[1]),mo=g(m[2]),y=g(m[3]);return d&&mo&&y?`${d}/${mo}/${y}`:null}
 function isoD(d){return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10)}
 const isDateTxt=a=>typeof a==='string'&&/^\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}$/.test(a.trim());
 async function parseMBExcel(file){if(typeof ExcelJS==='undefined')throw new Error('The Excel library could not be loaded (internet connection required).');
@@ -1335,20 +1338,23 @@ async function parseMBExcel(file){if(typeof ExcelJS==='undefined')throw new Erro
 function parseMBWorkbook(wb){
   /* sirf wo sheet jiske naam mein "MB" / "Measurement Book" ho; naam mein na ho to jiske andar "Measurement Book" likha ho. Baaki sheet ignore. */
   const MBRX=/(^|[^a-z])m\.?\s?b([^a-z]|$)|measurement\s*book/i;
-  const info=wb.worksheets.filter(x=>x.state!=='hidden').map(x=>{let items=0,mbook=false;x.eachRow({includeEmpty:false},r=>{r.eachCell(c=>{const v=xv(c);if(typeof v!=='string')return;if(/^\s*Item\s*No\.?\s*\d+/i.test(v))items++;if(/measurement\s*book/i.test(v))mbook=true})});return {x,items,mbook,byName:MBRX.test(x.name)&&!/abstract|summary|bbs|schedule|boq/i.test(x.name)}});
+  const info=wb.worksheets.filter(x=>x.state!=='hidden').map(x=>{let items=0,mbook=false;x.eachRow({includeEmpty:false},r=>{r.eachCell(c=>{const v=xv(c);if(typeof v!=='string')return;if(/^\s*Item\s*No\.?\s*\d+/i.test(v))items++;if(/mea?s+urement\s*(book|sheet)|for\s*record/i.test(v))mbook=true})});const ex=/abstract|summary|bbs|schedule|boq/i.test(x.name);return {x,items,mbook,ex,byName:MBRX.test(x.name)&&!ex}});
   const pick=a=>a.sort((p,q)=>q.items-p.items)[0];
-  const hit=pick(info.filter(i=>i.byName))||pick(info.filter(i=>i.mbook));
+  const hit=pick(info.filter(i=>i.byName&&i.items))||pick(info.filter(i=>i.mbook&&i.items&&!i.ex))||pick(info.filter(i=>i.items&&!i.ex&&/record|measure|mb|p\.?\s*\d/i.test(i.x.name)))||pick(info.filter(i=>i.byName))||pick(info.filter(i=>i.mbook));
   if(!hit)throw new Error('No Measurement Book sheet was found in this workbook. Include "MB" in the sheet name.');
   if(!hit.items)throw new Error(`Sheet "${hit.x.name}" was found but it contains no "Item No ..." blocks.`);
   const ws=hit.x;
   const blocks=[];let cur=null,date=null,bill='',diaCol={7:8,8:10,9:12,10:16,11:20,12:25,13:32};
-  ws.eachRow({includeEmpty:false},row=>{const a=xv(row.getCell(1)),b=xv(row.getCell(2));
+  /* date built by a formula like =P10&"/"&Q10&"/"&R10 without a cached result – rebuild it from the referenced cells */
+  const fDate=(row)=>{const c=row.getCell(1);const f=c.value&&typeof c.value==='object'&&c.value.formula;if(!f)return null;const m=/([A-Z]{1,2})\d+\s*&\s*"\/"\s*&\s*([A-Z]{1,2})\d+\s*&\s*"\/"\s*&\s*([A-Z]{1,2})\d+/.exec(f);if(!m)return null;
+    const g=k=>num(xv(row.getCell([...k].reduce((n,ch)=>n*26+ch.charCodeAt(0)-64,0))));const d=g(m[1]),mo=g(m[2]),y=g(m[3]);return d&&mo&&y?`${d}/${mo}/${y}`:null};
+  ws.eachRow({includeEmpty:false},row=>{let a=xv(row.getCell(1));const b=xv(row.getCell(2));if(a==null||(a instanceof Date&&isNaN(a))||a==='')a=fxDate(row.getCell(1),row)??a;
     /* dia ka header (8mm 10mm ...) */
     const dh={};row.eachCell((c,i)=>{const v=xv(c);const m=typeof v==='string'&&/^\s*(\d{1,2})\s*mm\s*$/i.exec(v);if(m&&i>3)dh[i]=+m[1]});if(Object.keys(dh).length>=3)diaCol=dh;
     if(!bill){row.eachCell(c=>{const v=xv(c);const m=typeof v==='string'&&/RUNNING\s+BILL\s+NO\.?\s*(.+)$/i.exec(v);if(m)bill=m[1].trim()})}
-    if(a instanceof Date)date=isoD(a);else if(isDateTxt(a)){const[p,q,r]=a.trim().split(/[\/.-]/);date=`${r.length===2?'20'+r:r}-${q.padStart(2,'0')}-${p.padStart(2,'0')}`}
-    if(typeof b==='string'&&/^\s*Item\s*No\.?\s*\d+/i.test(b)){cur={itemNo:b.match(/\d+[A-Za-z]?/)[0],date:null,desc:'',total:null,unit:'',page:'',dia:null};blocks.push(cur);return}
-    if(!cur)return;if(a instanceof Date||isDateTxt(a)){if(!cur.date)cur.date=date}
+    if(a instanceof Date){if(!isNaN(a))date=isoD(a)}else if(isDateTxt(a)){const[p,q,r]=a.trim().split(/[\/.-]/);date=`${r.length===2?'20'+r:r}-${q.padStart(2,'0')}-${p.padStart(2,'0')}`}
+    if(typeof b==='string'&&/^\s*Item\s*No\.?\s*\d+/i.test(b)){cur={itemNo:b.match(/\d+[A-Za-z]?/)[0],date:((a instanceof Date&&!isNaN(a))||isDateTxt(a))?date:null,desc:'',total:null,unit:'',page:'',dia:null};blocks.push(cur);return}
+    if(!cur)return;if((a instanceof Date&&!isNaN(a))||isDateTxt(a)){if(!cur.date)cur.date=date}
     if(!cur.desc&&typeof b==='string'&&b.length>40&&!b.includes('|'))cur.desc=b.trim();
     let tot=false,wpd=false;row.eachCell((c,i)=>{const v=xv(c);if(typeof v==='string'){if(/^\s*Total\s*$/i.test(v))tot=i;if(/total\s*weight\s*per\s*dia/i.test(v))wpd=true}});
     if(wpd){const o={};Object.entries(diaCol).forEach(([i,d])=>{const q=num(xv(row.getCell(+i)));if(q)o[d]=(o[d]||0)+q});cur.dia=o}
@@ -1358,7 +1364,7 @@ function parseMBWorkbook(wb){
 function workDaysBefore(iso,n){const out=[];const d=new Date(iso+'T00:00:00');while(out.length<n){d.setDate(d.getDate()-1);if(d.getDay()!==0)out.unshift(isoD(d))}return out}
 /* MB block → kis register mein jayega */
 const wkKey=p=>p.kind==='steel'?'Steel|kg':`${(p.name||'').split(' – ')[0]}|${unitOf(p.unit)||p.unit}`;
-function planMB(blocks){const w=W();return blocks.map((b,i)=>{const steel=/kg/i.test(b.unit)&&/steel|tmt|reinforce|\bbar/i.test(b.desc);
+function planMB(blocks,w=W()){return blocks.map((b,i)=>{const steel=/kg/i.test(b.unit)&&/steel|tmt|reinforce|\bbar/i.test(b.desc);
   const ru=steel?null:cemRule(b.desc,b.unit,w);
   const kind=steel?'steel':ru?(ru.kind==='conc'?'conc':'cem'):'other';
   const name=steel?'Steel (TMT)':kind==='other'?'No cement content':elemName(b.desc,b.unit);
@@ -1504,7 +1510,7 @@ const IDB={db:null,async open(){if(this.db)return this.db;return this.db=await n
   async op(mode,fn){const db=await this.open();return new Promise((ok,no)=>{const t=db.transaction('f',mode);const r=fn(t.objectStore('f'));t.oncomplete=()=>ok(r&&r.result);t.onerror=()=>no(t.error)})},
   get(k){return this.op('readonly',s=>s.get(k)).catch(()=>null)},put(k,v){return this.op('readwrite',s=>s.put(v,k)).catch(()=>null)},del(k){return this.op('readwrite',s=>s.delete(k)).catch(()=>null)}};
 function sheetGrid(ws){const rows=[];let mc=0;
-  ws.eachRow({includeEmpty:false},(row,rn)=>{const a=[];row.eachCell({includeEmpty:false},(c,cn)=>{if(c.isMerged&&c.master!==c)return;let v=xv(c);if(v instanceof Date)v={d:isoD(v)};else if(typeof v==='number')v=Math.round(v*1e6)/1e6;else if(v!=null&&typeof v==='object')v=String(v.error||'');if(v===''||v==null)return;a[cn-1]=v;if(cn>mc)mc=cn});
+  ws.eachRow({includeEmpty:false},(row,rn)=>{const a=[];row.eachCell({includeEmpty:false},(c,cn)=>{if(c.isMerged&&c.master!==c)return;let v=xv(c);if(v==null||(v instanceof Date&&isNaN(v))){const fd=fxDate(c,row);v=fd??(v instanceof Date?null:v)}if(v instanceof Date)v={d:isoD(v)};else if(typeof v==='number')v=Math.round(v*1e6)/1e6;else if(v!=null&&typeof v==='object')v=String(v.error||'');if(v===''||v==null)return;a[cn-1]=v;if(cn>mc)mc=cn});
     if(a.length)rows[rn-1]=a});
   const widths=[];for(let i=1;i<=mc;i++){const w=ws.getColumn(i).width;widths.push(w?Math.round(w*10)/10:null)}
   const bold={};ws.eachRow({includeEmpty:false},(row,rn)=>row.eachCell({includeEmpty:false},(c,cn)=>{if(c.font&&c.font.bold)bold[rn+','+cn]=1}));
@@ -1592,7 +1598,7 @@ function entriesFromGrid(g,billId,fid){const out=[];let cur=null,blk=null,date=n
     const pm=txt.map(t=>/Page\s*No\.?\s*:?-?\s*(\d+)/i.exec(t)).find(Boolean);if(pm){page=+pm[1];return}
     const a=row[0],b=typeof row[1]==='string'?row[1].trim():'';
     const im=/^Item\s*No\.?\s*(\d+[A-Za-z]?)/i.exec(b);
-    if(im){close();blk={itemNo:im[1],desc:'',total:null,unit:'',uw:null,first:null,pushed:false};cur=mk(null);return}
+    if(im){close();const d0=dOf(a);if(d0)date=d0;blk={itemNo:im[1],desc:'',total:null,unit:'',uw:null,first:d0,pushed:false};cur=mk(d0);return}
     if(!blk)return;
     const dt=dOf(a);if(dt){date=dt;if(cur&&cur.lines.length&&cur.date&&cur.date!==dt){close();cur=mk(dt)}else if(cur)cur.date=dt;if(!blk.first)blk.first=dt}
     if(!cur)cur=mk(date);
@@ -1735,9 +1741,11 @@ const TESTS=[
 /* Aggregate & sand quantities from the mix design → tests due (CPWD 2019 cl. 3.1.3, 4.1.2, 5.11.3.1) */
 const AGG_M=[['sand','Sand (fine aggregate)',1550],['a10','Aggregate 10 mm',1500],['a20','Aggregate 20 mm',1500],['a40','Aggregate 40 mm',1500]];
 function aggPlan(w=W()){const F=freqOf(w);const ev={},mixes={};
-  rowsOf('cement4',w).filter(r=>r.date&&r.mk&&+r.mq).forEach(r=>{const f=mixOf(w,r.mk,r.mf);const g=/^M(\d+)$/.exec(r.mk);const dm=!!g&&(+g[1]>=20||!!w.mix?.[r.mk]);
-    const mx=mixes[r.mk]??={k:r.mk,u:f.u||r.mf?.u||'cum',q:0,dm,src:f.src==='mix'&&['sand','a20','a10','a40'].some(k=>num(w.mix?.[r.mk]?.[k]))?'mix design':dm?'estimate – enter mix design':'PWD consumption table',per:{}};
-    mx.q+=+r.mq;AGG_M.forEach(([k,,bd])=>{if(+f[k]){mx.per[k]=+f[k];(ev[k]??=[]).push({d:r.date,q:r.mq*f[k]/bd,dm})}})});
+  let src=[];try{const bl=blocksFromEntries(w);if(bl.length)planMB(bl,w).filter(p=>p.use&&p.kind!=='steel'&&p.kind!=='other'&&p.lab).forEach(p=>{const mf={u:unitOf(p.unit),cement:p.per*50,...p.agg};splitDays(p).forEach(x=>src.push({date:x.d,mk:p.lab,mq:x.q,mf,item:p.itemNo,dmF:p.ctrl}))})}catch(e){src=[]}
+  const fromMB=src.length>0;if(!fromMB)src=rowsOf('cement4',w).filter(r=>r.date&&r.mk&&+r.mq);
+  src.forEach(r=>{const f=fromMB?{...r.mf,src:w.mix?.[r.mk]?'mix':'andaaz'}:mixOf(w,r.mk,r.mf);const g=/^M(\d+)$/.exec(r.mk);const dm=!!r.dmF||!!g&&(+g[1]>=20||!!w.mix?.[r.mk]);
+    const uu=f.u||r.mf?.u||'cum';const mx=mixes[r.mk+'|'+uu]??={k:r.mk,u:uu,q:0,items:new Set(),dm,src:f.src==='mix'&&['sand','a20','a10','a40'].some(k=>num(w.mix?.[r.mk]?.[k]))?'mix design':dm?'estimate – enter mix design':'PWD consumption table',per:{}};
+    mx.q+=+r.mq;if(r.item!=null)mx.items.add(String(r.item));AGG_M.forEach(([k,,bd])=>{if(+f[k]){mx.per[k]=+f[k];(ev[k]??=[]).push({d:r.date,q:r.mq*f[k]/bd,dm})}})});
   const out=AGG_M.filter(([k])=>ev[k]).map(([k,name,bd])=>{const E=ev[k],all=E.map(e=>({d:e.d,q:e.q})),dmE=E.filter(e=>e.dm).map(e=>({d:e.d,q:e.q})),nmE=E.filter(e=>!e.dm).map(e=>({d:e.d,q:e.q}));
     const tot=all.reduce((a,e)=>a+e.q,0),dmq=dmE.reduce((a,e)=>a+e.q,0),kg=E.reduce((a,e)=>a+e.q*bd,0);const T=[];
     const add=(test,freq,ev,f,mult=1,min=0)=>{const q=ev.reduce((a,e)=>a+e.q,0);if(!q||q<min)return;const tr=tranches(ev,f);T.push({test,freq,n:tr.list.length*mult,lots:tr.list,mult})};
@@ -1752,18 +1760,21 @@ function aggPlan(w=W()){const F=freqOf(w);const ev={},mixes={};
     add('Impact value, crushing value, sp. gravity, bulk density, organic impurities (12.5–10 mm fraction, usually from 20 mm)',`1 per ${F.ca} cum of total coarse aggregate (min. 10 cum), per source`,nmE,F.ca,1,10);
     add('Design-mix concrete: sp. gravity, bulk density, crushing, impact, deleterious – 3 tests each',`1 lot per ${F.dm} cum of total coarse aggregate and each change of source`,dmE,F.dm,3);
     if(T.length)out.push({k:'caAll',name:`Coarse aggregate – all sizes (${caK.map(k=>k.slice(1)+' mm').join(' + ')}), per source`,bd:1500,kg:E.reduce((a,e)=>a+e.q*1500,0),tot:all.reduce((a,e)=>a+e.q,0),dmq:dmE.reduce((a,e)=>a+e.q,0),T})}
-  return {mat:out,mixes:Object.values(mixes).sort((a,b)=>a.k<b.k?-1:1),F}}
+  return {mat:out,mixes:Object.values(mixes).sort((a,b)=>a.k<b.k?-1:1),F,fromMB}}
 function aggPlanHTML(P,print){if(!P.mat.length)return `<p class="note">No aggregate or sand quantities yet – fill Patrak-4 (cement register) from the MB first.</p>`;
   const cls=print?'p':'reg';const lots=t=>t.lots.map(l=>`${l.k}) ${fdate(l.d)}`).join(', ');const AM=AGG_M.filter(([k])=>P.mixes.some(m=>m.per[k]));
-  return `<h4 style="margin:8px 0 4px">(a) Quantity per unit of work</h4><div class="tablewrap"><table class="${cls}"><thead><tr><th>Mix / item</th><th>Work qty</th>${AM.map(m=>`<th>${m[1]} (kg/unit)</th>`).join('')}<th>Basis</th></tr></thead><tbody>
-   ${P.mixes.map(m=>`<tr><td><b>${esc(m.k)}</b>${m.dm?' <span class="chip">design mix</span>':''}</td><td class="n">${fmt(m.q,2)} ${esc(m.u)}</td>${AM.map(([k])=>`<td class="n">${m.per[k]?fmt(m.per[k],1):'–'}</td>`).join('')}<td>${print?esc(m.src):`<span class="chip ${m.src==='mix design'?'ok':/estimate/.test(m.src)?'bad':''}">${esc(m.src)}</span>`}</td></tr>`).join('')}</tbody></table></div>
+  return `<p class="note" style="margin:4px 0">${P.fromMB?'Calculated directly from all uploaded MBs (For Record) and the mix design in ⚙ Settings – updates automatically when an MB is uploaded or edited or the mix design is changed.':'Calculated from Patrak-4 (cement register) – upload the MB to calculate directly from the measurements.'}</p><h4 style="margin:8px 0 4px">(a) Quantity per unit of work</h4><div class="tablewrap"><table class="${cls}"><thead><tr><th>Mix / item</th><th>Work qty</th>${AM.map(m=>`<th>${m[1]} (kg/unit)</th>`).join('')}<th>Basis</th></tr></thead><tbody>
+   ${P.mixes.map(m=>`<tr><td><b>${esc(m.k)}</b>${m.dm?' <span class="chip">design mix</span>':''}${m.items?.size?`<div class="note">Item ${[...m.items].join(', ')}</div>`:''}</td><td class="n">${fmt(m.q,2)} ${esc(m.u)}</td>${AM.map(([k])=>`<td class="n">${m.per[k]?fmt(m.per[k],1):'–'}</td>`).join('')}<td>${print?esc(m.src):`<span class="chip ${m.src==='mix design'?'ok':/estimate/.test(m.src)?'bad':''}">${esc(m.src)}</span>`}</td></tr>`).join('')}</tbody></table></div>
   <h4 style="margin:12px 0 4px">(b) Total quantity and tests required</h4><div class="tablewrap"><table class="${cls}"><thead><tr><th>Material</th><th>Total quantity</th><th>Test</th><th>Frequency</th><th>Tests required</th><th>Test before use of (lot – first-use date)</th></tr></thead><tbody>
    ${P.mat.map(m=>m.T.map((t,i)=>`<tr>${i?'':`<td rowspan="${m.T.length}"><b>${esc(m.name)}</b></td><td rowspan="${m.T.length}" class="n">${fmt(m.tot,2)} cum<div class="note">${fmt(m.kg/1000,2)} MT @ ${m.bd} kg/cum${m.dmq?`; design mix ${fmt(m.dmq,2)} cum`:''}</div></td>`}<td>${esc(t.test)}</td><td>${esc(t.freq)}</td><td class="n"><b>${t.n}</b></td><td class="note">${lots(t)}</td></tr>`).join('')).join('')}</tbody></table></div>
   <p class="note">Grading (sieve analysis) is done for each size separately. Impact, crushing value and other rock properties are tested on the 12.5–10 mm fraction (IS 2386 Part 4) obtained from the 20 mm aggregate – one result represents all sizes from the same quarry; test again for each new source. Lot dates are the first day that lot is used as per the MB – the sample must be tested before that date. Frequencies can be changed in ⚙ Settings → Testing frequency.</p>`}
 function testCtx(w=W()){const N=needTable(w);const c3=rowsOf('cube3',w).filter(r=>num(r.qty)!=null);
   N.samples=c3.reduce((a,r)=>a+reqSamples(+r.qty),0);N.slumps=c3.reduce((a,r)=>a+Math.max(1,Math.ceil(+r.qty/50)),0)||rowsOf('slump',w).length;
   N.grades=[...new Set(c3.map(r=>r.grade).filter(g=>fck(g)))];N.months=new Set(c3.map(r=>(r.date||'').slice(0,7)).filter(Boolean)).size;return N}
-function renderTests(){const w=W();const F=freqOf(w);const N=testCtx(w);const AP=aggPlan(w);
+let mbImpBusy=false;
+async function ensureMbImported(w,after){const pend=(w.mbFiles||[]).filter(m=>!m.imported);if(!pend.length||mbImpBusy)return;mbImpBusy=true;let n=0;
+  for(const m of pend){try{importMbEntries(w,m,await getSheets(m.id));n++}catch(e){}}mbImpBusy=false;if(n){persist();after&&after()}}
+function renderTests(){const w=W();ensureMbImported(w,()=>{if(view.reg==='tests'&&W()===w)renderTests()});const F=freqOf(w);const N=testCtx(w);const AP=aggPlan(w);
   const aggSec=print=>`<h3 style="margin:18px 0 6px">Aggregates and sand – quantity from mix design and tests due</h3>${aggPlanHTML(AP,print)}`;
   const stages=[...new Set(TESTS.map(t=>t.st))];
   const reqOf=t=>t.calc?t.calc(N,F,w):null,doneOf=t=>t.done?t.done(w):null;
