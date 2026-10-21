@@ -1282,7 +1282,7 @@ function cemRule(desc,unit,w=W()){const d=String(desc||'').toLowerCase().replace
       const vc=kg/1440;agg=b>=6?{sand:Math.round(vc*a*1550),a40:Math.round(vc*b*1500)}:{sand:Math.round(vc*a*1550),a20:Math.round(vc*b*1500*0.6),a10:Math.round(vc*b*1500*0.4)}}
     else if(g){key='M'+g;grade='M'+g;const mx=w?.mix?.[key];
       if(mx&&num(mx.cement)){kg=+mx.cement;src='mix design'}else{kg=CC_GRADE[g]??null;src=ctrl?'PWD table – no mix design':'PWD table'}
-      lab=`${ctrl?'Controlled ':''}C.C. M-${g*10}`;agg=g>=20?{sand:700,a20:720,a10:480}:{sand:Math.round(kg/1440*2*1550),a20:Math.round(kg/1440*4*1500*0.6),a10:Math.round(kg/1440*4*1500*0.4)}}
+      lab=`${ctrl?'Controlled ':''}C.C. M-${g*10}`;agg=mx&&['sand','a20','a10','a40'].some(k=>num(mx[k]))?Object.fromEntries(['sand','a20','a10','a40'].filter(k=>num(mx[k])).map(k=>[k,+mx[k]])):g>=20?{sand:700,a20:720,a10:480}:{sand:Math.round(kg/1440*2*1550),a20:Math.round(kg/1440*4*1500*0.6),a10:Math.round(kg/1440*4*1500*0.4)}}
     else return null;
     if(kg==null)return {key,lab,kg:0,unit:'cum',kind:'conc',grade,ctrl,agg,src:'mix design required'};
     if(U==='sqm'&&t)return R(key,`${lab} – ${t} mm`,kg*t/1000,'sqm',{kind:'cem',grade,agg:Object.fromEntries(Object.entries(agg).map(([k,v])=>[k,Math.round(v*t/1000*10)/10])),src});
@@ -1394,8 +1394,10 @@ function cubeEntries(plan){const out=[];let c=Date.now();
   return out}
 /* ---------- MB se baaki registers (sirf MB ke data se: tarikh, item, jaththo; test results kabhi nahi) ---------- */
 /* testing frequency – defaults as per CPWD Specifications 2019 (Vol. 1) / IS 456; editable in Settings */
-const FREQ_DEF={cem:50,stS:25,stM:35,stL:45,ca:45,sand:40,brick:50000,tile:1000};
-const FREQ_L={cem:'Cement – 1 test per __ MT',stS:'Steel below 10 mm – 1 test per __ MT',stM:'Steel 10–16 mm – 1 test per __ MT',stL:'Steel above 16 mm – 1 test per __ MT',ca:'Coarse aggregate – 1 test per __ cum',sand:'Fine aggregate (sand) – 1 test per __ cum',brick:'Bricks – 1 lot per __ bricks',tile:'Tiles – 1 test per __ sqm'};
+const FREQ_DEF={cem:50,stS:25,stM:35,stL:45,ca:40,caG:45,sand:20,sandG:40,dm:50,brick:50000,tile:1000};
+const FREQ_L={cem:'Cement – 1 test per __ MT',stS:'Steel below 10 mm – 1 test per __ MT',stM:'Steel 10–16 mm – 1 test per __ MT',stL:'Steel above 16 mm – 1 test per __ MT',ca:'Coarse aggregate (each size) – impact, crushing, sp. gravity, bulk density: 1 test per __ cum',caG:'Coarse aggregate (each size) – particle size: 1 test per __ cum',sand:'Sand – silt, organic impurities, bulking: 1 test per __ cum',sandG:'Sand – particle size: 1 test per __ cum',dm:'Design-mix concrete – aggregates and sand: 1 lot per __ cum',brick:'Bricks – 1 lot per __ bricks',tile:'Tiles – 1 test per __ sqm'};
+/* old saved defaults (ca 45 / sand 40) replaced by CPWD 2019 values */
+function freqOf(w){const f={...(w?.freq||{})};if(f.ca===45&&f.sand===40&&f.caG==null){delete f.ca;delete f.sand}return {...FREQ_DEF,...f}}
 const stF=(d,F)=>+d<10?F.stS:+d<=16?F.stM:F.stL;
 const isTile=p=>/sq/i.test(p.unit)&&/tile|flooring|paver/i.test(p.desc||'');
 const isBrick=p=>/brick/i.test(p.desc||'');
@@ -1462,7 +1464,7 @@ const MBGEN={
   return mkRows(R)}};
 const KINDL={steel:'Steel',conc:'Concrete',cem:'Cement work',other:'—'};
 const MBF_NOTE={cement4:'daily consumption',steel2:'daily consumption, dia-wise',slump:'every pour',cube3:'every pour, cubes required',cement1:'one line per bill',steel1:'one block per bill',sampling:'samples required',cementTest:'per lot',cementCons:'per lot',petro:'per source',aggTest:'per lot',sieve:'coarse aggregate + sand',brick:'per lot',tiles:'per lot',mixDesign:'per grade',calib:'monthly',corrBatch:'every pour',batchPlant:'every pour',proforma3:'required vs. MB'};
-function openMbFill(r){let D;const plan=planMB(r.blocks);const on=Object.fromEntries(REGS.map(g=>[g.id,!!MBGEN[g.id]&&regOn(g.id)]));const F={...FREQ_DEF,...(W().freq||{})};
+function openMbFill(r){let D;const plan=planMB(r.blocks);const on=Object.fromEntries(REGS.map(g=>[g.id,!!MBGEN[g.id]&&regOn(g.id)]));const F=freqOf(W());
   const rowsH=()=>plan.map(p=>`<tr><td><input type="checkbox" data-u="${p.i}" ${p.use?'checked':''} ${p.kind==='other'&&!isTile(p)?'disabled':''} aria-label="Use"></td><td>${esc(p.itemNo)}</td><td class="d">${fdate(p.date)||'<span class="chip bad">no date</span>'}${r.blocks[p.i].inherited?'<div class="note">previous date</div>':''}</td>
     <td>${esc(p.name)}<div class="note">${esc((p.desc||'').slice(0,80))}</div>${p.kind==='steel'?`<div class="note">${p.dia?Object.entries(p.dia).map(([d,v])=>`${d}ø ${fmt(v,0)} kg`).join(' · '):'<span class="chip bad">dia-wise weight not found</span>'}</div>`:''}</td>
     <td><span class="chip ${p.kind==='other'&&!isTile(p)?'':'ok'}">${isTile(p)?'Tiles':KINDL[p.kind]}</span></td><td class="n">${fmt(p.qty,2)} ${esc(p.unit)}</td>
@@ -1710,9 +1712,9 @@ const TESTS=[
  {st:'2. Materials on receipt',mat:'Cement (OPC / PPC / PSC)',test:'Consistency, initial & final setting time, soundness, fineness, compressive strength 3 / 7 / 28 days; check manufacturer\'s test certificate and week of manufacture',code:'IS 269 / IS 1489-1 / IS 455:2015; tests IS 4031',freq:'Each lot – every 50 MT or part, for each brand brought to site. Design-mix RCC: per lot of 1000 bags – consistency 5, setting time 5, compressive strength 10 tests',when:'On receipt, before use (use only after satisfactory 3 / 7-day results)',acc:'IST ≥ 30 min, FST ≤ 600 min; soundness ≤ 10 mm (Le Chatelier); strength OPC 53: 27 / 37 / 53, OPC 43: 23 / 33 / 43, PPC: 16 / 22 / 33 MPa',src:'CPWD 2019 cl. 3.1.2, 5.11.3.2',
   calc:(N,F)=>Math.ceil(N.C.cem*0.05/F.cem),done:w=>rowsOf('cementTest',w).filter(r=>r.result).length+rowsOf('cementCons',w).filter(r=>num(r.sv)!=null).length},
  {st:'2. Materials on receipt',mat:'Coarse aggregate',test:'Grading, flakiness & elongation index, aggregate impact / crushing / abrasion value, specific gravity & water absorption, deleterious materials',code:'IS 383:2016; tests IS 2386',freq:'Particle size: every 45 cum or part (RCC). Organic impurities, specific gravity, bulk density, crushing value, impact value: every 40 cum or part (min. 10 cum). Design-mix RCC: every 50 cum or part and on each change of source (3 tests each of sp. gravity, bulk density, crushing, deleterious, impact)',when:'Before use from each source; then per lot as delivered',acc:'Impact ≤ 45% (≤ 30% wearing surface); crushing ≤ 45% (≤ 30%); abrasion ≤ 50% (≤ 30%); FI + EI ≤ 40%; grading as per IS 383',src:'CPWD 2019 cl. 4.1.2, 5.11.3.1',
-  calc:(N,F)=>Math.ceil((N.C.a20+N.C.a10+N.C.a40)/1500/F.ca),done:w=>rowsOf('aggTest',w).filter(r=>r.iv!=null||r.av!=null||r.fi!=null).length},
+  calc:(N,F,w)=>aggPlan(w).mat.filter(m=>m.k!=='sand').reduce((a,m)=>a+m.T.reduce((b,t)=>b+t.n,0),0),done:w=>rowsOf('aggTest',w).filter(r=>r.iv!=null||r.av!=null||r.fi!=null).length},
  {st:'2. Materials on receipt',mat:'Fine aggregate (sand) for concrete',test:'Grading / zone, fineness modulus, material finer than 75 µm (silt), organic impurities, bulking',code:'IS 383:2016; tests IS 2386',freq:'Organic impurities, silt content and bulking: every 20 cum or part. Particle size distribution: every 40 cum or part. Design-mix RCC: every 50 cum or part and on each change of source',when:'Before use; bulking before volume batching',acc:'Grading Zone I–IV; fines within IS 383 Table 1 limits; no harmful organic matter',src:'CPWD 2019 cl. 3.1.3',
-  calc:(N,F)=>Math.ceil(N.C.sand/1550/F.sand),done:w=>rowsOf('sieve',w).filter(r=>r.material==='રેતી'&&SIEVES.some((_,i)=>num(r['w'+i])!=null)).length},
+  calc:(N,F,w)=>aggPlan(w).mat.filter(m=>m.k==='sand').reduce((a,m)=>a+m.T.reduce((b,t)=>b+t.n,0),0),done:w=>rowsOf('sieve',w).filter(r=>r.material==='રેતી'&&SIEVES.some((_,i)=>num(r['w'+i])!=null)).length},
  {st:'2. Materials on receipt',mat:'Sand for masonry mortar / plaster',test:'Grading, silt content',code:'IS 2116:1980 (mortar), IS 1542:1992 (plaster); tests IS 2386',freq:'Organic impurities, silt content, bulking: every 20 cum or part; particle size: every 40 cum or part',when:'Before use',acc:'Grading within IS 2116 / IS 1542 limits; FM of plaster sand ≥ 1.5',src:'CPWD 2019 cl. 3.1.3'},
  {st:'2. Materials on receipt',mat:'Reinforcement steel (TMT)',test:'0.2% proof / yield stress, UTS, elongation, UTS/YS ratio, bend & rebend, mass per metre; chemical composition from MTC',code:'IS 1786:2008; tests IS 1608, IS 1599',freq:'Consignment below 100 MT – below 10 mm: 1 per 25 MT; 10–16 mm: 1 per 35 MT; above 16 mm: 1 per 45 MT. Consignment above 100 MT – 40 / 45 / 50 MT respectively (or part). MTC with every consignment',when:'Each consignment, before use',acc:'Fe 500D: YS ≥ 500 MPa, UTS ≥ 565 MPa and ≥ 1.10 × YS, elongation ≥ 16%; mass tolerance per IS 1786',src:'CPWD 2019 cl. 5.1.3',
   calc:(N,F)=>Object.entries(N.dia).reduce((a,[d,o])=>a+Math.ceil(o.need/stF(d,F)),0)},
@@ -1730,10 +1732,34 @@ const TESTS=[
  {st:'5. Finishing & services',mat:'Stone (granite / marble / kota)',test:'Water absorption, specific gravity, hardness (marble); stone: transverse strength, wear, durability',code:'IS 1124, IS 1122, IS 1130 (marble), IS 1121, IS 1706, IS 1126',freq:'Marble / granite: every 100 sqm or part (min. 50 sqm). Stone slabs / masonry: every 100 sqm / 20 cum or part or on change of source',when:'Before laying',acc:'Water absorption ≤ 2.5% (sand stone) or as per IS 1123; wear ≤ 2 mm average',src:'CPWD 2019 Sub-heads 7, 8'},
  {st:'5. Finishing & services',mat:'Roof / toilet waterproofing',test:'Ponding (water tightness) test',code:'CPWD Specifications 2019 (Sub-head 22)',freq:'Every terrace, sunken toilet and water tank',when:'After treatment, before finishing; water retained 48–72 hours',acc:'No leakage / dampness',src:'CPWD 2019'},
  {st:'5. Finishing & services',mat:'Water supply & sanitary piping',test:'Hydraulic pressure test; smoke / water test for drainage',code:'CPWD Specifications 2019 (Sub-heads 17–19)',freq:'Every line / floor',when:'Before concealing in walls / floors',acc:'No drop in pressure / no leakage for the specified duration',src:'CPWD 2019'}];
+/* Aggregate & sand quantities from the mix design → tests due (CPWD 2019 cl. 3.1.3, 4.1.2, 5.11.3.1) */
+const AGG_M=[['sand','Sand (fine aggregate)',1550],['a10','Aggregate 10 mm',1500],['a20','Aggregate 20 mm',1500],['a40','Aggregate 40 mm',1500]];
+function aggPlan(w=W()){const F=freqOf(w);const ev={},mixes={};
+  rowsOf('cement4',w).filter(r=>r.date&&r.mk&&+r.mq).forEach(r=>{const f=mixOf(w,r.mk,r.mf);const g=/^M(\d+)$/.exec(r.mk);const dm=!!g&&(+g[1]>=20||!!w.mix?.[r.mk]);
+    const mx=mixes[r.mk]??={k:r.mk,u:f.u||r.mf?.u||'cum',q:0,dm,src:f.src==='mix'&&['sand','a20','a10','a40'].some(k=>num(w.mix?.[r.mk]?.[k]))?'mix design':dm?'estimate – enter mix design':'PWD consumption table',per:{}};
+    mx.q+=+r.mq;AGG_M.forEach(([k,,bd])=>{if(+f[k]){mx.per[k]=+f[k];(ev[k]??=[]).push({d:r.date,q:r.mq*f[k]/bd,dm})}})});
+  const out=AGG_M.filter(([k])=>ev[k]).map(([k,name,bd])=>{const E=ev[k],all=E.map(e=>({d:e.d,q:e.q})),dmE=E.filter(e=>e.dm).map(e=>({d:e.d,q:e.q})),nmE=E.filter(e=>!e.dm).map(e=>({d:e.d,q:e.q}));
+    const tot=all.reduce((a,e)=>a+e.q,0),dmq=dmE.reduce((a,e)=>a+e.q,0),kg=E.reduce((a,e)=>a+e.q*bd,0);const T=[];
+    const add=(test,freq,ev,f,mult=1,min=0)=>{const q=ev.reduce((a,e)=>a+e.q,0);if(!q||q<min)return;const tr=tranches(ev,f);T.push({test,freq,n:tr.list.length*mult,lots:tr.list,mult})};
+    if(k==='sand'){add('Silt content, organic impurities, bulking',`1 per ${F.sand} cum`,all,F.sand);add('Particle size distribution (grading, zone)',`1 per ${F.sandG} cum`,all,F.sandG);
+      add('Design-mix concrete: full set (grading, silt, sp. gravity, water absorption)',`1 per ${F.dm} cum and each change of source`,dmE,F.dm)}
+    else{add('Particle size distribution (grading)',`1 per ${F.caG} cum`,all,F.caG);
+      add('Impact, crushing value, sp. gravity, bulk density, organic impurities',`1 per ${F.ca} cum (min. 10 cum)`,nmE,F.ca,1,10);
+      add('Design-mix concrete: sp. gravity, bulk density, crushing, impact, deleterious – 3 tests each',`1 lot per ${F.dm} cum and each change of source`,dmE,F.dm,3)}
+    return {k,name,bd,kg,tot,dmq,T}});
+  return {mat:out,mixes:Object.values(mixes).sort((a,b)=>a.k<b.k?-1:1),F}}
+function aggPlanHTML(P,print){if(!P.mat.length)return `<p class="note">No aggregate or sand quantities yet – fill Patrak-4 (cement register) from the MB first.</p>`;
+  const cls=print?'p':'reg';const lots=t=>t.lots.map(l=>`${l.k}) ${fdate(l.d)}`).join(', ');const AM=AGG_M.filter(([k])=>P.mixes.some(m=>m.per[k]));
+  return `<h4 style="margin:8px 0 4px">(a) Quantity per unit of work</h4><div class="tablewrap"><table class="${cls}"><thead><tr><th>Mix / item</th><th>Work qty</th>${AM.map(m=>`<th>${m[1]} (kg/unit)</th>`).join('')}<th>Basis</th></tr></thead><tbody>
+   ${P.mixes.map(m=>`<tr><td><b>${esc(m.k)}</b>${m.dm?' <span class="chip">design mix</span>':''}</td><td class="n">${fmt(m.q,2)} ${esc(m.u)}</td>${AM.map(([k])=>`<td class="n">${m.per[k]?fmt(m.per[k],1):'–'}</td>`).join('')}<td>${print?esc(m.src):`<span class="chip ${m.src==='mix design'?'ok':/estimate/.test(m.src)?'bad':''}">${esc(m.src)}</span>`}</td></tr>`).join('')}</tbody></table></div>
+  <h4 style="margin:12px 0 4px">(b) Total quantity and tests required</h4><div class="tablewrap"><table class="${cls}"><thead><tr><th>Material</th><th>Total quantity</th><th>Test</th><th>Frequency</th><th>Tests required</th><th>Test before use of (lot – first-use date)</th></tr></thead><tbody>
+   ${P.mat.map(m=>m.T.map((t,i)=>`<tr>${i?'':`<td rowspan="${m.T.length}"><b>${esc(m.name)}</b></td><td rowspan="${m.T.length}" class="n">${fmt(m.tot,2)} cum<div class="note">${fmt(m.kg/1000,2)} MT @ ${m.bd} kg/cum${m.dmq?`; design mix ${fmt(m.dmq,2)} cum`:''}</div></td>`}<td>${esc(t.test)}</td><td>${esc(t.freq)}</td><td class="n"><b>${t.n}</b></td><td class="note">${lots(t)}</td></tr>`).join('')).join('')}</tbody></table></div>
+  <p class="note">Each size (10 mm, 20 mm, 40 mm) is tested separately. Lot dates are the first day that lot is used as per the MB – the sample must be tested before that date. Frequencies can be changed in ⚙ Settings → Testing frequency.</p>`}
 function testCtx(w=W()){const N=needTable(w);const c3=rowsOf('cube3',w).filter(r=>num(r.qty)!=null);
   N.samples=c3.reduce((a,r)=>a+reqSamples(+r.qty),0);N.slumps=c3.reduce((a,r)=>a+Math.max(1,Math.ceil(+r.qty/50)),0)||rowsOf('slump',w).length;
   N.grades=[...new Set(c3.map(r=>r.grade).filter(g=>fck(g)))];N.months=new Set(c3.map(r=>(r.date||'').slice(0,7)).filter(Boolean)).size;return N}
-function renderTests(){const w=W();const F={...FREQ_DEF,...(w.freq||{})};const N=testCtx(w);
+function renderTests(){const w=W();const F=freqOf(w);const N=testCtx(w);const AP=aggPlan(w);
+  const aggSec=print=>`<h3 style="margin:18px 0 6px">Aggregates and sand – quantity from mix design and tests due</h3>${aggPlanHTML(AP,print)}`;
   const stages=[...new Set(TESTS.map(t=>t.st))];
   const reqOf=t=>t.calc?t.calc(N,F,w):null,doneOf=t=>t.done?t.done(w):null;
   const rowH=(t,print)=>{const r=reqOf(t),d=doneOf(t);const short=r!=null&&d!=null&&d<r;
@@ -1743,14 +1769,19 @@ function renderTests(){const w=W();const F={...FREQ_DEF,...(w.freq||{})};const N
   $('#main').innerHTML=`<div class="sheethead"><div><h2>Test Schedule – Building Works</h2><div class="sub">${esc(w.name)}</div></div>
     <div class="actions"><button class="btn" id="tsPdf">PDF</button><button class="btn" id="tsXls">Excel</button></div></div>
     <p class="note" style="margin:0">Tests, frequencies and timing as per CPWD Specifications 2019 (Vol. 1 – lists of mandatory tests in Sub-heads 3, 4, 5, 6, 7, 8, 10 and 11), IS 456:2000 and the current Indian Standards for each material. "Required for this work" is calculated from the MB quantities filled in the registers (cement and steel from Patrak-4 / Patrak-2, aggregates and bricks from Material Planning, cubes and slump from Cube Patrak-3) using the frequencies in ⚙ Settings. Where the tender or the Gujarat R&B Quality Control Manual specifies a different frequency, that frequency governs – change it in ⚙ Settings.</p>
+    ${aggSec(false)}
     ${tables(false)}
     <div class="list" style="margin-top:18px"><h3>Codes followed</h3>${CODES.map(([c,t])=>`<div class="li"><b>${esc(c)}</b><span class="note" style="flex:1;margin-left:12px">${esc(t)}</span></div>`).join('')}</div>`;
-  $('#tsPdf').onclick=()=>printNow(`<div class="pg"><div class="ph"><h2>Test Schedule – Building Works – ${esc(w.name)}</h2></div>${tables(true)}<h3>Codes followed</h3><table class="p"><tbody>${CODES.map(([c,t])=>`<tr><td><b>${esc(c)}</b></td><td>${esc(t)}</td></tr>`).join('')}</tbody></table></div>`,`Test Schedule - ${w.name}`);
+  $('#tsPdf').onclick=()=>printNow(`<div class="pg"><div class="ph"><h2>Test Schedule – Building Works – ${esc(w.name)}</h2></div>${aggSec(true)}${tables(true)}<h3>Codes followed</h3><table class="p"><tbody>${CODES.map(([c,t])=>`<tr><td><b>${esc(c)}</b></td><td>${esc(t)}</td></tr>`).join('')}</tbody></table></div>`,`Test Schedule - ${w.name}`);
   $('#tsXls').onclick=async()=>{if(typeof ExcelJS==='undefined')return toast('The Excel library could not be loaded (internet connection required).');const wb=new ExcelJS.Workbook();const ws=wb.addWorksheet('Test Schedule');
     ws.addRow([`Test Schedule – Building Works – ${w.name}`]).font={bold:true,size:13};ws.addRow([]);
     const hr=ws.addRow(['Stage','Material / work','Tests','Code','Frequency','When to perform','Acceptance','Required for this work','Recorded','Basis']);hr.font={bold:true};
     TESTS.forEach(t=>{const r=ws.addRow([t.st,t.mat,t.test,t.code,t.freq,t.when,t.acc,reqOf(t)??'',doneOf(t)??'',t.src]);r.alignment={wrapText:true,vertical:'top'}});
     [22,24,40,28,34,30,40,12,10,12].forEach((v,i)=>ws.getColumn(i+1).width=v);
+    const ws3=wb.addWorksheet('Aggregate tests');ws3.addRow(['Material','Total (cum)','Total (MT)','Test','Frequency','Tests required','Lots – first-use date']).font={bold:true};
+    AP.mat.forEach(m=>m.T.forEach(t=>{const r=ws3.addRow([m.name,+m.tot.toFixed(2),+(m.kg/1000).toFixed(2),t.test,t.freq,t.n,t.lots.map(l=>`Lot ${l.k}: ${fdate(l.d)}`).join(', ')]);r.alignment={wrapText:true,vertical:'top'}}));
+    ws3.addRow([]);ws3.addRow(['Mix / item','Work qty','Unit',...AGG_M.map(m=>m[1]+' (kg/unit)'),'Basis']).font={bold:true};AP.mixes.forEach(m=>ws3.addRow([m.k,+m.q.toFixed(2),m.u,...AGG_M.map(([k])=>m.per[k]??''),m.src]));
+    [26,12,12,44,30,12,50].forEach((v,i)=>ws3.getColumn(i+1).width=v);
     const ws2=wb.addWorksheet('Codes');ws2.addRow(['Code','Title']).font={bold:true};CODES.forEach(c=>ws2.addRow(c));ws2.getColumn(1).width=34;ws2.getColumn(2).width=90;
     await xlSave(wb,`Test Schedule - ${w.name}`)}}
 
@@ -1764,7 +1795,7 @@ const MIX_F=[['cement','Cement','kg'],['flyash','Fly ash','kg'],['sand','Sand','
 function renderSettings(){const w=W();w.mix??={};w.dayAvg??={};
   const gr=[...new Set([...MIX_GR,...Object.keys(w.mix).filter(k=>/^M\d+$/.test(k))])].sort((a,b)=>+a.slice(1)-+b.slice(1));
   const wks=[...WK_DEF];Object.keys(w.dayAvg).forEach(k=>{if(!wks.some(x=>x[0]===k)){const[n,u]=k.split('|');wks.push([k,n,n.toLowerCase(),u])}});
-  const F={...FREQ_DEF,...(w.freq||{})};
+  const F=freqOf(w);
   $('#main').innerHTML=`<div class="sheethead"><div><h2>⚙ Settings – this work</h2><div class="sub">${esc(w.name)}</div></div>
     <div class="actions"><button class="btn primary" id="setSave">Save</button></div></div>
    <div class="list"><h3>1. Controlled concrete – mix design (per cum)</h3><div style="padding:12px 16px">
