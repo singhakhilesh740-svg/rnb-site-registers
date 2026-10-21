@@ -654,10 +654,10 @@ function renderShelf(){
     ${dd('Work',['works','items'],btn('works','My works',state.works.length)+btn('items','Tender Items',w0.items.length))}
     ${dd('MB',['mbCover','mbRecord','mbAbstract','mbup'],btn('mbup','Uploaded MB (Excel)',(w0.mbFiles||[]).length)+'<h4>Measurement Book</h4>'+btn('mbCover','CMB Page 1–5')+btn('mbRecord','For Record',w0.mb.entries.length)+btn('mbAbstract','Abstract'))}`;
   for(const g in groups){const rs=groups[g].map(r=>{const rows=compute(r);return {r,n:rows.length,bad:rows.some(x=>x._flag?.[0]==='bad')}});
-    h+=dd(g,groups[g].map(r=>r.id),`<h4>${esc(g)}</h4>`+rs.map(o=>btn(o.r.id,o.r.short,o.n,o.bad)).join(''),rs.some(o=>o.bad))}
+    h+=dd(g,groups[g].map(r=>r.id).concat(g==='Summary'?['tests']:[]),`<h4>${esc(g)}</h4>`+(g==='Summary'?btn('tests','Test Schedule (IS / CPWD)'):'')+rs.map(o=>btn(o.r.id,o.r.short,o.n,o.bad)).join(''),rs.some(o=>o.bad))}
   h+=` <span class="spacer"></span>${tab('settings','⚙ Settings')}<button class="tab" data-act="pickRegs" title="Choose the registers for this work">☰ Registers <span class="cnt">${myRegs().length}/${REGS.length}</span></button>${isAdmin()?tab('admin','Admin'):''}</div>`;
   const opt=(id,l)=>`<option value="${id}" ${view.reg===id?'selected':''}>${esc(l)}</option>`;
-  h=`<select class="mobsel" id="mobSel" aria-label="Select page">${opt('dash','Dashboard')}${opt('chat','Assistant')}${opt('aavak','Material Planning')}${opt('settings','⚙ Settings')}${isAdmin()?opt('admin','Admin'):''}<optgroup label="Work / MB">${opt('works','My works')}${opt('mbup','Uploaded MB')}${Object.entries(MBV).map(([k,v])=>opt(k,v)).join('')}</optgroup>${Object.keys(groups).map(g=>`<optgroup label="${g}">${groups[g].map(r=>opt(r.id,r.short)).join('')}</optgroup>`).join('')}<option value="__pick">☰ Choose registers…</option></select>`+h;
+  h=`<select class="mobsel" id="mobSel" aria-label="Select page">${opt('dash','Dashboard')}${opt('chat','Assistant')}${opt('aavak','Material Planning')}${opt('settings','⚙ Settings')}${opt('tests','Test Schedule')}${isAdmin()?opt('admin','Admin'):''}<optgroup label="Work / MB">${opt('works','My works')}${opt('mbup','Uploaded MB')}${Object.entries(MBV).map(([k,v])=>opt(k,v)).join('')}</optgroup>${Object.keys(groups).map(g=>`<optgroup label="${g}">${groups[g].map(r=>opt(r.id,r.short)).join('')}</optgroup>`).join('')}<option value="__pick">☰ Choose registers…</option></select>`+h;
   $('#shelf').innerHTML=h;$('#mobSel').onchange=e=>{if(e.target.value==='__pick'){e.target.value=view.reg;return openRegPicker()}go(e.target.value)};
 }
 document.addEventListener('click',e=>{const t=e.target.closest('.ddbtn');document.querySelectorAll('.dd.open').forEach(d=>{if(!t||d!==t.parentElement)d.classList.remove('open')});if(t)t.parentElement.classList.toggle('open')});
@@ -767,7 +767,7 @@ function renderReg(){
   $('#xls')?.addEventListener('click',()=>exportReg(reg));
   document.querySelectorAll('#main tbody tr[data-id]').forEach(tr=>tr.onclick=()=>openForm(reg,rowsOf(reg.id).find(r=>r.id===tr.dataset.id)));
 }
-function render(){renderWorks();renderShelf();view.reg==='dash'?renderDash():view.reg==='chat'?renderChat():view.reg==='works'?renderWorksList():view.reg==='admin'?renderAdmin():view.reg==='mbup'?renderMbUp():view.reg==='aavak'?renderAavak():view.reg==='settings'?renderSettings():MBV[view.reg]?renderMB(view.reg):renderReg()}
+function render(){renderWorks();renderShelf();view.reg==='dash'?renderDash():view.reg==='chat'?renderChat():view.reg==='works'?renderWorksList():view.reg==='admin'?renderAdmin():view.reg==='mbup'?renderMbUp():view.reg==='aavak'?renderAavak():view.reg==='settings'?renderSettings():view.reg==='tests'?renderTests():MBV[view.reg]?renderMB(view.reg):renderReg()}
 function go(id){view.reg=id;try{localStorage.setItem(LS_KEY+'_view',id)}catch(e){}render();window.scrollTo(0,0)}
 
 /* ===================== FORM ===================== */
@@ -1393,8 +1393,10 @@ function cubeEntries(plan){const out=[];let c=Date.now();
   plan.filter(p=>p.use&&p.kind==='conc'&&fck(p.grade)).forEach(p=>splitDays(p).forEach(x=>out.push({id:uid(),_c:c++,date:x.d,grade:p.grade,mark:`${p.name.split(' – ')[0]} (Item ${p.itemNo})`,qty:String(x.q),cubeSize:'15 સે.મી.',remarks:`From ${mbRef(p)} – enter readings from lab report`,src:'mbx'})));
   return out}
 /* ---------- MB se baaki registers (sirf MB ke data se: tarikh, item, jaththo; test results kabhi nahi) ---------- */
-const FREQ_DEF={cem:50,steel:25,agg:100,brick:50000,tile:1000};
-const FREQ_L={cem:'Cement – 1 test per __ MT',steel:'Steel – 1 test per diameter per __ MT',agg:'Aggregate / sand – 1 test per __ cum concrete',brick:'Bricks – 1 lot per __ bricks',tile:'Tiles – 1 test per __ sqm'};
+/* testing frequency – defaults as per CPWD Specifications 2019 (Vol. 1) / IS 456; editable in Settings */
+const FREQ_DEF={cem:50,stS:25,stM:35,stL:45,ca:45,sand:40,brick:50000,tile:1000};
+const FREQ_L={cem:'Cement – 1 test per __ MT',stS:'Steel below 10 mm – 1 test per __ MT',stM:'Steel 10–16 mm – 1 test per __ MT',stL:'Steel above 16 mm – 1 test per __ MT',ca:'Coarse aggregate – 1 test per __ cum',sand:'Fine aggregate (sand) – 1 test per __ cum',brick:'Bricks – 1 lot per __ bricks',tile:'Tiles – 1 test per __ sqm'};
+const stF=(d,F)=>+d<10?F.stS:+d<=16?F.stM:F.stL;
 const isTile=p=>/sq/i.test(p.unit)&&/tile|flooring|paver/i.test(p.desc||'');
 const isBrick=p=>/brick/i.test(p.desc||'');
 const bricksOf=p=>Math.round(/sq/i.test(p.unit)?p.qty*55:p.qty*500);
@@ -1408,9 +1410,11 @@ function mbCtx(plan,F,r){const w=W();const used=plan.filter(p=>p.use&&p.date);
   const last=used.reduce((m,p)=>p.date>m?p.date:m,'');
   const cemEv=cem.map(e=>({d:e.date,q:(+e.used||0)*0.05}));
   const concEv=ev.filter(e=>e.p.kind==='conc');
+  const aggQ=(e,k)=>e.q*(k==='ca'?((e.p.agg?.a20||0)+(e.p.agg?.a10||0)+(e.p.agg?.a40||0))/1500:(e.p.agg?.sand||0)/1550);
+  const caEv=ev.map(e=>({d:e.d,q:aggQ(e,'ca')})).filter(e=>e.q>0),sandEv=ev.map(e=>({d:e.d,q:aggQ(e,'sand')})).filter(e=>e.q>0);
   const dias={};stl.forEach(e=>DIAS.forEach(d=>{if(+e['d'+d]){(dias[d]??=[]).push({d:e.date,q:+e['d'+d]})}}));
-  return {w,plan,used,ev,cem,stl,last,F,bill:r.bill||'',cemT:tranches(cemEv,F.cem),concT:tranches(concEv,F.agg),
-    diaT:Object.fromEntries(Object.entries(dias).map(([d,e])=>[d,tranches(e,F.steel)])),
+  return {w,plan,used,ev,cem,stl,last,F,bill:r.bill||'',cemT:tranches(cemEv,F.cem),concT:tranches(concEv,1e9),caT:tranches(caEv,F.ca),sandT:tranches(sandEv,F.sand),
+    diaT:Object.fromEntries(Object.entries(dias).map(([d,e])=>[d,tranches(e,stF(d,F))])),
     bricks:used.filter(isBrick),tiles:used.filter(isTile),grades:[...new Set(concEv.map(e=>e.p.grade))]}}
 const tenderQty=(w,nos)=>{const it=(w.items||[]).filter(i=>nos.includes(String(i.no)));return it.length?it.reduce((a,i)=>a+(+i.qty||0),0):null};
 const mkRows=(rows)=>{let c=Date.now();return rows.sort((a,b)=>(a.date||a.billDate||a.sDate||a._d||'')<(b.date||b.billDate||b.sDate||b._d||'')?-1:1).map(r=>{const o={id:uid(),_c:c++,src:'mbx',...r};delete o._d;return o})};
@@ -1425,17 +1429,17 @@ const MBGEN={
    return mkRows(Object.entries(g).map(([b,o])=>{const r={date:o.last,ra:b,remarks:'Consumption as per MB. Enter receipts'};Object.entries(o.d).forEach(([d,v])=>{if(DIAS.includes(+d))r['u'+d]=String(+v.toFixed(3))});return r}))},
  sampling:x=>{const R=[];
   x.cemT.list.forEach(t=>R.push({_d:t.d,material:'Cement',rcv:`Consumption up to ${fmt(t.upto,2)} MT (from ${fdate(t.d)})`,sampleReq:`1 (per ${x.F.cem} MT)`,remarks:`Lot ${t.k} – from MB`}));
-  Object.entries(x.diaT).forEach(([d,T])=>T.list.forEach(t=>R.push({_d:t.d,material:`Steel ${d} mm`,rcv:`Up to ${fmt(t.upto,3)} MT (from ${fdate(t.d)})`,sampleReq:`1 (per dia, per ${x.F.steel} MT)`,remarks:`Lot ${t.k} – from MB`})));
-  x.concT.list.forEach(t=>{R.push({_d:t.d,material:'Coarse aggregate',rcv:`Up to ${fmt(t.upto,1)} cum concrete (from ${fdate(t.d)})`,sampleReq:`1 (per ${x.F.agg} cum)`,remarks:`Lot ${t.k} – from MB`});
-    R.push({_d:t.d,material:'Fine aggregate (sand)',rcv:`Up to ${fmt(t.upto,1)} cum concrete (from ${fdate(t.d)})`,sampleReq:`1 (per ${x.F.agg} cum)`,remarks:`Lot ${t.k} – from MB`})});
+  Object.entries(x.diaT).forEach(([d,T])=>T.list.forEach(t=>R.push({_d:t.d,material:`Steel ${d} mm`,rcv:`Up to ${fmt(t.upto,3)} MT (from ${fdate(t.d)})`,sampleReq:`1 (per diameter, per ${stF(d,x.F)} MT)`,remarks:`Lot ${t.k} – from MB`})));
+  x.caT.list.forEach(t=>R.push({_d:t.d,material:'Coarse aggregate',rcv:`Up to ${fmt(t.upto,1)} cum (from ${fdate(t.d)})`,sampleReq:`1 (per ${x.F.ca} cum)`,remarks:`Lot ${t.k} – from MB`}));
+  x.sandT.list.forEach(t=>R.push({_d:t.d,material:'Fine aggregate (sand)',rcv:`Up to ${fmt(t.upto,1)} cum (from ${fdate(t.d)})`,sampleReq:`1 (per ${x.F.sand} cum)`,remarks:`Lot ${t.k} – from MB`}));
   x.bricks.forEach(p=>{const n=bricksOf(p);for(let k=1;k<=Math.max(1,Math.ceil(n/x.F.brick));k++)R.push({_d:splitDays(p)[0].d,material:`Bricks (Item ${p.itemNo})`,rcv:`${fmt(p.qty,2)} ${p.unit} ≈ ${n} bricks`,sampleReq:`1 lot (per ${x.F.brick} bricks)`,remarks:`Lot ${k} – MB ${fdate(p.date)}`})});
   x.tiles.forEach(p=>{for(let k=1;k<=Math.max(1,Math.ceil(p.qty/x.F.tile));k++)R.push({_d:splitDays(p)[0].d,material:`Tiles (Item ${p.itemNo})`,rcv:`${fmt(p.qty,2)} ${p.unit}`,sampleReq:`1 (per ${x.F.tile} sqm)`,remarks:`Lot ${k} – MB ${fdate(p.date)}`})});
   return mkRows(R)},
  cementTest:x=>mkRows(x.cemT.list.map(t=>({_d:t.d,qty:`${fmt(Math.min(x.F.cem,t.upto-(t.k-1)*x.F.cem),2)} MT (lot ${t.k}, from ${fdate(t.d)})`,remarks:'From MB – enter result from lab report'}))),
  cementCons:x=>mkRows(x.cemT.list.map(t=>({sDate:t.d,desc:`Cement lot ${t.k} (up to ${fmt(t.upto,2)} MT)`,remarks:'From MB – enter readings'}))),
- petro:x=>x.concT.list.length?mkRows([{_d:x.concT.list[0].d,material:'Coarse aggregate',rcv:`First concreting ${fdate(x.concT.list[0].d)}`,sampleReq:'1 (per source)',remarks:'From MB'},{_d:x.concT.list[0].d,material:'Fine aggregate (sand)',rcv:`First concreting ${fdate(x.concT.list[0].d)}`,sampleReq:'1 (per source)',remarks:'From MB'}]):[],
- aggTest:x=>mkRows(x.concT.list.map(t=>({_d:t.d,sample:`Coarse aggregate – lot ${t.k} (${fdate(t.d)}, up to ${fmt(t.upto,1)} cum concrete)`,use:'RCC / PCC (non-wearing)',remarks:'From MB – enter results'}))),
- sieve:x=>{const R=[];x.concT.list.forEach(t=>{R.push({date:t.d,material:'કપચી',spec:'20 mm graded (IS 383)',remarks:`Lot ${t.k} – from MB, enter weights`});R.push({date:t.d,material:'રેતી',spec:'Sand (zone auto-detected)',remarks:`Lot ${t.k} – from MB, enter weights`})});return mkRows(R)},
+ petro:x=>mkRows([...(x.caT.list.length?[{_d:x.caT.list[0].d,material:'Coarse aggregate',rcv:`First use ${fdate(x.caT.list[0].d)}`,sampleReq:'1 (per source)',remarks:'From MB'}]:[]),...(x.sandT.list.length?[{_d:x.sandT.list[0].d,material:'Fine aggregate (sand)',rcv:`First use ${fdate(x.sandT.list[0].d)}`,sampleReq:'1 (per source)',remarks:'From MB'}]:[])]),
+ aggTest:x=>mkRows(x.caT.list.map(t=>({_d:t.d,sample:`Coarse aggregate – lot ${t.k} (${fdate(t.d)}, up to ${fmt(t.upto,1)} cum)`,use:'RCC / PCC (non-wearing)',remarks:'From MB – enter results'}))),
+ sieve:x=>{const R=[];x.caT.list.forEach(t=>R.push({date:t.d,material:'કપચી',spec:'20 mm graded (IS 383)',remarks:`Lot ${t.k} – from MB, enter weights`}));x.sandT.list.forEach(t=>R.push({date:t.d,material:'રેતી',spec:'Sand (zone auto-detected)',remarks:`Lot ${t.k} – from MB, enter weights`}));return mkRows(R)},
  brick:x=>{const R=[];x.bricks.forEach(p=>{const n=bricksOf(p);const tq=tenderQty(x.w,[String(p.itemNo)]);for(let k=1;k<=Math.max(1,Math.ceil(n/x.F.brick));k++)R.push({_d:splitDays(p)[0].d,totalQty:tq!=null?`${fmt(tq,2)} ${p.unit}`:'',doneQty:`${fmt(p.qty,2)} ${p.unit} (Item ${p.itemNo})`,remarks:`Lot ${k} – ≈${n} bricks – MB ${fdate(p.date)}, enter results`})});return mkRows(R)},
  tiles:x=>{const R=[];x.tiles.forEach(p=>{for(let k=1;k<=Math.max(1,Math.ceil(p.qty/x.F.tile));k++)R.push({_d:splitDays(p)[0].d,place:`Item ${p.itemNo}`,remarks:`Lot ${k} – ${fmt(p.qty,2)} ${p.unit} – MB ${fdate(p.date)}, enter results`})});return mkRows(R)},
  mixDesign:x=>mkRows(x.grades.filter(g=>fck(g)).map(g=>{const d=x.ev.filter(e=>e.p.grade===g).map(e=>e.d).sort()[0];return {date:d,type:g,sampleReq:'1 (per grade)',remarks:`First ${g} concreting on ${fdate(d)} – mix design to be approved before this date`}})),
@@ -1446,12 +1450,13 @@ const MBGEN={
    return mkRows(x.ev.filter(e=>e.p.kind==='conc').map(e=>({date:e.d,grade:GRADES.includes(e.p.grade)?e.p.grade:'',location:`${e.p.name.split(' – ')[0]} (Item ${e.p.itemNo}) – ${fmt(e.q,2)} ${e.p.unit}`,cement:byDay[e.d+'|'+e.p.itemNo]!=null?String(byDay[e.d+'|'+e.p.itemNo]*50):'',remarks:'Cement as per consumption standard (same as Patrak-4); enter other weights'})))},
  proforma3:x=>{const R=[];const nos=ps=>ps.map(p=>String(p.itemNo));
   const cemMT=x.cemT.total;if(cemMT)R.push({material:'Cement',freq:`1 per ${x.F.cem} MT`,execQty:`${fmt(cemMT,2)} MT`,reqActual:String(Math.ceil(cemMT/x.F.cem))});
-  Object.entries(x.diaT).forEach(([d,T])=>R.push({material:`Steel ${d} mm`,freq:`1 per ${x.F.steel} MT (per diameter)`,execQty:`${fmt(T.total,3)} MT`,reqActual:String(Math.ceil(T.total/x.F.steel))}));
+  Object.entries(x.diaT).forEach(([d,T])=>R.push({material:`Steel ${d} mm`,freq:`1 per ${stF(d,x.F)} MT (per diameter)`,execQty:`${fmt(T.total,3)} MT`,reqActual:String(Math.ceil(T.total/stF(d,x.F)))}));
   x.grades.forEach(g=>{const ps=x.used.filter(p=>p.kind==='conc'&&p.grade===g);const q=ps.reduce((a,p)=>a+p.qty,0);const tq=tenderQty(x.w,nos(ps));
     const sets=x.ev.filter(e=>e.p.kind==='conc'&&e.p.grade===g).reduce((a,e)=>a+reqSamples(e.q),0);
     if(fck(g))R.push({material:`Concrete cube ${g}`,estQty:tq!=null?`${fmt(tq,2)} cum`:'',freq:'IS 456 cl. 15.2.2 (per day of concreting)',execQty:`${fmt(q,2)} cum`,reqActual:String(sets)});
-    R.push({material:`Slump ${g}`,estQty:tq!=null?`${fmt(tq,2)} cum`:'',freq:'Every pour',execQty:`${fmt(q,2)} cum`,reqActual:String(x.ev.filter(e=>e.p.kind==='conc'&&e.p.grade===g).length)})});
-  if(x.concT.total){R.push({material:'Coarse aggregate',freq:`1 per ${x.F.agg} cum concrete`,execQty:`${fmt(x.concT.total,2)} cum concrete`,reqActual:String(x.concT.list.length)});R.push({material:'Fine aggregate (sand)',freq:`1 per ${x.F.agg} cum concrete`,execQty:`${fmt(x.concT.total,2)} cum concrete`,reqActual:String(x.concT.list.length)})}
+    R.push({material:`Slump ${g}`,estQty:tq!=null?`${fmt(tq,2)} cum`:'',freq:'1 per 10 cum or part, per pour',execQty:`${fmt(q,2)} cum`,reqActual:String(x.ev.filter(e=>e.p.kind==='conc'&&e.p.grade===g).reduce((a,e)=>a+Math.max(1,Math.ceil(e.q/10)),0))})});
+  if(x.caT.total)R.push({material:'Coarse aggregate',freq:`1 per ${x.F.ca} cum`,execQty:`${fmt(x.caT.total,2)} cum (estimated)`,reqActual:String(x.caT.list.length)});
+  if(x.sandT.total)R.push({material:'Fine aggregate (sand)',freq:`1 per ${x.F.sand} cum`,execQty:`${fmt(x.sandT.total,2)} cum (estimated)`,reqActual:String(x.sandT.list.length)});
   x.bricks.forEach(p=>{const n=bricksOf(p);const tq=tenderQty(x.w,[String(p.itemNo)]);R.push({material:`Bricks (Item ${p.itemNo})`,estQty:tq!=null?`${fmt(tq,2)} ${p.unit}`:'',freq:`1 lot per ${x.F.brick} bricks`,execQty:`${fmt(p.qty,2)} ${p.unit}`,reqActual:String(Math.max(1,Math.ceil(n/x.F.brick)))})});
   x.tiles.forEach(p=>{const tq=tenderQty(x.w,[String(p.itemNo)]);R.push({material:`Tiles (Item ${p.itemNo})`,estQty:tq!=null?`${fmt(tq,2)} ${p.unit}`:'',freq:`1 per ${x.F.tile} sqm`,execQty:`${fmt(p.qty,2)} ${p.unit}`,reqActual:String(Math.max(1,Math.ceil(p.qty/x.F.tile)))})});
   return mkRows(R)}};
@@ -1664,6 +1669,91 @@ function renderAavak(){const w=W();const N=needTable(w);const keys=[...new Set([
   $('#avXls').onclick=async()=>{const wb=new ExcelJS.Workbook();const ws=wb.addWorksheet('Material Planning');ws.addRow(['Date','Cement – day (bags)','Cement – cumulative','Cement – received (cum.)','Cement – shortfall','Steel – day (MT)','Steel – cumulative','Steel – received (cum.)','Steel – shortfall','20 mm cum. (MT)','10 mm cum. (MT)','40 mm cum. (MT)','Sand cum. (MT)','Bricks cum.']).font={bold:true};
     N.rows.forEach(r=>ws.addRow([fdate(r.d),r.o.cem,r.C.cem,r.C.rc,Math.max(0,r.C.cem-r.C.rc),+r.st.toFixed(3),+r.C.stl.toFixed(3),+r.C.rs.toFixed(3),+Math.max(0,r.C.stl-r.C.rs).toFixed(3),+(r.C.a20/1000).toFixed(2),+(r.C.a10/1000).toFixed(2),+(r.C.a40/1000).toFixed(2),+(r.C.sand/1000).toFixed(2),Math.round(r.C.brick)]));
     ws.columns.forEach(c=>c.width=14);await xlSave(wb,`Material Planning - ${w.name}`)}}
+/* ===================== TEST SCHEDULE (IS codes / CPWD 2019) ===================== */
+const CODES=[
+ ['IS 456:2000','Plain and reinforced concrete – code of practice (sampling cl. 15, acceptance Table 11, water cl. 5.4, workability cl. 7, batching cl. 10)'],
+ ['IS 10262:2019','Concrete mix proportioning – guidelines'],
+ ['IS 269:2015','Ordinary Portland cement – specification'],
+ ['IS 1489 (Part 1):2015','Portland pozzolana cement (fly ash based) – specification'],
+ ['IS 455:2015','Portland slag cement – specification'],
+ ['IS 4031 (Parts 1–15)','Methods of physical tests for hydraulic cement'],
+ ['IS 383:2016','Coarse and fine aggregate for concrete – specification'],
+ ['IS 2386 (Parts 1–8)','Methods of test for aggregates for concrete'],
+ ['IS 2116:1980','Sand for masonry mortars'],
+ ['IS 1542:1992','Sand for plaster'],
+ ['IS 3025 (relevant parts)','Methods of sampling and test for water'],
+ ['IS 1786:2008','High strength deformed steel bars for concrete reinforcement'],
+ ['IS 1608 (Part 1) / IS 1599','Tensile test / bend test of metallic materials'],
+ ['IS 1199 (Part 1 & 2):2018','Fresh concrete – sampling; slump test'],
+ ['IS 516 (Part 1/Sec 1):2021','Hardened concrete – compressive strength of cubes'],
+ ['IS 13311 (Parts 1 & 2):1992','Non-destructive testing – ultrasonic pulse velocity, rebound hammer'],
+ ['IS 1077:1992','Common burnt clay building bricks – specification'],
+ ['IS 3495 (Parts 1–4):2019','Burnt clay bricks – methods of test'],
+ ['IS 5454','Methods of sampling of clay building bricks'],
+ ['IS 12894:2002','Fly ash lime bricks – specification'],
+ ['IS 2185 (Part 1)','Concrete masonry units – hollow and solid concrete blocks'],
+ ['IS 2720 (Parts 8, 28, 29)','Soil – MDD/OMC (heavy compaction), field density by sand replacement / core cutter'],
+ ['IS 6313 (Part 2):2013','Anti-termite measures – pre-constructional chemical treatment'],
+ ['IS 1237:2012','Cement concrete flooring tiles'],
+ ['IS 15622 / IS 13630','Ceramic and vitrified tiles – specification / methods of test'],
+ ['IS 1124 / IS 1130','Stone – water absorption / marble'],
+ ['CPWD Specifications 2019 (Vol. 1 & 2)','Mandatory tests and frequencies for building works']];
+/* calc(N,F,w): number of tests required for this work; done(w): tests recorded in registers */
+const TESTS=[
+ {st:'1. Before start / source approval',mat:'Mix design (each grade)',test:'Trial mixes, target mean strength fck + 1.65 s, w/c ratio, slump, 7 & 28-day cube strength',code:'IS 10262:2019, IS 456:2000',freq:'Once per grade; repeat on change of source of any material',when:'Before the first pour of that grade (allow ≥ 28 days for trial results)',acc:'Target strength achieved; w/c and cement content within IS 456 Table 5 limits',src:'IS',
+  calc:N=>N.grades.length,done:w=>rowsOf('mixDesign',w).filter(r=>r.nature==='Approved').length},
+ {st:'1. Before start / source approval',mat:'Water for construction',test:'pH, chlorides, sulphates, organic & inorganic solids, suspended matter',code:'IS 456 cl. 5.4, IS 3025',freq:'Before start, on change of source, and every 3 months',when:'Before use',acc:'pH ≥ 6; chloride ≤ 2000 mg/l (PCC) / 500 mg/l (RCC); sulphate ≤ 400 mg/l; organic ≤ 200 mg/l; inorganic ≤ 3000 mg/l; suspended ≤ 2000 mg/l',src:'IS / QAP'},
+ {st:'1. Before start / source approval',mat:'Batching plant / weigh batcher',test:'Calibration of weighing (cement, aggregate, water, admixture)',code:'IS 456 cl. 10.2.2',freq:'Before start, then monthly and after any shifting / repair',when:'Before concreting',acc:'Accuracy ±2% cement, ±3% aggregate, water and admixture',src:'IS / QAP',
+  calc:(N,F,w)=>N.months,done:w=>rowsOf('calib',w).filter(r=>num(r.actual)!=null).length},
+ {st:'1. Before start / source approval',mat:'Earth / murrum filling',test:'MDD & OMC (heavy compaction); field dry density',code:'IS 2720 (Part 8, 28 / 29)',freq:'MDD once per source; field density for every layer (15–20 cm) at each location',when:'Each layer, before placing the next layer',acc:'≥ 95% of MDD at moisture within ±2% of OMC (or as per tender)',src:'QAP'},
+ {st:'1. Before start / source approval',mat:'Anti-termite chemical',test:'Concentration of emulsion; rate of application',code:'IS 6313 (Part 2):2013',freq:'Each batch prepared at site',when:'Before and during application, before PCC / flooring is laid',acc:'Concentration and dosage as per IS 6313 (e.g. 5 litre/sqm on plinth surface)',src:'IS'},
+ {st:'2. Materials on receipt',mat:'Cement (OPC / PPC / PSC)',test:'Consistency, initial & final setting time, soundness, fineness, compressive strength 3 / 7 / 28 days; check manufacturer\'s test certificate and week of manufacture',code:'IS 269 / IS 1489-1 / IS 455:2015; tests IS 4031',freq:'1 sample per 50 MT or part, for each brand / lot',when:'On receipt, before use (use only after satisfactory 3 / 7-day results)',acc:'IST ≥ 30 min, FST ≤ 600 min; soundness ≤ 10 mm (Le Chatelier); strength OPC 53: 27 / 37 / 53, OPC 43: 23 / 33 / 43, PPC: 16 / 22 / 33 MPa',src:'CPWD 2019',
+  calc:(N,F)=>Math.ceil(N.C.cem*0.05/F.cem),done:w=>rowsOf('cementTest',w).filter(r=>r.result).length+rowsOf('cementCons',w).filter(r=>num(r.sv)!=null).length},
+ {st:'2. Materials on receipt',mat:'Coarse aggregate',test:'Grading, flakiness & elongation index, aggregate impact / crushing / abrasion value, specific gravity & water absorption, deleterious materials',code:'IS 383:2016; tests IS 2386',freq:'Source approval; then 1 sample per 45 cum or part',when:'Before use from each source; grading with every lot',acc:'Impact ≤ 45% (≤ 30% wearing surface); crushing ≤ 45% (≤ 30%); abrasion ≤ 50% (≤ 30%); FI + EI ≤ 40%; grading as per IS 383',src:'CPWD 2019',
+  calc:(N,F)=>Math.ceil((N.C.a20+N.C.a10+N.C.a40)/1500/F.ca),done:w=>rowsOf('aggTest',w).filter(r=>r.iv!=null||r.av!=null||r.fi!=null).length},
+ {st:'2. Materials on receipt',mat:'Fine aggregate (sand) for concrete',test:'Grading / zone, fineness modulus, material finer than 75 µm (silt), organic impurities, bulking',code:'IS 383:2016; tests IS 2386',freq:'Source approval; then 1 sample per 40 cum or part; silt and bulking daily at site',when:'Before use; bulking before each day\'s volume batching',acc:'Grading Zone I–IV; fines within IS 383 Table 1 limits; no harmful organic matter',src:'CPWD 2019',
+  calc:(N,F)=>Math.ceil(N.C.sand/1550/F.sand),done:w=>rowsOf('sieve',w).filter(r=>r.material==='રેતી'&&SIEVES.some((_,i)=>num(r['w'+i])!=null)).length},
+ {st:'2. Materials on receipt',mat:'Sand for masonry mortar / plaster',test:'Grading, silt content',code:'IS 2116:1980 (mortar), IS 1542:1992 (plaster); tests IS 2386',freq:'Source approval; then 1 sample per 40 cum or part',when:'Before use',acc:'Grading within IS 2116 / IS 1542 limits; FM of plaster sand ≥ 1.5',src:'CPWD 2019 / QAP'},
+ {st:'2. Materials on receipt',mat:'Reinforcement steel (TMT)',test:'0.2% proof / yield stress, UTS, elongation, UTS/YS ratio, bend & rebend, mass per metre; chemical composition from MTC',code:'IS 1786:2008; tests IS 1608, IS 1599',freq:'Per diameter: below 10 mm – 1 per 25 MT; 10–16 mm – 1 per 35 MT; above 16 mm – 1 per 45 MT (or part); MTC for every consignment',when:'Each consignment, before use',acc:'Fe 500D: YS ≥ 500 MPa, UTS ≥ 565 MPa and ≥ 1.10 × YS, elongation ≥ 16%; mass tolerance per IS 1786',src:'CPWD 2019',
+  calc:(N,F)=>Object.entries(N.dia).reduce((a,[d,o])=>a+Math.ceil(o.need/stF(d,F)),0)},
+ {st:'2. Materials on receipt',mat:'Burnt clay bricks',test:'Dimensions (20 bricks), compressive strength, water absorption, efflorescence',code:'IS 1077:1992; tests IS 3495 (Parts 1–4):2019; sampling IS 5454',freq:'1 sample per lot of 50,000 bricks or part (some tenders / CPWD sources specify 1 per 10,000 – follow the tender)',when:'Each lot, before use in masonry',acc:'Strength ≥ class; absorption ≤ 20% (≤ 15% above class 12.5); efflorescence ≤ moderate',src:'IS / CPWD',
+  calc:(N,F)=>N.C.brick?Math.max(1,Math.ceil(N.C.brick/F.brick)):0,done:w=>rowsOf('brick',w).filter(r=>r.cs!=null).length},
+ {st:'2. Materials on receipt',mat:'Fly ash / concrete blocks',test:'Dimensions, compressive strength, water absorption, block density, drying shrinkage',code:'IS 12894:2002 (fly ash bricks), IS 2185 (Part 1) (blocks)',freq:'Each lot as per sampling clause of the code',when:'Each lot, before use',acc:'As per class / grade in the code',src:'IS'},
+ {st:'3. During concreting',mat:'Fresh concrete – workability',test:'Slump test',code:'IS 1199 (Part 2):2018; IS 456 cl. 7',freq:'1 test per 10 cum or part, and at least twice a day; additionally whenever the mix looks different',when:'At the point of placing, every pour',acc:'As per mix design; IS 456 cl. 7.1 ranges (25–75, 50–100, 75–100 mm)',src:'CPWD 2019 / IS',
+  calc:N=>N.slumps,done:w=>rowsOf('slump',w).filter(r=>num(r.s1)!=null).length},
+ {st:'3. During concreting',mat:'Concrete – compressive strength',test:'Cube test – 6 cubes per sample (3 tested at 7 days, 3 at 28 days)',code:'IS 456:2000 cl. 15.2.2; IS 1199 (Part 1):2018; IS 516 (Part 1/Sec 1):2021',freq:'Per day of concreting: 1–5 cum – 1 sample; 6–15 – 2; 16–30 – 3; 31–50 – 4; above 50 – 4 + 1 per additional 50 cum',when:'Cast at the pour; test at 7 and 28 days',acc:'IS 456 Table 11: each sample ≥ fck − 4 (M20 & above) / fck − 3 (M15); mean of 4 ≥ fck + 4 / fck + 3; cubes within ±15% of sample average',src:'IS 456',
+  calc:N=>N.samples,done:w=>rowsOf('cube3',w).filter(r=>(r.r28||[]).some(v=>num(v)!=null)).length},
+ {st:'3. During concreting',mat:'Reinforcement & formwork inspection',test:'Bar size, spacing, laps, cover blocks, chairs; formwork line, level, staging',code:'IS 456 cl. 26.4 (cover), IS 14687 (formwork)',freq:'Every member / pour',when:'Before concreting (pour card / checklist)',acc:'Nominal cover as per exposure (moderate: 30 mm slab/beam, 40 mm column, 50 mm footing)',src:'IS'},
+ {st:'4. Hardened concrete (when required)',mat:'Concrete in structure',test:'Rebound hammer, ultrasonic pulse velocity; core test',code:'IS 13311 (Parts 1 & 2); IS 516 (core testing); IS 456 cl. 17',freq:'Only when cube results are below acceptance or quality is in doubt',when:'After 28 days',acc:'Core strength ≥ 0.85 fck on average and no individual core < 0.75 fck (IS 456 cl. 17.4)',src:'IS 456'},
+ {st:'5. Finishing & services',mat:'Ceramic / vitrified tiles',test:'Dimensions, water absorption, modulus of rupture / breaking strength, abrasion resistance',code:'IS 15622; tests IS 13630',freq:'Each lot / consignment (sampling as per IS 13630)',when:'Before laying',acc:'As per class in IS 15622',src:'IS'},
+ {st:'5. Finishing & services',mat:'Cement concrete flooring tiles',test:'Water absorption, wet transverse strength, resistance to wear',code:'IS 1237:2012',freq:'Each lot / consignment',when:'Before laying',acc:'Absorption ≤ 10%; wet transverse ≥ 3 N/mm²; wear ≤ 3.5 mm (general) / 2 mm (heavy duty)',src:'IS',done:w=>rowsOf('tiles',w).filter(r=>r.wa!=null).length},
+ {st:'5. Finishing & services',mat:'Stone (granite / marble / kota)',test:'Water absorption, dimensions, thickness',code:'IS 1124, IS 1130 (marble)',freq:'1 sample per 50 sqm of slabs / per 10 cum of masonry',when:'Before laying',acc:'As per code / tender',src:'CPWD 2019'},
+ {st:'5. Finishing & services',mat:'Roof / toilet waterproofing',test:'Ponding (water tightness) test',code:'CPWD Specifications 2019 (Sub-head 22)',freq:'Every terrace, sunken toilet and water tank',when:'After treatment, before finishing; water retained 48–72 hours',acc:'No leakage / dampness',src:'CPWD 2019'},
+ {st:'5. Finishing & services',mat:'Water supply & sanitary piping',test:'Hydraulic pressure test; smoke / water test for drainage',code:'CPWD Specifications 2019 (Sub-heads 17–19)',freq:'Every line / floor',when:'Before concealing in walls / floors',acc:'No drop in pressure / no leakage for the specified duration',src:'CPWD 2019'}];
+function testCtx(w=W()){const N=needTable(w);const c3=rowsOf('cube3',w).filter(r=>num(r.qty)!=null);
+  N.samples=c3.reduce((a,r)=>a+reqSamples(+r.qty),0);N.slumps=c3.reduce((a,r)=>a+Math.max(1,Math.ceil(+r.qty/10)),0)||rowsOf('slump',w).length;
+  N.grades=[...new Set(c3.map(r=>r.grade).filter(g=>fck(g)))];N.months=new Set(c3.map(r=>(r.date||'').slice(0,7)).filter(Boolean)).size;return N}
+function renderTests(){const w=W();const F={...FREQ_DEF,...(w.freq||{})};const N=testCtx(w);
+  const stages=[...new Set(TESTS.map(t=>t.st))];
+  const reqOf=t=>t.calc?t.calc(N,F,w):null,doneOf=t=>t.done?t.done(w):null;
+  const rowH=(t,print)=>{const r=reqOf(t),d=doneOf(t);const short=r!=null&&d!=null&&d<r;
+    return `<tr><td><b>${esc(t.mat)}</b></td><td>${esc(t.test)}</td><td>${esc(t.code)}</td><td>${esc(t.freq)}</td><td>${esc(t.when)}</td><td>${esc(t.acc)}</td>${print?'':`<td class="n">${r??'–'}</td><td class="n">${d??'–'}${short?` <span class="chip bad">${r-d} due</span>`:r&&d!=null&&d>=r?' <span class="chip ok">✓</span>':''}</td>`}<td class="note">${esc(t.src)}</td></tr>`};
+  const head=print=>`<thead><tr><th>Material / work</th><th>Tests</th><th>Code</th><th>Frequency</th><th>When to perform</th><th>Acceptance</th>${print?'':'<th>Required for this work</th><th>Recorded in registers</th>'}<th>Basis</th></tr></thead>`;
+  const tables=print=>stages.map(sg=>`<h3 style="margin:18px 0 6px">${esc(sg)}</h3><div class="tablewrap"><table class="${print?'p':'reg'}">${head(print)}<tbody>${TESTS.filter(t=>t.st===sg).map(t=>rowH(t,print)).join('')}</tbody></table></div>`).join('');
+  $('#main').innerHTML=`<div class="sheethead"><div><h2>Test Schedule – Building Works</h2><div class="sub">${esc(w.name)}</div></div>
+    <div class="actions"><button class="btn" id="tsPdf">PDF</button><button class="btn" id="tsXls">Excel</button></div></div>
+    <p class="note" style="margin:0">Tests, frequencies and timing as per IS 456:2000, the latest Indian Standards for each material and CPWD Specifications 2019. "Required for this work" is calculated from the MB quantities filled in the registers (cement and steel from Patrak-4 / Patrak-2, aggregates and bricks from Material Planning, cubes and slump from Cube Patrak-3) using the frequencies in ⚙ Settings. Where the tender or the Gujarat R&B Quality Control Manual specifies a different frequency, that frequency governs – change it in ⚙ Settings.</p>
+    ${tables(false)}
+    <div class="list" style="margin-top:18px"><h3>Codes followed</h3>${CODES.map(([c,t])=>`<div class="li"><b>${esc(c)}</b><span class="note" style="flex:1;margin-left:12px">${esc(t)}</span></div>`).join('')}</div>`;
+  $('#tsPdf').onclick=()=>printNow(`<div class="pg"><div class="ph"><h2>Test Schedule – Building Works – ${esc(w.name)}</h2></div>${tables(true)}<h3>Codes followed</h3><table class="p"><tbody>${CODES.map(([c,t])=>`<tr><td><b>${esc(c)}</b></td><td>${esc(t)}</td></tr>`).join('')}</tbody></table></div>`,`Test Schedule - ${w.name}`);
+  $('#tsXls').onclick=async()=>{if(typeof ExcelJS==='undefined')return toast('The Excel library could not be loaded (internet connection required).');const wb=new ExcelJS.Workbook();const ws=wb.addWorksheet('Test Schedule');
+    ws.addRow([`Test Schedule – Building Works – ${w.name}`]).font={bold:true,size:13};ws.addRow([]);
+    const hr=ws.addRow(['Stage','Material / work','Tests','Code','Frequency','When to perform','Acceptance','Required for this work','Recorded','Basis']);hr.font={bold:true};
+    TESTS.forEach(t=>{const r=ws.addRow([t.st,t.mat,t.test,t.code,t.freq,t.when,t.acc,reqOf(t)??'',doneOf(t)??'',t.src]);r.alignment={wrapText:true,vertical:'top'}});
+    [22,24,40,28,34,30,40,12,10,12].forEach((v,i)=>ws.getColumn(i+1).width=v);
+    const ws2=wb.addWorksheet('Codes');ws2.addRow(['Code','Title']).font={bold:true};CODES.forEach(c=>ws2.addRow(c));ws2.getColumn(1).width=34;ws2.getColumn(2).width=90;
+    await xlSave(wb,`Test Schedule - ${w.name}`)}}
+
 /* ===================== ⚙ SETTING (har kaam ki) ===================== */
 const WK_DEF=[['Steel|kg','Steel (TMT)','steel tmt','kg'],['PCC / foundation|cum','PCC / foundation / footing','foundation footing','cum'],['Plinth beam|cum','Plinth beam','plinth beam','cum'],
  ['Column (up to plinth)|cum','Column (up to plinth)','column','cum'],['Column|cum','Column','column','cum'],['Beam|cum','Beam','beam','cum'],['Slab|cum','Slab','slab','cum'],['Staircase|cum','Staircase','stair','cum'],
@@ -1929,7 +2019,7 @@ async function sendChat(){const w=W();const fs=[...(chat.files||[])];const text=
 function applyResult(i){const m=chat.msgs[i];if(m.type==='mb')return openMbFillAll()}
 
 /* ===================== BOOT ===================== */
-try{const v=localStorage.getItem(LS_KEY+'_view');if(v&&(v==='dash'||v==='chat'||v==='works'||v==='mbup'||v==='aavak'||v==='settings'||REG[v]||MBV[v]))view.reg=v}catch(e){}
+try{const v=localStorage.getItem(LS_KEY+'_view');if(v&&(v==='dash'||v==='chat'||v==='works'||v==='mbup'||v==='aavak'||v==='settings'||v==='tests'||REG[v]||MBV[v]))view.reg=v}catch(e){}
 document.getElementById('shelf').addEventListener('click',e=>{if(e.target.closest('[data-act="pickRegs"]'))return openRegPicker();const b=e.target.closest('[data-reg]');if(b)go(b.dataset.reg)});
 render();initFirebase();
 if(!EMBED&&'serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
