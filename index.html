@@ -1376,9 +1376,11 @@ const planCement=planMB;
 function rng(seed){let h=1779033703^String(seed).length;for(const ch of String(seed)){h=Math.imul(h^ch.charCodeAt(0),3432918353);h=h<<13|h>>>19}
   return()=>{h=Math.imul(h^h>>>16,2246822507);h=Math.imul(h^h>>>13,3266489909);return((h^=h>>>16)>>>0)/4294967296}}
 /* qty ko din mein baanto: roz ka avg ±5% (random), jod = poora qty. [{d,q,f}] f = hissa */
-function splitDays(p){const days=workDaysBefore(p.date,Math.max(1,+p.days||1));const n=days.length;const R=rng(`${p.itemNo}|${p.date}|${p.qty}|${n}`);
-  let dl=days.map(()=>R()*0.10-0.05);const mn=dl.reduce((a,v)=>a+v,0)/n;dl=dl.map(v=>v-mn);const mx=Math.max(...dl.map(Math.abs));if(mx>0.05)dl=dl.map(v=>v*0.05/mx);
-  const wt=dl.map(v=>1+v);const sw=n;let ql=p.qty;
+const dayVarOf=(w=W())=>{const v=num(w?.dayVar);return Math.min(50,Math.max(0,v??20))/100};
+function splitDays(p){const days=workDaysBefore(p.date,Math.max(1,+p.days||1));const n=days.length;const R=rng(`${p.itemNo}|${p.date}|${p.qty}|${n}`);const V=dayVarOf();
+  /* each day = average × (1 ± V) at random; scaled so the days add up to the MB quantity, kept inside the range */
+  let wt=days.map(()=>1-V+R()*2*V);for(let it=0;it<20;it++){const m=wt.reduce((a,v)=>a+v,0)/n;wt=wt.map(v=>Math.min(1+V,Math.max(1-V,v/m)))}
+  {const m=wt.reduce((a,v)=>a+v,0)/n;let d=wt.map(v=>v/m-1);const mx=Math.max(...d.map(Math.abs));if(mx>1e-9&&n>1){const k=V*(0.75+0.25*R())/mx;d=d.map(v=>v*k)}wt=d.map(v=>1+v)}const sw=n;let ql=p.qty;
   return days.map((d,k)=>{const last=k===n-1;const q=last?Math.round(ql*100)/100:Math.round(p.qty*wt[k]/sw*100)/100;ql-=q;return {d,q,f:p.qty?q/p.qty:1/n}})}
 const mbRef=p=>`MB ${p.date?fdate(p.date):''}${p.page?' '+p.page:''}`;
 function cementEntries(plan){const out=[];let c=Date.now();
@@ -1481,14 +1483,14 @@ function openMbFill(r){let D;const plan=planMB(r.blocks);const on=Object.fromEnt
     <div class="fld wide"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>Registers to fill</b><button type="button" class="btn small" id="mbxAll">All</button><button type="button" class="btn small" id="mbxNone">None</button></div>
      <div class="mbxg">${grp.map(gn=>`<div><div class="note"><b>${esc(gn)}</b></div>${REGS.filter(g=>g.grp===gn&&MBGEN[g.id]).map(g=>`<label class="chk"><input type="checkbox" data-reg="${g.id}" ${on[g.id]?'checked':''}> ${esc(g.short)} <span class="note">– ${MBF_NOTE[g.id]||''}</span></label>`).join('')}</div>`).join('')}</div></div>
     <div class="fld wide"><b>Testing frequency</b> <span class="note">(change if the tender / QC manual specifies otherwise)</span><div class="mbxg">${Object.keys(FREQ_DEF).map(k=>`<label class="chk">${FREQ_L[k].split('__')[0]}<input data-fq="${k}" value="${F[k]}" inputmode="numeric" style="width:80px">${FREQ_L[k].split('__')[1]}</label>`).join('')}</div></div>
-    <div class="fld wide"><b>Average daily output</b> <span class="note">(number of days = quantity ÷ daily average; each day varies randomly within ±5%; remembered for this work)</span><div class="mbxg" id="mbxAvg">${[...new Map(plan.filter(p=>p.kind!=='other'&&p.date).map(p=>[p.wk,p])).values()].map(p=>`<label class="chk">${esc(p.wk.split('|')[0])} <input data-avg="${esc(p.wk)}" value="${p.avg}" inputmode="decimal" style="width:80px"> ${esc(p.kind==='steel'?'kg':unitOf(p.unit)||p.unit)}/day</label>`).join('')}</div></div>
+    <div class="fld wide"><b>Average daily output</b> <span class="note">(number of days = quantity ÷ daily average; each day varies randomly within ± the variation below; remembered for this work)</span><label class="chk" style="margin:4px 0;display:inline-flex;gap:6px;align-items:center">Daily variation ± <input id="mbxVar" value="${Math.round(dayVarOf(W())*100)}" inputmode="decimal" style="width:60px"> %</label><div class="mbxg" id="mbxAvg">${[...new Map(plan.filter(p=>p.kind!=='other'&&p.date).map(p=>[p.wk,p])).values()].map(p=>`<label class="chk">${esc(p.wk.split('|')[0])} <input data-avg="${esc(p.wk)}" value="${p.avg}" inputmode="decimal" style="width:80px"> ${esc(p.kind==='steel'?'kg':unitOf(p.unit)||p.unit)}/day</label>`).join('')}</div></div>
     <div class="fld wide"><div class="tablewrap"><table class="reg"><thead><tr><th></th><th>Item</th><th>MB date</th><th>Work</th><th>Type</th><th>Qty</th><th>Bags / unit</th><th>Days</th><th>Total bags</th></tr></thead><tbody id="mbxBody">${rowsH()}</tbody></table></div></div>
     <div class="fld wide note" id="mbxSum"></div>
     <div class="fld"><label for="mbxOpen">Cement opening balance (bags), if known</label><input id="mbxOpen" inputmode="numeric" placeholder="optional"></div>
     <div class="fld"><label for="mbxOpenS">Steel opening balance (MT), if known</label><input id="mbxOpenS" inputmode="decimal" placeholder="optional"></div>
     <div class="fld wide note"><div>Registers unticked here are also hidden from this work's menu (restore them from "☰ Registers"). Entries previously filled from the MB are replaced; manually entered entries are kept.</div></div>`,
    ()=>{const sel=REGS.filter(g=>on[g.id]&&MBGEN[g.id]);if(!sel.length)return toast('Select at least one register.');const w=W();const x=mbCtx(plan,F,r);const msg=[];let tot=0;
-     w.regsOff=REGS.filter(g=>MBGEN[g.id]?!on[g.id]:!regOn(g.id,w)).map(g=>g.id);w.freq={...F};w.dayAvg??={};D.querySelectorAll('[data-avg]').forEach(c=>{const v=num(c.value);if(v>0)w.dayAvg[c.dataset.avg]=v});persist();
+     w.regsOff=REGS.filter(g=>MBGEN[g.id]?!on[g.id]:!regOn(g.id,w)).map(g=>g.id);w.freq={...F};w.dayAvg??={};D.querySelectorAll('[data-avg]').forEach(c=>{const v=num(c.value);if(v>0)w.dayAvg[c.dataset.avg]=v});{const vv=num(D.querySelector('#mbxVar')?.value);if(vv!=null&&vv>=0)w.dayVar=Math.min(50,vv)}persist();
      sel.forEach(g=>{const ents=MBGEN[g.id](x);const key=g.sortKey||'date';
        if(ents.length&&g.id==='cement4'){ents.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);const op=num(gv('mbxOpen'));if(op!=null)ents[0].opening=String(op)}
        if(ents.length&&g.id==='steel2'){ents.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);const op=num(gv('mbxOpenS'));if(op!=null)ents[0].opening=String(op)}
@@ -1631,11 +1633,16 @@ function blocksFromEntries(w){const L=mbLayout(w);const bn=Object.fromEntries(mb
 const MIXDEF={};
 const MATS=[['cement','Cement','kg'],['sand','Sand','kg'],['a20','Aggregate 20 mm','kg'],['a10','Aggregate 10 mm','kg'],['a40','Aggregate 40 mm','kg'],['water','Water','L'],['brick','Bricks','nos']];
 function mixOf(w,k,def){const d=def||MIXDEF[k]||{};const m=w?.mix?.[k];return m?{...d,...Object.fromEntries(Object.entries(m).filter(([,v])=>v!==''&&v!=null)),src:'mix'}:{...d,src:'andaaz'}}
+/* sand, aggregates and bricks per day, straight from the uploaded MBs (For Record) × mix design / PWD table */
+function mbMatEvents(w=W()){const out=[];try{const bl=blocksFromEntries(w);if(!bl.length)return out;
+  planMB(bl,w).filter(p=>p.use&&p.kind!=='steel'&&p.kind!=='other'&&p.date).forEach(p=>{const f=mixOf(w,p.lab,{u:unitOf(p.unit),...p.agg});
+    splitDays(p).forEach(x=>['sand','a20','a10','a40','brick'].forEach(k=>{const v=+(p.agg?.[k]??0)&&(+f[k]||0);if(v)out.push({d:x.d,k,v:x.q*v})}))})}catch(e){}return out}
 function needTable(w=W()){const day={};const D=d=>day[d]??={cem:0,stl:{},sand:0,a20:0,a10:0,a40:0,brick:0,rc:0,rs:0,rsd:{}};
-  let cOpen=0,sOpen=0;const sdOpen={};
+  let cOpen=0,sOpen=0;const sdOpen={};const ME=mbMatEvents(w);
   const c4=rowsOf('cement4',w).slice().sort((a,b)=>a.date<b.date?-1:1);
   c4.forEach((r,i)=>{if(!r.date)return;const o=D(r.date);o.cem+=+r.used||0;o.rc+=+r.receipt||0;if(i===0&&num(r.opening)!=null)cOpen=+r.opening;
-    if(r.mk&&r.mq){const f=mixOf(w,r.mk,r.mf);['sand','a20','a10','a40','brick'].forEach(k=>{if(f[k])o[k]+=r.mq*f[k]})}});
+    if(!ME.length&&r.mk&&r.mq){const f=mixOf(w,r.mk,r.mf);['sand','a20','a10','a40','brick'].forEach(k=>{if(f[k])o[k]+=r.mq*f[k]})}});
+  ME.forEach(e=>D(e.d)[e.k]+=e.v);
   const s2=rowsOf('steel2',w).slice().sort((a,b)=>a.date<b.date?-1:1);
   s2.forEach((r,i)=>{if(!r.date)return;const o=D(r.date);DIAS.forEach(d=>{const v=+r['d'+d]||0;if(v)o.stl[d]=(o.stl[d]||0)+v});o.rs+=+r.receipt||0;if(i===0&&num(r.opening)!=null)sOpen=+r.opening});
   rowsOf('steel1',w).forEach((r,i)=>{if(r.date)DIAS.forEach(d=>{const v=+r['r'+d]||0;if(v)D(r.date).rsd[d]=(D(r.date).rsd[d]||0)+v});DIAS.forEach(d=>{if(i===0&&+r['op'+d])sdOpen[d]=+r['op'+d]})});
@@ -1645,19 +1652,19 @@ function needTable(w=W()){const day={};const D=d=>day[d]??={cem:0,stl:{},sand:0,
     const r={d,o,st,C:{...C}};if(C.cem>C.rc&&!firstShort.cem)firstShort.cem=d;if(C.stl>C.rs+1e-9&&!firstShort.stl)firstShort.stl=d;rows.push(r)});
   const dia={};Object.values(day).forEach(o=>Object.entries(o.stl).forEach(([d,v])=>{(dia[d]??={need:0,rcv:sdOpen[d]||0}).need+=v}));Object.values(day).forEach(o=>Object.entries(o.rsd).forEach(([d,v])=>{(dia[d]??={need:0,rcv:sdOpen[d]||0}).rcv+=v}));
   const keys=[...new Set(c4.map(r=>r.mk).filter(Boolean))];
-  return {rows,C,firstShort,dia,keys,hasMk:c4.some(r=>r.mk)}}
+  return {rows,C,firstShort,dia,keys,hasMk:ME.length>0||c4.some(r=>r.mk),fromMB:ME.length>0}}
 const fT=kg=>fmt(kg/1000,2);
 function needBanner(regId){if(!['cement4','cement1','steel2','steel1'].includes(regId))return '';const N=needTable();if(!N.rows.length)return '';
   const cem=/^cement/.test(regId);const need=cem?N.C.cem:N.C.stl,rcv=cem?N.C.rc:N.C.rs,short=need-rcv,u=cem?'bags':'MT',f=v=>cem?fmt(v,0):fmt(v,3);
   const last=N.rows[N.rows.length-1].d;const fs=cem?N.firstShort.cem:N.firstShort.stl;
   return `<div class="banner" style="${short>1e-6?'':'background:var(--ok-soft);border-color:#A6DCC0;border-left-color:var(--ok)'}"><span>Required up to ${fdate(last)}: <b>${f(need)} ${u}</b> · received (incl. opening balance): <b>${f(rcv)} ${u}</b>${short>1e-6?` · <b style="color:var(--bad)">short by ${f(short)} ${u}</b> – shortfall from ${fdate(fs)}; record receipts to cover it`:' · sufficient ✓'}</span><button class="btn small" data-go="aavak">View material planning</button></div>`}
-function renderAavak(){const w=W();const N=needTable(w);const keys=[...new Set([...N.keys,...Object.keys(w.mix||{})])];
+function renderAavak(){const w=W();ensureMbImported(w,()=>{if(view.reg==='aavak'&&W()===w)renderAavak()});const N=needTable(w);const keys=[...new Set([...N.keys,...Object.keys(w.mix||{})])];
   const defs={};rowsOf('cement4',w).forEach(r=>{if(r.mk&&r.mf&&!defs[r.mk])defs[r.mk]=r.mf});
   const fsC=N.firstShort.cem,fsS=N.firstShort.stl;const C=N.C;
   const card=(k,v,sub,bad)=>`<div class="card" ${bad?'style="border-left-color:var(--bad)"':''}><div class="k">${k}</div><div class="v">${v}</div><div class="note">${sub}</div></div>`;
   $('#main').innerHTML=`<div class="sheethead"><div><h2>Material Planning – quantity required by date</h2><div class="sub">${esc(w.name)}</div></div>
     <div class="actions"><button class="btn" id="avPdf">PDF</button><button class="btn" id="avXls">Excel</button></div></div>
-    <p class="note" style="margin:0">Cement and steel requirements come from the daily consumption in Cement Patrak-4 and Steel Patrak-2; aggregates, sand and bricks from each day's work quantity × mix design (or estimated values). Receipts = "New receipt" in Patrak-4 / Patrak-2 + opening balance.${N.hasMk||!N.rows.length?'':' <b>Re-fill the registers from the MB to calculate aggregates and sand</b> (older entries do not store the work quantity).'}</p>
+    <p class="note" style="margin:0">Cement and steel requirements come from the daily consumption in Cement Patrak-4 and Steel Patrak-2; aggregates, sand and bricks ${N.fromMB?'directly from the uploaded MBs':'from each day\'s work quantity'} × mix design (or PWD table / estimated values) – see Summary → Test Schedule for item-wise quantities and the number of tests. Receipts = "New receipt" in Patrak-4 / Patrak-2 + opening balance.${N.hasMk||!N.rows.length?'':' <b>Re-fill the registers from the MB to calculate aggregates and sand</b> (older entries do not store the work quantity).'}</p>
     ${N.rows.length?`<div class="cards">
      ${card('Cement',`${fmt(C.cem,0)} bags`,`${fT(C.cem*50)} MT · received ${fmt(C.rc,0)} bags${C.cem>C.rc?` · <b style="color:var(--bad)">short ${fmt(C.cem-C.rc,0)}</b> (from ${fdate(fsC)})`:' ✓'}`,C.cem>C.rc)}
      ${card('Steel',`${fmt(C.stl,3)} MT`,`received ${fmt(C.rs,3)} MT${C.stl>C.rs+1e-9?` · <b style="color:var(--bad)">short ${fmt(C.stl-C.rs,3)}</b> (from ${fdate(fsS)})`:' ✓'}<br>${Object.entries(N.dia).map(([d,o])=>`${d}ø ${fmt(o.need,3)}${o.rcv?` / ${fmt(o.rcv,3)}`:''}`).join(' · ')}`,C.stl>C.rs+1e-9)}
@@ -2087,7 +2094,8 @@ function renderSettings(){const w=W();w.mix??={};w.dayAvg??={};
     </tbody></table></div>
     <div class="actions" style="margin-top:8px"><input id="newG" placeholder="another grade, e.g. M45" style="width:170px;padding:6px 9px;border:1px solid var(--rule-strong);border-radius:7px"><button class="btn small" id="addG">+ Grade</button><button class="btn small" data-go="chat">Upload mix design in Assistant</button></div></div></div>
    <div class="list"><h3>2. Average daily output</h3><div style="padding:12px 16px">
-    <p class="note" style="margin-top:0">Number of days = MB quantity ÷ daily average. Each day varies randomly within ±5%. Values changed while filling registers from the MB are also saved here.</p>
+    <p class="note" style="margin-top:0">Number of days = MB quantity ÷ daily average. Each day varies randomly within ± the variation set here (default 20%), and the days always add up to the MB quantity. Values changed while filling registers from the MB are also saved here.</p>
+    <p style="margin:6px 0 10px"><label>Daily variation ± <input id="setVar" value="${Math.round(dayVarOf(w)*100)}" inputmode="decimal" style="width:70px;padding:5px 8px;border:1px solid var(--rule-strong);border-radius:6px"> %</label> <span class="note">e.g. 20% with an average of 20 cum/day gives days between 16 and 24 cum (maximum 50%)</span></p>
     <div class="tablewrap"><table class="reg ln"><thead><tr><th>Work</th><th>Daily average</th><th>Unit</th><th>Default</th></tr></thead><tbody>
     ${wks.map(([k,n,d,u])=>`<tr><td>${esc(n)}</td><td><input data-wk="${esc(k)}" value="${w.dayAvg[k]??''}" placeholder="${dayRate(d,u==='kg'?'kg':'')}" inputmode="decimal" style="width:110px"></td><td>${u}/day</td><td class="n">${dayRate(d,u==='kg'?'kg':'')}</td></tr>`).join('')}
     </tbody></table></div></div></div>
@@ -2098,7 +2106,7 @@ function renderSettings(){const w=W();w.mix??={};w.dayAvg??={};
   M.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
   const save=(quiet)=>{M.querySelectorAll('tr[data-g]').forEach(tr=>{const g=tr.dataset.g;const o={...(w.mix[g]||{})};tr.querySelectorAll('[data-k]').forEach(i=>{const v=i.value.trim();if(v==='')delete o[i.dataset.k];else o[i.dataset.k]=i.dataset.k==='ref'?v:num(v)});
       if(Object.keys(o).some(k=>!['ref','src'].includes(k)))w.mix[g]=o;else delete w.mix[g]});
-    M.querySelectorAll('[data-wk]').forEach(i=>{const v=num(i.value);if(v>0)w.dayAvg[i.dataset.wk]=v;else delete w.dayAvg[i.dataset.wk]});
+    M.querySelectorAll('[data-wk]').forEach(i=>{const v=num(i.value);if(v>0)w.dayAvg[i.dataset.wk]=v;else delete w.dayAvg[i.dataset.wk]});{const vv=num($('#setVar')?.value);if(vv!=null&&vv>=0)w.dayVar=Math.min(50,vv)}
     const fq={};M.querySelectorAll('[data-fq]').forEach(i=>{const v=num(i.value);if(v>0)fq[i.dataset.fq]=v});w.freq=fq;persist();if(!quiet)toast('Settings saved')};
   $('#setSave').onclick=()=>{save();render()};
   $('#addG').onclick=()=>{const g=($('#newG').value||'').toUpperCase().replace(/[^M0-9]/g,'');if(!/^M\d+$/.test(g))return toast('Enter a grade such as M45.');save(true);w.mix[g]??={};persist();render()}}
