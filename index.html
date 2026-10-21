@@ -1743,10 +1743,15 @@ function aggPlan(w=W()){const F=freqOf(w);const ev={},mixes={};
     const add=(test,freq,ev,f,mult=1,min=0)=>{const q=ev.reduce((a,e)=>a+e.q,0);if(!q||q<min)return;const tr=tranches(ev,f);T.push({test,freq,n:tr.list.length*mult,lots:tr.list,mult})};
     if(k==='sand'){add('Silt content, organic impurities, bulking',`1 per ${F.sand} cum`,all,F.sand);add('Particle size distribution (grading, zone)',`1 per ${F.sandG} cum`,all,F.sandG);
       add('Design-mix concrete: full set (grading, silt, sp. gravity, water absorption)',`1 per ${F.dm} cum and each change of source`,dmE,F.dm)}
-    else{add('Particle size distribution (grading)',`1 per ${F.caG} cum`,all,F.caG);
-      add('Impact, crushing value, sp. gravity, bulk density, organic impurities',`1 per ${F.ca} cum (min. 10 cum)`,nmE,F.ca,1,10);
-      add('Design-mix concrete: sp. gravity, bulk density, crushing, impact, deleterious – 3 tests each',`1 lot per ${F.dm} cum and each change of source`,dmE,F.dm,3)}
+    else add('Particle size distribution (grading) – this size',`1 per ${F.caG} cum`,all,F.caG);
     return {k,name,bd,kg,tot,dmq,T}});
+  /* impact, crushing, sp. gravity … are properties of the parent rock – tested on the 12.5–10 mm fraction (IS 2386 Pt 4), on the total coarse aggregate of each source */
+  const caK=AGG_M.filter(([k])=>k!=='sand'&&ev[k]).map(([k])=>k);
+  if(caK.length){const E=caK.flatMap(k=>ev[k]);const all=E.map(e=>({d:e.d,q:e.q})),dmE=E.filter(e=>e.dm).map(e=>({d:e.d,q:e.q})),nmE=E.filter(e=>!e.dm).map(e=>({d:e.d,q:e.q}));const T=[];
+    const add=(test,freq,ev,f,mult=1,min=0)=>{const q=ev.reduce((a,e)=>a+e.q,0);if(!q||q<min)return;const tr=tranches(ev,f);T.push({test,freq,n:tr.list.length*mult,lots:tr.list,mult})};
+    add('Impact value, crushing value, sp. gravity, bulk density, organic impurities (12.5–10 mm fraction, usually from 20 mm)',`1 per ${F.ca} cum of total coarse aggregate (min. 10 cum), per source`,nmE,F.ca,1,10);
+    add('Design-mix concrete: sp. gravity, bulk density, crushing, impact, deleterious – 3 tests each',`1 lot per ${F.dm} cum of total coarse aggregate and each change of source`,dmE,F.dm,3);
+    if(T.length)out.push({k:'caAll',name:`Coarse aggregate – all sizes (${caK.map(k=>k.slice(1)+' mm').join(' + ')}), per source`,bd:1500,kg:E.reduce((a,e)=>a+e.q*1500,0),tot:all.reduce((a,e)=>a+e.q,0),dmq:dmE.reduce((a,e)=>a+e.q,0),T})}
   return {mat:out,mixes:Object.values(mixes).sort((a,b)=>a.k<b.k?-1:1),F}}
 function aggPlanHTML(P,print){if(!P.mat.length)return `<p class="note">No aggregate or sand quantities yet – fill Patrak-4 (cement register) from the MB first.</p>`;
   const cls=print?'p':'reg';const lots=t=>t.lots.map(l=>`${l.k}) ${fdate(l.d)}`).join(', ');const AM=AGG_M.filter(([k])=>P.mixes.some(m=>m.per[k]));
@@ -1754,7 +1759,7 @@ function aggPlanHTML(P,print){if(!P.mat.length)return `<p class="note">No aggreg
    ${P.mixes.map(m=>`<tr><td><b>${esc(m.k)}</b>${m.dm?' <span class="chip">design mix</span>':''}</td><td class="n">${fmt(m.q,2)} ${esc(m.u)}</td>${AM.map(([k])=>`<td class="n">${m.per[k]?fmt(m.per[k],1):'–'}</td>`).join('')}<td>${print?esc(m.src):`<span class="chip ${m.src==='mix design'?'ok':/estimate/.test(m.src)?'bad':''}">${esc(m.src)}</span>`}</td></tr>`).join('')}</tbody></table></div>
   <h4 style="margin:12px 0 4px">(b) Total quantity and tests required</h4><div class="tablewrap"><table class="${cls}"><thead><tr><th>Material</th><th>Total quantity</th><th>Test</th><th>Frequency</th><th>Tests required</th><th>Test before use of (lot – first-use date)</th></tr></thead><tbody>
    ${P.mat.map(m=>m.T.map((t,i)=>`<tr>${i?'':`<td rowspan="${m.T.length}"><b>${esc(m.name)}</b></td><td rowspan="${m.T.length}" class="n">${fmt(m.tot,2)} cum<div class="note">${fmt(m.kg/1000,2)} MT @ ${m.bd} kg/cum${m.dmq?`; design mix ${fmt(m.dmq,2)} cum`:''}</div></td>`}<td>${esc(t.test)}</td><td>${esc(t.freq)}</td><td class="n"><b>${t.n}</b></td><td class="note">${lots(t)}</td></tr>`).join('')).join('')}</tbody></table></div>
-  <p class="note">Each size (10 mm, 20 mm, 40 mm) is tested separately. Lot dates are the first day that lot is used as per the MB – the sample must be tested before that date. Frequencies can be changed in ⚙ Settings → Testing frequency.</p>`}
+  <p class="note">Grading (sieve analysis) is done for each size separately. Impact, crushing value and other rock properties are tested on the 12.5–10 mm fraction (IS 2386 Part 4) obtained from the 20 mm aggregate – one result represents all sizes from the same quarry; test again for each new source. Lot dates are the first day that lot is used as per the MB – the sample must be tested before that date. Frequencies can be changed in ⚙ Settings → Testing frequency.</p>`}
 function testCtx(w=W()){const N=needTable(w);const c3=rowsOf('cube3',w).filter(r=>num(r.qty)!=null);
   N.samples=c3.reduce((a,r)=>a+reqSamples(+r.qty),0);N.slumps=c3.reduce((a,r)=>a+Math.max(1,Math.ceil(+r.qty/50)),0)||rowsOf('slump',w).length;
   N.grades=[...new Set(c3.map(r=>r.grade).filter(g=>fck(g)))];N.months=new Set(c3.map(r=>(r.date||'').slice(0,7)).filter(Boolean)).size;return N}
@@ -1792,9 +1797,9 @@ const TFavg=a=>{a=a.filter(x=>x!=null&&isFinite(x));return a.length?a.reduce((s,
 const TFok=(c)=>c==null?null:!!c;
 const TFrow=(o,k)=>num(o?.[k]);
 /* grading limits: [sieve mm, min % passing, max % passing] */
-const CA_GR={'Graded 20 mm (IS 383 Table 7)':[[40,100,100],[20,95,100],[10,25,55],[4.75,0,10]],
- 'Single size 20 mm (IS 383 Table 7)':[[40,100,100],[20,85,100],[10,0,20],[4.75,0,5]],
+const CA_GR={'Single size 20 mm (IS 383 Table 7)':[[40,100,100],[20,85,100],[10,0,20],[4.75,0,5]],
  'Single size 10 mm (IS 383 Table 7)':[[12.5,100,100],[10,85,100],[4.75,0,20],[2.36,0,5]],
+ 'Graded 20 mm (IS 383 Table 7)':[[40,100,100],[20,95,100],[10,25,55],[4.75,0,10]],
  'Graded 40 mm (IS 383 Table 7)':[[80,100,100],[40,95,100],[20,30,70],[10,10,35],[4.75,0,5]],
  'Single size 40 mm (IS 383 Table 7)':[[63,100,100],[40,85,100],[20,0,20],[10,0,5]]};
 const CA_D={'Graded 20 mm (IS 383 Table 7)':[0,250,14200,9300,1250],'Single size 20 mm (IS 383 Table 7)':[0,1800,20500,2300,400],'Single size 10 mm (IS 383 Table 7)':[0,350,3800,700,150],'Graded 40 mm (IS 383 Table 7)':[0,1500,24000,13000,10500,1000],'Single size 40 mm (IS 383 Table 7)':[0,4000,40000,5000,1000]};
@@ -1868,20 +1873,29 @@ const TF=[
   return {s:st.map((x,i)=>[`Cube ${i+1}`,`${[v.p1,v.p2,v.p3][i]} × 1000 / 5000`,x]).concat([['Average','mean of 3',a]]),c:[[`Compressive strength at ${v.age||'7 days'}`,a,`≥ ${L[ai]} N/mm²`,TFok(a!=null&&a>=L[ai])]]}}},
 /* ---------- Coarse aggregate ---------- */
 {id:'casv',mat:'Coarse aggregate',name:'Coarse aggregate – sieve analysis (grading)',code:'IS 2386 (Part 1); IS 383:2016 Table 7',
- proc:'Oven-dry sample (20 mm: 25 kg, 10 mm: 5 kg), sieve, weigh the material retained on each sieve. % passing = 100 − cumulative % retained.',
+ proc:'Site aggregate is single size – test 20 mm and 10 mm separately against the single-size limits. Oven-dry sample (20 mm: 25 kg, 10 mm: 5 kg), sieve, weigh the material retained on each sieve. % passing = 100 − cumulative % retained.',
  inp:[{k:'g',l:'Grading',opt:Object.keys(CA_GR)},{k:'r',t:'tab',l:'Weight retained',rowsFn:v=>(CA_GR[v.g]||CA_GR[Object.keys(CA_GR)[0]]).map(x=>`${x[0]} mm`).concat(['Pan']),cols:[{k:'w',l:'Weight retained (g)'}],dFn:v=>(CA_D[v.g]||CA_D[Object.keys(CA_D)[0]]).map(w=>({w}))}],
  calc:v=>{const L=CA_GR[v.g]||CA_GR[Object.keys(CA_GR)[0]];const rows=v.r.slice(0,L.length);rows.pan=v.r[L.length];const R=sieveCalc(rows,L.map(x=>[x[1],x[2]]),L.map(x=>x[0]));
   return {s:R.map(x=>[`${x.s} mm – % passing`,`100 − (${TFn(x.cw)} / ${TFn(x.tot)} × 100)`,x.p]),c:R.map(x=>[`Passing ${x.s} mm`,x.p,`${x.L[0]} – ${x.L[1]}%`,x.ok])}}},
+{id:'cacomb',mat:'Coarse aggregate',name:'Combined grading of 20 mm + 10 mm (mix design ratio)',code:'IS 383:2016 Table 7 (graded 20 mm); IS 10262:2019',
+ proc:'Enter % passing of the 20 mm and 10 mm single-size aggregates (from their sieve analyses). Combined % passing = r × (20 mm % passing) + (1 − r) × (10 mm % passing), where r = share of 20 mm in the mix design. The combined curve must fall within the graded 20 mm limits; otherwise revise the ratio.',
+ inp:[{k:'r',l:'Share of 20 mm in total coarse aggregate (from mix design)',u:'%',dF:w=>{const m=Object.values(w.mix||{}).find(x=>num(x.a20)&&num(x.a10));return m?Math.round(m.a20/(+m.a20+ +m.a10)*1000)/10:60}},
+  {k:'t',t:'tab',l:'% passing of each size',rows:['40 mm','20 mm','12.5 mm','10 mm','4.75 mm','2.36 mm'],cols:[{k:'a',l:'20 mm aggregate – % passing'},{k:'b',l:'10 mm aggregate – % passing'}],
+   d:[{a:100,b:100},{a:92.8,b:100},{a:40,b:100},{a:10.8,b:93},{a:1.6,b:17},{a:0.5,b:3}]}],
+ calc:v=>{const r=(v.r??60)/100;const L=[[100,100],[95,100],null,[25,55],[0,10],null];const sv=['40 mm','20 mm','12.5 mm','10 mm','4.75 mm','2.36 mm'];
+  const C=v.t.map(x=>{const a=TFrow(x,'a'),b=TFrow(x,'b');return a==null||b==null?null:r*a+(1-r)*b});
+  return {s:C.map((c,i)=>[`${sv[i]} – combined % passing`,`${TFn(r)} × ${TFn(TFrow(v.t[i],'a'))} + ${TFn(1-r)} × ${TFn(TFrow(v.t[i],'b'))}`,c]),
+   c:C.map((c,i)=>[`Combined passing ${sv[i]}`,c,L[i]?`${L[i][0]} – ${L[i][1]}%`:'No limit (report)',L[i]&&c!=null?c>=L[i][0]-1e-9&&c<=L[i][1]+1e-9:null])}}},
 {id:'cafe',mat:'Coarse aggregate',name:'Flakiness and elongation index',code:'IS 2386 (Part 1); IS 383:2016',
  proc:'Flaky: pieces passing the thickness gauge. Elongated: non-flaky pieces retained on the length gauge. FI = W(flaky) / W(total) × 100; EI = W(elongated) / W(non-flaky) × 100.',
  inp:[{k:'wt',l:'Total weight of sample',u:'g',d:5000},{k:'wf',l:'Weight passing thickness gauge (flaky)',u:'g',d:820},{k:'we',l:'Weight of non-flaky retained on length gauge (elongated)',u:'g',d:910}],
  calc:v=>{const FI=v.wf/v.wt*100;const EI=v.we/(v.wt-v.wf)*100;return {s:[['Flakiness index FI','Wf / Wt × 100',FI],['Elongation index EI','We / (Wt − Wf) × 100',EI],['Combined index','FI + EI',FI+EI]],c:[['Combined FI + EI',FI+EI,'≤ 40%',TFok(FI+EI<=40)]]}}},
 {id:'caiv',mat:'Coarse aggregate',name:'Aggregate impact value',code:'IS 2386 (Part 4); IS 383:2016',
- proc:'Aggregate passing 12.5 mm, retained on 10 mm, filled in the cup in 3 layers (25 tamps each), 15 blows of the 14 kg hammer from 380 mm. AIV = W2 / W1 × 100, where W2 = fines passing 2.36 mm. Two tests – mean.',
+ proc:'Aggregate passing 12.5 mm, retained on 10 mm (sieved from the 20 mm aggregate; do not mix sizes – the result represents all sizes from the same quarry), filled in the cup in 3 layers (25 tamps each), 15 blows of the 14 kg hammer from 380 mm. AIV = W2 / W1 × 100, where W2 = fines passing 2.36 mm. Two tests – mean.',
  inp:[{k:'use',l:'Use',opt:['Concrete other than wearing surface','Wearing surface (roads, floors, runways)']},{k:'r',t:'tab',l:'Trials',rows:['Trial 1','Trial 2'],cols:[{k:'w1',l:'W1 – sample weight (g)'},{k:'w2',l:'W2 – passing 2.36 mm (g)'}],d:[{w1:340,w2:62},{w1:338,w2:60}]}],
  calc:v=>{const x=v.r.map(r=>TFrow(r,'w2')/TFrow(r,'w1')*100);const a=TFavg(x);const L=/Wearing/.test(v.use)?30:45;return {s:x.map((y,i)=>[`Trial ${i+1}`,'W2 / W1 × 100',y]).concat([['Mean AIV','mean',a]]),c:[['Aggregate impact value',a,`≤ ${L}%`,TFok(a!=null&&a<=L)]]}}},
 {id:'cacv',mat:'Coarse aggregate',name:'Aggregate crushing value',code:'IS 2386 (Part 4); IS 383:2016',
- proc:'Aggregate 12.5–10 mm in the cylinder, 400 kN applied in 10 minutes. ACV = W2 / W1 × 100, where W2 = fines passing 2.36 mm.',
+ proc:'Aggregate 12.5–10 mm (sieved from the 20 mm aggregate; result represents all sizes from the same quarry) in the cylinder, 400 kN applied in 10 minutes. ACV = W2 / W1 × 100, where W2 = fines passing 2.36 mm.',
  inp:[{k:'use',l:'Use',opt:['Concrete other than wearing surface','Wearing surface (roads, floors, runways)']},{k:'r',t:'tab',l:'Trials',rows:['Trial 1','Trial 2'],cols:[{k:'w1',l:'W1 – sample weight (g)'},{k:'w2',l:'W2 – passing 2.36 mm (g)'}],d:[{w1:2850,w2:640},{w1:2860,w2:655}]}],
  calc:v=>{const x=v.r.map(r=>TFrow(r,'w2')/TFrow(r,'w1')*100);const a=TFavg(x);const L=/Wearing/.test(v.use)?30:45;return {s:x.map((y,i)=>[`Trial ${i+1}`,'W2 / W1 × 100',y]).concat([['Mean ACV','mean',a]]),c:[['Aggregate crushing value',a,`≤ ${L}%`,TFok(a!=null&&a<=L)]]}}},
 {id:'cala',mat:'Coarse aggregate',name:'Los Angeles abrasion value',code:'IS 2386 (Part 4); IS 383:2016',
@@ -2008,7 +2022,7 @@ const TF_GRP=[...new Set(TF.map(t=>t.mat))];
 let tfSel=null;
 function tfVals(w,t){w.tfv??={};const sv=w.tfv[t.id]||{};const o={};
   t.inp.forEach(i=>{if(i.t==='tab'){const rows=i.rowsFn?i.rowsFn(o):i.rows;const dd=i.dFn?i.dFn(o):i.d;o[i.k]=rows.map((_,r)=>({...((dd||[])[r]||{}),...((sv[i.k]||[])[r]||{})}))}
-    else{const x=sv[i.k]!==undefined?sv[i.k]:i.opt?(i.def??i.opt[0]):i.d;o[i.k]=i.opt||i.txt?x:num(x)}});return o}
+    else{const x=sv[i.k]!==undefined?sv[i.k]:i.opt?(i.def??i.opt[0]):i.dF?i.dF(w):i.d;o[i.k]=i.opt||i.txt?x:num(x)}});return o}
 function tfRun(t,v){try{return t.calc(v)}catch(e){return {s:[],c:[],err:e.message}}}
 function tfHTML(w,t,print){const v=tfVals(w,t);const R=tfRun(t,v);const H=w.tfh?.[t.id]||{};
   const inpH=t.inp.map(i=>{if(i.t==='tab'){const rows=i.rowsFn?i.rowsFn(v):i.rows;return `<tr><td colspan="2"><b>${esc(i.l)}</b><div class="tablewrap"><table class="${print?'p':'reg ln'}"><thead><tr><th></th>${i.cols.map(c=>`<th>${esc(c.l)}</th>`).join('')}</tr></thead><tbody>${rows.map((rl,r)=>`<tr><td>${esc(rl)}</td>${i.cols.map(c=>`<td class="n">${print?esc(v[i.k][r]?.[c.k]??''):`<input data-tk="${i.k}" data-r="${r}" data-c="${c.k}" value="${esc(v[i.k][r]?.[c.k]??'')}" inputmode="decimal">`}</td>`).join('')}</tr>`).join('')}</tbody></table></div></td></tr>`}
