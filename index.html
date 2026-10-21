@@ -767,7 +767,7 @@ function renderReg(){
   $('#xls')?.addEventListener('click',()=>exportReg(reg));
   document.querySelectorAll('#main tbody tr[data-id]').forEach(tr=>tr.onclick=()=>openForm(reg,rowsOf(reg.id).find(r=>r.id===tr.dataset.id)));
 }
-function render(){renderWorks();renderShelf();view.reg==='dash'?renderDash():view.reg==='chat'?renderChat():view.reg==='works'?renderWorksList():view.reg==='admin'?renderAdmin():view.reg==='mbup'?renderMbUp():view.reg==='aavak'?renderAavak():view.reg==='settings'?renderSettings():view.reg==='tests'?renderTests():view.reg==='tforms'?renderTForms():MBV[view.reg]?renderMB(view.reg):renderReg()}
+function render(){autoRefill(W());renderWorks();renderShelf();view.reg==='dash'?renderDash():view.reg==='chat'?renderChat():view.reg==='works'?renderWorksList():view.reg==='admin'?renderAdmin():view.reg==='mbup'?renderMbUp():view.reg==='aavak'?renderAavak():view.reg==='settings'?renderSettings():view.reg==='tests'?renderTests():view.reg==='tforms'?renderTForms():MBV[view.reg]?renderMB(view.reg):renderReg()}
 function go(id){view.reg=id;try{localStorage.setItem(LS_KEY+'_view',id)}catch(e){}render();window.scrollTo(0,0)}
 
 /* ===================== FORM ===================== */
@@ -1475,6 +1475,14 @@ const MBGEN={
   return mkRows(R)}};
 const KINDL={steel:'Steel',conc:'Concrete',cem:'Cement work',other:'—'};
 const MBF_NOTE={cement4:'daily consumption',steel2:'daily consumption, dia-wise',slump:'every pour',cube3:'every pour, cubes required',cement1:'one line per bill',steel1:'one block per bill',sampling:'samples required',cementTest:'per lot',cementCons:'per lot',petro:'per source',aggTest:'per lot',sieve:'coarse aggregate + sand',brick:'per lot',tiles:'per lot',mixDesign:'per grade',calib:'monthly',corrBatch:'every pour',batchPlant:'every pour',proforma3:'required vs. MB'};
+/* registers generated from the MB with an older day-splitting method are regenerated once, automatically (same settings) */
+const SPLIT_VER=3;
+function autoRefill(w){try{if(!w||w.splitVer===SPLIT_VER||W()!==w)return;const ids=REGS.filter(g=>MBGEN[g.id]&&rowsOf(g.id,w).some(e=>e.src==='mbx')).map(g=>g.id);
+  if(!ids.length){w.splitVer=SPLIT_VER;return}const bl=blocksFromEntries(w);if(!bl.length)return;const plan=planMB(bl,w);const bills=[...new Set(bl.map(b=>b.bill))];const x=mbCtx(plan,freqOf(w),{bill:bills[bills.length-1]});
+  ids.forEach(id=>{const old=rowsOf(id,w);const om=old.filter(e=>e.src==='mbx').sort((a,b)=>(a.date||'')<(b.date||'')?-1:1);const ents=MBGEN[id](x);
+    if((id==='cement4'||id==='steel2')&&ents.length){ents.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);if(om[0]?.opening!=null&&om[0].opening!=='')ents[0].opening=om[0].opening}
+    state.data[w.id][id]=[...old.filter(e=>e.src!=='mbx'),...ents]});
+  w.splitVer=SPLIT_VER;ids.forEach(id=>persist(id));persist();toast('Registers re-generated from the MB with practical day-to-day variation.',4000)}catch(e){console.warn('autoRefill',e)}}
 function openMbFill(r){let D;const plan=planMB(r.blocks);const on=Object.fromEntries(REGS.map(g=>[g.id,!!MBGEN[g.id]&&regOn(g.id)]));const F=freqOf(W());
   const rowsH=()=>plan.map(p=>`<tr><td><input type="checkbox" data-u="${p.i}" ${p.use?'checked':''} ${p.kind==='other'&&!isTile(p)?'disabled':''} aria-label="Use"></td><td>${esc(p.itemNo)}</td><td class="d">${fdate(p.date)||'<span class="chip bad">no date</span>'}${r.blocks[p.i].inherited?'<div class="note">previous date</div>':''}</td>
     <td>${esc(p.name)}<div class="note">${esc((p.desc||'').slice(0,80))}</div>${p.kind==='steel'?`<div class="note">${p.dia?Object.entries(p.dia).map(([d,v])=>`${d}ø ${fmt(v,0)} kg`).join(' · '):'<span class="chip bad">dia-wise weight not found</span>'}</div>`:''}</td>
@@ -1493,7 +1501,7 @@ function openMbFill(r){let D;const plan=planMB(r.blocks);const on=Object.fromEnt
     <div class="fld"><label for="mbxOpenS">Steel opening balance (MT), if known</label><input id="mbxOpenS" inputmode="decimal" placeholder="optional"></div>
     <div class="fld wide note"><div>Registers unticked here are also hidden from this work's menu (restore them from "☰ Registers"). Entries previously filled from the MB are replaced; manually entered entries are kept.</div></div>`,
    ()=>{const sel=REGS.filter(g=>on[g.id]&&MBGEN[g.id]);if(!sel.length)return toast('Select at least one register.');const w=W();const x=mbCtx(plan,F,r);const msg=[];let tot=0;
-     w.regsOff=REGS.filter(g=>MBGEN[g.id]?!on[g.id]:!regOn(g.id,w)).map(g=>g.id);w.freq={...F};w.dayAvg??={};D.querySelectorAll('[data-avg]').forEach(c=>{const v=num(c.value);if(v>0)w.dayAvg[c.dataset.avg]=v});{const vv=num(D.querySelector('#mbxVar')?.value);if(vv!=null&&vv>=0)w.dayVar=Math.min(60,vv)}persist();
+     w.regsOff=REGS.filter(g=>MBGEN[g.id]?!on[g.id]:!regOn(g.id,w)).map(g=>g.id);w.freq={...F};w.splitVer=SPLIT_VER;w.dayAvg??={};D.querySelectorAll('[data-avg]').forEach(c=>{const v=num(c.value);if(v>0)w.dayAvg[c.dataset.avg]=v});{const vv=num(D.querySelector('#mbxVar')?.value);if(vv!=null&&vv>=0)w.dayVar=Math.min(60,vv)}persist();
      sel.forEach(g=>{const ents=MBGEN[g.id](x);const key=g.sortKey||'date';
        if(ents.length&&g.id==='cement4'){ents.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);const op=num(gv('mbxOpen'));if(op!=null)ents[0].opening=String(op)}
        if(ents.length&&g.id==='steel2'){ents.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);const op=num(gv('mbxOpenS'));if(op!=null)ents[0].opening=String(op)}
