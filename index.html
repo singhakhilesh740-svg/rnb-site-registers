@@ -2339,6 +2339,8 @@ const SCHEMA={
  mix:'{"mixes":[{"grade":"M25 / M20 / M15 ...","cement":0,"flyash":0,"sand":0,"a20":0,"a10":0,"water":0,"admixture":0,"wc":0,"labRef":"lab report no. / date"}]}',
  boq:'{"items":[{"no":"item number as printed","qty":0,"unit":"Cum/Sq.m./Kg./Rmt/Nos","rate":0,"desc":"full item description"}]}',
  estimate:'{"items":[{"no":"item number as printed","sor":"SOR item code if any","qty":0,"unit":"","rate":0,"amount":0,"desc":"full item description"}]}',
+ cementbill:'{"invoices":[{"date":"invoice / delivery date YYYY-MM-DD","billNo":"invoice or bill number","challanNo":"delivery challan no.","supplier":"dealer / supplier name","manufacturer":"cement brand / company","type":"OPC / PPC / PSC","grade":"33 / 43 / 53","bags":0,"mt":0,"weekNo":"week / month of manufacture","lotNo":"batch / lot no.","vehicleNo":""}]}',
+ steelbill:'{"invoices":[{"date":"invoice / delivery date YYYY-MM-DD","billNo":"","challanNo":"","supplier":"","manufacturer":"brand / mill","grade":"Fe 500D etc.","heatNo":"heat / cast numbers","vehicleNo":"","dia":{"8":0,"10":0,"12":0,"16":0,"20":0,"25":0,"32":0},"totalMT":0}]}',
  other:'{"summary":"one or two sentences describing the document"}'};
 const DETECT_PROMPT=`First identify what this document is. Choose exactly one type:
 - "ts": Technical Sanction (TS) letter
@@ -2346,12 +2348,14 @@ const DETECT_PROMPT=`First identify what this document is. Choose exactly one ty
 - "wo": work order letter
 - "boq": BOQ / Schedule-B (list of tender items with quantity and rate)
 - "estimate": estimate (abstract of cost)
+- "cementbill": cement purchase invoice / tax invoice / delivery challan (bags or MT of cement supplied)
+- "steelbill": reinforcement steel (TMT) purchase invoice / delivery challan (weights in MT, dia-wise)
 - "mix": concrete mix design report (quantities per cum for each grade; use final / field-corrected SSD values if given; sand = fine aggregate, a20 = 20 mm coarse aggregate, a10 = 10 mm)
 - "other": anything else
 Then extract its data. Reply with ONLY this JSON: {"type":"<type>","data":<object>}
 The "data" object must follow the schema for that type:
-${Object.entries({ts:1,tender:1,wo:1,mix:1,boq:1,estimate:1,other:1}).map(([k])=>`${k}: ${'${SCHEMA.'+k+'}'}`).join('\n')}
-For boq and estimate list every item without skipping; keep item numbers exactly as printed.`;
+${Object.entries({ts:1,tender:1,wo:1,mix:1,boq:1,estimate:1,cementbill:1,steelbill:1,other:1}).map(([k])=>`${k}: ${'${SCHEMA.'+k+'}'}`).join('\n')}
+For boq and estimate list every item without skipping; keep item numbers exactly as printed. For cementbill / steelbill give one entry per invoice or challan; quantities in MT (metric tonnes) for steel, dia in mm as the key; if steel weight is given in kg convert to MT; for cement give bags (1 bag = 50 kg) and MT.`;
 const detectPrompt=()=>DETECT_PROMPT.replace(/\$\{SCHEMA\.(\w+)\}/g,(_,k)=>SCHEMA[k]);
 const b64=buf=>{let s='';const u=new Uint8Array(buf);for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s)};
 async function fileToBlocks(f){const buf=await f.arrayBuffer();
@@ -2387,9 +2391,36 @@ function applyFields(w,type,d){const c=mbOf(w).cover;const out=[];const set=(o,k
 const mixKey=g=>{const x=String(g).toUpperCase().replace(/\s/g,'');const n=/M-?(\d+)/.exec(x);return n?'M'+(+n[1]>=100?+n[1]/10:+n[1]):String(g)};
 /* snapshot for Undo */
 const SNAP_KEYS=['name','agency','agreementNo','startDate','timeLimit','stipDate','tenderAmt','tenderPct','estAmt','items','estItems','mix'];
-const snapW=w=>JSON.stringify({w:Object.fromEntries(SNAP_KEYS.map(k=>[k,w[k]===undefined?null:w[k]])),cover:mbOf(w).cover});
-function undoSnap(w,s){const o=JSON.parse(s);Object.entries(o.w).forEach(([k,v])=>{if(v===null)delete w[k];else w[k]=v});mbOf(w).cover=o.cover;persist()}
+const SNAP_REGS=['cement4','cement1','steel1','steel2','cementTest'];
+const snapW=w=>JSON.stringify({w:Object.fromEntries(SNAP_KEYS.map(k=>[k,w[k]===undefined?null:w[k]])),cover:mbOf(w).cover,regs:Object.fromEntries(SNAP_REGS.map(id=>[id,rowsOf(id,w)]))});
+function undoSnap(w,s){const o=JSON.parse(s);Object.entries(o.w).forEach(([k,v])=>{if(v===null)delete w[k];else w[k]=v});mbOf(w).cover=o.cover;if(o.regs){state.data[w.id]??={};Object.entries(o.regs).forEach(([id,rows])=>{state.data[w.id][id]=rows;persist(id)})}persist()}
 /* auto-apply what was detected; returns html summary */
+/* cement / steel supply bills → receipts in the Patraks (duplicates skipped by supplier + bill no. + date) */
+function applySupplyBill(w,type,d){const inv=(d.invoices||[]).filter(x=>x&&(x.date||x.billNo));if(!inv.length)return null;state.data[w.id]??={};
+  const D=id=>state.data[w.id][id]??=[];let c=Date.now();const done=[],skip=[];const key=x=>[x.supplier||x.manufacturer||'',x.billNo||x.challanNo||'',x.date||''].join('|').toUpperCase().replace(/\s+/g,'');
+  const dd=x=>/^\d{4}-\d{2}-\d{2}$/.test(x.date||'')?x.date:'';
+  inv.forEach(x=>{const k=key(x);const ref=`${x.supplier||x.manufacturer||'Supplier'} – Bill ${x.billNo||x.challanNo||'–'}${dd(x)?' dt '+fdate(dd(x)):''}`;
+    if(type==='cementbill'){if(D('cement4').some(r=>r.billKey===k)){skip.push(ref);return}
+      const bags=Math.round(num(x.bags)??((num(x.mt)||0)*20));if(!bags){skip.push(ref+' (no quantity)');return}
+      const br=[x.manufacturer,x.type,x.grade].filter(Boolean).join(' ');const wk=[x.weekNo&&('week '+x.weekNo),x.lotNo&&('lot '+x.lotNo)].filter(Boolean).join(', ');
+      D('cement4').push({id:uid(),_c:c++,date:dd(x),receipt:String(bags),itemNo:'',item:'',workQty:'',used:'',remarks:`Receipt: ${ref}${br?' · '+br:''}${wk?' · '+wk:''}${x.vehicleNo?' · Veh. '+x.vehicleNo:''}`,src:'bill',billKey:k});
+      D('cement1').push({id:uid(),_c:c++,rcvDate:dd(x),billDate:dd(x),qty:String(bags),supplier:`${x.manufacturer||''} – ${x.supplier||''} Bill ${x.billNo||x.challanNo||''}${dd(x)?' / '+fdate(dd(x)):''}`.replace(/^ – /,''),remarks:wk,src:'bill',billKey:k});
+      const ty=/ppc/i.test(x.type||'')?'PPC':/psc|slag/i.test(x.type||'')?'PSC':/opc|ordinary/i.test(x.type||'')?'OPC':'';const gr=(/(33|43|53)/.exec(String(x.grade||''))||[])[1]||'';
+      D('cementTest').push({id:uid(),_c:c++,type:ty,grade:gr,mfr:x.manufacturer||'',lot:[x.lotNo,x.weekNo].filter(Boolean).join(' / '),qty:`${bags} bags (${fmt(bags/20,2)} MT) – ${ref}`,result:'',remarks:'Test before use (1 per 50 MT / lot)',src:'bill',billKey:k});
+      done.push(`${fdate(dd(x))||'–'}: <b>${bags} bags</b> – ${esc(ref)}${br?' · '+esc(br):''}`)}
+    else{if(D('steel2').some(r=>r.billKey===k)){skip.push(ref);return}
+      const dia={};Object.entries(x.dia||{}).forEach(([dk,v])=>{const dn=+String(dk).replace(/\D/g,'');const q=num(v);if(dn&&q)dia[dn]=(dia[dn]||0)+q});
+      let tot=Object.values(dia).reduce((a,v)=>a+v,0)||num(x.totalMT)||0;if(tot>200&&!Object.keys(dia).length)tot=tot/1000;if(!tot){skip.push(ref+' (no quantity)');return}
+      const diaTxt=Object.entries(dia).map(([dn,v])=>`${dn}ø ${fmt(v,3)}`).join(', ');
+      D('steel2').push({id:uid(),_c:c++,date:dd(x),receipt:String(+tot.toFixed(3)),item:`Receipt: ${ref}${x.grade?' · '+x.grade:''}`,remarks:[diaTxt,x.heatNo&&('Heat '+x.heatNo),x.vehicleNo&&('Veh. '+x.vehicleNo)].filter(Boolean).join(' · '),src:'bill',billKey:k});
+      /* dia-wise into Steel Patrak-1 as its own receipt block (kept when registers are re-generated from the MB) */
+      const blk={id:uid(),_c:c++,date:dd(x),ra:'Receipt',supplier:'',remarks:[x.grade,x.heatNo&&('Heat '+x.heatNo)].filter(Boolean).join(' · '),src:'bill',billKey:k};D('steel1').push(blk);
+      Object.entries(dia).forEach(([dn,v])=>{if(DIAS.includes(+dn))blk['r'+dn]=String(+((+blk['r'+dn]||0)+v).toFixed(3))});
+      blk.supplier=[blk.supplier,`${x.supplier||x.manufacturer||''} Bill ${x.billNo||x.challanNo||''}${dd(x)?' dt '+fdate(dd(x)):''}`].filter(Boolean).join('; ');
+      done.push(`${fdate(dd(x))||'–'}: <b>${fmt(tot,3)} MT</b> – ${esc(ref)}${diaTxt?' ('+esc(diaTxt)+')':''}`)}});
+  ['cement4','cement1','cementTest','steel1','steel2'].forEach(id=>persist(id));persist();
+  const where=type==='cementbill'?'Cement Patrak-4 (new receipt), Cement Patrak-1 and the Cement Testing Register':'Steel Patrak-2 (receipt) and Steel Patrak-1 (dia-wise receipt)';
+  return `${done.length?`Saved to <b>${where}</b>:<ul style="margin:4px 0 0 18px">${done.map(t=>`<li>${t}</li>`).join('')}</ul>`:''}${skip.length?`<div class="note">Already entered / skipped: ${skip.map(esc).join('; ')}</div>`:''}`||null}
 function autoApply(w,type,d){
   if(type==='mix'){const mx=(d.mixes||[]).filter(x=>x&&x.grade);w.mix??={};delete w.splitVer;
     mx.forEach(x=>{const k=mixKey(x.grade);w.mix[k]={cement:num(x.cement),flyash:num(x.flyash),sand:num(x.sand),a20:num(x.a20),a10:num(x.a10),water:num(x.water),admixture:num(x.admixture),wc:num(x.wc),ref:x.labRef||'',src:'upload'};Object.keys(w.mix[k]).forEach(z=>w.mix[k][z]==null&&delete w.mix[k][z])});
@@ -2398,6 +2429,7 @@ function autoApply(w,type,d){
     items.forEach(x=>{const o={id:uid(),no:String(x.no).trim(),qty:num(x.qty),unit:x.unit||'',rate:num(x.rate),desc:x.desc};const k=w.items.findIndex(y=>String(y.no)===o.no);if(k>=0){o.id=w.items[k].id;w.items[k]=o}else w.items.push(o)});
     w.items.sort((a,b)=>(parseFloat(a.no)||0)-(parseFloat(b.no)||0));
     return items.length?`<b>${items.length} items</b> saved to <b>Work → Tender Items</b>:${itemsTable(items)}`:null}
+  if(type==='cementbill'||type==='steelbill')return applySupplyBill(w,type,d);
   if(type==='estimate'){const items=(d.items||[]).filter(x=>x&&x.desc);w.estItems=items;return items.length?`<b>${items.length} estimate items</b> saved:${itemsTable(items)}`:null}
   if(['ts','tender','wo'].includes(type)){const ch=applyFields(w,type,d);ch.forEach(x=>x.o[x.k]=x.v);
     return ch.length?`Saved to <b>Work details</b>:<table class="kv">${ch.map(x=>`<tr><td>${esc(x.label)}</td><td><b>${esc(x.k.match(/date/i)?fdS(x.v):x.v)}</b>${x.old&&x.old!==x.v?`<div class="note">previously: ${esc(x.k.match(/date/i)?fdS(x.old):x.old)}</div>`:''}</td></tr>`).join('')}</table>`:null}
@@ -2408,7 +2440,7 @@ function renderChat(){const w=W();
   const why=!FIREBASE_CONFIG||EMBED?'The assistant is available in the online app after Google sign-in and Worker setup.':!user?'Please sign in first.':!canAI()?'The administrator has not enabled the assistant for your account yet.':!appCfg.workerUrl?'The administrator has not configured the Worker URL yet (Admin → Assistant settings).':'';
   $('#main').innerHTML=`<div class="sheethead"><div><h2>Assistant</h2><div class="sub">${esc(w.name)}</div></div></div>
   ${why?`<div class="banner"><span>${esc(why)} Measurement Book (Excel) uploads still work without it.</span></div>`:''}
-  <div class="chatlog" id="chatlog">${chat.msgs.length?'':`<div class="empty">Upload any document – TS letter, tender approval, work order, BOQ, estimate, mix design report or Measurement Book (Excel). The document type is detected automatically and the details are filled in.<br>You can also ask a question, e.g. "What is the up-to-date MB quantity of item 5?" or "How much cement is in stock?"</div>`}</div>
+  <div class="chatlog" id="chatlog">${chat.msgs.length?'':`<div class="empty">Upload any document – TS letter, tender approval, work order, BOQ, estimate, mix design report, cement / steel supply bill or Measurement Book (Excel). The document type is detected automatically and the details are filled in.<br>You can also ask a question, e.g. "What is the up-to-date MB quantity of item 5?" or "How much cement is in stock?"</div>`}</div>
   <form class="composer" id="chatForm">
    <div class="crow"><label class="btn" for="c_file">Attach files</label><input type="file" id="c_file" accept=".pdf,.png,.jpg,.jpeg,.webp,.xlsx,.txt,.csv" multiple hidden>
     <span class="note">or drag &amp; drop files here, or paste (Ctrl+V) files / screenshots</span></div>
