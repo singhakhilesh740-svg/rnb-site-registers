@@ -502,14 +502,14 @@ const REGS=[
 
 {id:'cube3',grp:'Concrete',short:'Cube Testing Patrak-3',gu:true,
  title:'કોંક્રીટના ક્યુબના ટેસ્ટીંગ પરિણામો દર્શાવતું પત્રક - ૩',
- note:'One line per day of concreting. Entering the quantity gives the number of samples (and cubes) required by IS 456 cl. 15.2.2 – 6 cubes per sample (3 for 7 days, 3 for 28 days); choose 3 in the form if only the 28-day test is done. 7/28-day due dates are shown on the Dashboard. Enter readings in kN (150 mm cube) or N/mm²; the register prints kg/cm² (×10.197). Columns 12/13: 28 days = fck, 7 days = 2/3 fck (indicative only; acceptance under IS 456 is at 28 days). Acceptance per IS 456 Table 11 (as amended): each set ≥ fck−3; mean of 4 non-overlapping sets ≥ fck + 0.825 S (rounded to 0.5) or fck+3, whichever is greater (assumed S: 3.5 up to M15, 4.0 for M20–M25, 5.0 above). A sample is invalid if any cube differs from the set average by more than ±15% (cl. 15.4).',
+ note:'One line per cube SAMPLE. A day with more concrete than 15 cum needs more than one sample (IS 456 cl. 15.2.2: 1–5 cum → 1 sample, 6–15 → 2, 16–30 → 3, 31–50 → 4, then +1 per 50 cum), so such a day is split into several lines (Set 1/N, 2/N …) and each set\'s 7 / 28-day results are filled on its own line. 6 cubes per sample (3 for 7 days, 3 for 28 days); choose 3 in the form if only the 28-day test is done. 7/28-day due dates are shown on the Dashboard. Enter readings in kN (150 mm cube) or N/mm²; the register prints kg/cm² (×10.197). Columns 12/13: 28 days = fck, 7 days = 2/3 fck (indicative only; acceptance under IS 456 is at 28 days). Acceptance per IS 456 Table 11 (as amended): each set ≥ fck−3; mean of 4 non-overlapping sets ≥ fck + 0.825 S (rounded to 0.5) or fck+3, whichever is greater (assumed S: 3.5 up to M15, 4.0 for M20–M25, 5.0 above). A sample is invalid if any cube differs from the set average by more than ±15% (cl. 15.4).',
  sortKey:'date',
  cols:[C('_sr','અનુક્રમ નંબર','sr'),C('date','ક્યુબ લીધાની તારીખ','date'),
   C('grade','Grade (M20/M25...)','sel',{options:['',...GRADES],formOnly:true}),
   C('mark','ક્યુબ ઉપરનું નિશાન તથા કોન્ક્રીટના વપરાશનું સ્થળ'),
   C('qty','ટેન્ડર મુજબ થયેલ કામનો રોજિંદો જથ્થો (ઘ.મી.)','num',{dp:2}),
   C('cps','Cubes per sample','sel',{options:['6 (3 – 7 days + 3 – 28 days)','3 (28 days only)'],formOnly:true}),
-  C('reqNos','કામની નિર્દિષ્ઠ વિગતો પ્રમાણે ક્યુબ લેવાની સંખ્યા','calc',{dp:0,fn:r=>reqSamples(r.qty)*cpsOf(r)||null,xf:x=>{const q=x.R('qty');return `IF(${q}="","",${cpsOf(x.c)}*IF(${q}<=5,1,IF(${q}<=15,2,IF(${q}<=30,3,IF(${q}<=50,4,4+ROUNDUP((${q}-50)/50,0))))))`}}),
+  C('reqNos','કામની નિર્દિષ્ઠ વિગતો પ્રમાણે ક્યુબ લેવાની સંખ્યા','calc',{dp:0,fn:r=>r.setN?cpsOf(r):(reqSamples(r.qty)*cpsOf(r)||null),xf:x=>{if(x.c&&x.c.setN)return String(cpsOf(x.c));const q=x.R('qty');return `IF(${q}="","",${cpsOf(x.c)}*IF(${q}<=5,1,IF(${q}<=15,2,IF(${q}<=30,3,IF(${q}<=50,4,4+ROUNDUP((${q}-50)/50,0))))))`}}),
   C('cubesN','લીધેલ ક્યુબની સંખ્યા','num',{dp:0,formOnly:true}),C('cubeSize','ક્યુબનું માપ','text',{formOnly:true,def:'15 સે.મી.'}),
   C('cubes','લેવામાં આવેલ ક્યુબના સંખ્યા તથા માપ','calc',{fn:r=>r.cubesN!=null?`${r.cubesN} નંગ, ${r.cubeSize||''}`:''}),
   C('curing','ક્યોરીંગનો સમય ગાળો'),
@@ -1412,7 +1412,9 @@ function slumpEntries(plan){const out=[];let c=Date.now();
   plan.filter(p=>p.use&&p.kind==='conc').forEach(p=>splitDays(p).forEach(x=>out.push({id:uid(),_c:c++,date:x.d,grade:GRADES.includes(p.grade)?p.grade:'',structure:`${p.name.split(' – ')[0]} (Item ${p.itemNo}) – ${fmt(x.q,2)} ${p.unit}`,req:slumpReq(p.desc),remarks:`From ${mbRef(p)} – enter slump measured at site`,src:'mbx'})));
   return out}
 function cubeEntries(plan){const out=[];let c=Date.now();
-  plan.filter(p=>p.use&&p.kind==='conc'&&fck(p.grade)).forEach(p=>splitDays(p).forEach(x=>out.push({id:uid(),_c:c++,date:x.d,grade:p.grade,mark:`${p.name.split(' – ')[0]} (Item ${p.itemNo})`,qty:String(x.q),cubeSize:'15 સે.મી.',remarks:`From ${mbRef(p)} – enter readings from lab report`,src:'mbx'})));
+  plan.filter(p=>p.use&&p.kind==='conc'&&fck(p.grade)).forEach(p=>splitDays(p).forEach(x=>{const n=Math.max(1,reqSamples(x.q));
+    for(let k=1;k<=n;k++)out.push({id:uid(),_c:c++,date:x.d,grade:p.grade,mark:`${p.name.split(' – ')[0]} (Item ${p.itemNo})${n>1?` – Set ${k}/${n}`:''}`,
+      qty:k===1?String(x.q):'',setN:k,setTot:n,cubesN:'6',cubeSize:'15 સે.મી.',remarks:`From ${mbRef(p)} – Set ${k} of ${n}; enter readings from lab report`,src:'mbx'})}));
   return out}
 /* ---------- MB se baaki registers (sirf MB ke data se: tarikh, item, jaththo; test results kabhi nahi) ---------- */
 /* testing frequency – defaults as per CPWD Specifications 2019 (Vol. 1) / IS 456; editable in Settings */
