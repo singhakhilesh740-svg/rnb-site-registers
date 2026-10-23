@@ -2205,7 +2205,7 @@ const WK_DEF=[['Steel|kg','Steel (TMT)','steel tmt','kg'],['PCC / foundation|cum
  ['Lintel|cum','Lintel','lintel','cum'],['Brick work (foundation)|cum','Brick work (foundation)','brick','cum'],['Brick work|cum','Brick work','brick','cum'],['Half brick masonry|sqm','Half brick masonry','half brick','sqm'],
  ['Plaster|sqm','Plaster','plaster','sqm'],['Flooring / tiles|sqm','Flooring / tiles','flooring','sqm'],['Other work|cum','Other cement work','x','cum']];
 const MIX_GR=['M10','M15','M20','M25','M30','M35','M40'];
-const MIX_F=[['cement','Cement','kg'],['flyash','Fly ash','kg'],['sand','Sand','kg'],['a20','Aggregate 20 mm','kg'],['a10','Aggregate 10 mm','kg'],['water','Water','L'],['admixture','Admixture','kg'],['wc','w/c',''],['ref','Lab report / date','']];
+const MIX_F=[['cement','Cement','kg'],['flyash','Fly ash','kg'],['sand','Sand','kg'],['a20','Aggregate 20 mm','kg'],['a10','Aggregate 10 mm','kg'],['a40','Aggregate 40 mm','kg'],['water','Water','L'],['admixture','Admixture','kg'],['wc','w/c',''],['ref','Lab report / date','']];
 function renderSettings(){const w=W();w.mix??={};w.dayAvg??={};
   const gr=[...new Set([...MIX_GR,...Object.keys(w.mix).filter(k=>/^M\d+$/.test(k))])].sort((a,b)=>+a.slice(1)-+b.slice(1));
   const wks=[...WK_DEF];Object.keys(w.dayAvg).forEach(k=>{if(!wks.some(x=>x[0]===k)){const[n,u]=k.split('|');wks.push([k,n,n.toLowerCase(),u])}});
@@ -2336,7 +2336,7 @@ const SCHEMA={
  ts:'{"nameOfWork":"","tsLetterNo":"letter number","tsDate":"YYYY-MM-DD","tsAmount":"","estimateCost":""}',
  tender:'{"nameOfWork":"","tenderAmount":"","tenderPercent":"e.g. 5.43% Above / 2.10% Below","approvalLetterNo":"","approvalDate":"YYYY-MM-DD","agency":""}',
  wo:'{"nameOfWork":"","agency":"","agreementNo":"","workOrderNo":"","workOrderDate":"YYYY-MM-DD","startDate":"YYYY-MM-DD","timeLimit":"e.g. 08 (Eight) Months","stipulatedDate":"YYYY-MM-DD","tenderAmount":"","tenderPercent":""}',
- mix:'{"mixes":[{"grade":"M25 / M20 / M15 ...","cement":0,"flyash":0,"sand":0,"a20":0,"a10":0,"water":0,"admixture":0,"wc":0,"labRef":"lab report no. / date"}]}',
+ mix:'{"lab":"laboratory name","reportDate":"YYYY-MM-DD","mixes":[{"grade":"M25 / M20 / M15 ...","cement":0,"cementType":"OPC 53 / PPC ...","flyash":0,"ggbs":0,"sand":0,"a20":0,"a10":0,"a40":0,"water":0,"admixture":0,"wc":0,"slump":"design slump mm","target":"target mean strength N/mm2","str7":"7-day trial strength","str28":"28-day trial strength","approved":"yes / no / not stated","labRef":"lab report no. / date"}]}',
  boq:'{"items":[{"no":"item number as printed","qty":0,"unit":"Cum/Sq.m./Kg./Rmt/Nos","rate":0,"desc":"full item description"}]}',
  estimate:'{"items":[{"no":"item number as printed","sor":"SOR item code if any","qty":0,"unit":"","rate":0,"amount":0,"desc":"full item description"}]}',
  cementbill:'{"invoices":[{"date":"invoice / delivery date YYYY-MM-DD","billNo":"invoice or bill number","challanNo":"delivery challan no.","supplier":"dealer / supplier name","manufacturer":"cement brand / company","type":"OPC / PPC / PSC","grade":"33 / 43 / 53","bags":0,"mt":0,"weekNo":"week / month of manufacture","lotNo":"batch / lot no.","vehicleNo":""}]}',
@@ -2350,7 +2350,7 @@ const DETECT_PROMPT=`First identify what this document is. Choose exactly one ty
 - "estimate": estimate (abstract of cost)
 - "cementbill": cement purchase invoice / tax invoice / delivery challan (bags or MT of cement supplied)
 - "steelbill": reinforcement steel (TMT) purchase invoice / delivery challan (weights in MT, dia-wise)
-- "mix": concrete mix design report (quantities per cum for each grade; use final / field-corrected SSD values if given; sand = fine aggregate, a20 = 20 mm coarse aggregate, a10 = 10 mm)
+- "mix": concrete mix design report (quantities in kg per 1 cum for each grade; use the final / adopted (field-corrected SSD) values if given; sand = fine aggregate (crushed or natural), a20 = 20 mm, a10 = 10 mm, a40 = 40 mm coarse aggregate; if only a ratio by weight per bag is given, convert to kg per cum using the cement content; one entry per grade)
 - "other": anything else
 Then extract its data. Reply with ONLY this JSON: {"type":"<type>","data":<object>}
 The "data" object must follow the schema for that type:
@@ -2391,7 +2391,7 @@ function applyFields(w,type,d){const c=mbOf(w).cover;const out=[];const set=(o,k
 const mixKey=g=>{const x=String(g).toUpperCase().replace(/\s/g,'');const n=/M-?(\d+)/.exec(x);return n?'M'+(+n[1]>=100?+n[1]/10:+n[1]):String(g)};
 /* snapshot for Undo */
 const SNAP_KEYS=['name','agency','agreementNo','startDate','timeLimit','stipDate','tenderAmt','tenderPct','estAmt','items','estItems','mix'];
-const SNAP_REGS=['cement4','cement1','steel1','steel2','cementTest'];
+const SNAP_REGS=['cement4','cement1','steel1','steel2','cementTest','mixDesign'];
 const snapW=w=>JSON.stringify({w:Object.fromEntries(SNAP_KEYS.map(k=>[k,w[k]===undefined?null:w[k]])),cover:mbOf(w).cover,regs:Object.fromEntries(SNAP_REGS.map(id=>[id,rowsOf(id,w)]))});
 function undoSnap(w,s){const o=JSON.parse(s);Object.entries(o.w).forEach(([k,v])=>{if(v===null)delete w[k];else w[k]=v});mbOf(w).cover=o.cover;if(o.regs){state.data[w.id]??={};Object.entries(o.regs).forEach(([id,rows])=>{state.data[w.id][id]=rows;persist(id)})}persist()}
 /* auto-apply what was detected; returns html summary */
@@ -2423,8 +2423,20 @@ function applySupplyBill(w,type,d){const inv=(d.invoices||[]).filter(x=>x&&(x.da
   return `${done.length?`Saved to <b>${where}</b>:<ul style="margin:4px 0 0 18px">${done.map(t=>`<li>${t}</li>`).join('')}</ul>`:''}${skip.length?`<div class="note">Already entered / skipped: ${skip.map(esc).join('; ')}</div>`:''}`||null}
 function autoApply(w,type,d){
   if(type==='mix'){const mx=(d.mixes||[]).filter(x=>x&&x.grade);w.mix??={};delete w.splitVer;
-    mx.forEach(x=>{const k=mixKey(x.grade);w.mix[k]={cement:num(x.cement),flyash:num(x.flyash),sand:num(x.sand),a20:num(x.a20),a10:num(x.a10),water:num(x.water),admixture:num(x.admixture),wc:num(x.wc),ref:x.labRef||'',src:'upload'};Object.keys(w.mix[k]).forEach(z=>w.mix[k][z]==null&&delete w.mix[k][z])});
-    return mx.length?`Saved to <b>Settings → Mix design</b> (per cum, kg):<div class="tablewrap" style="margin:6px 0"><table class="reg"><thead><tr><th>Grade</th><th>Cement</th><th>Fly ash</th><th>Sand</th><th>20 mm</th><th>10 mm</th><th>Water</th><th>Admixture</th><th>w/c</th></tr></thead><tbody>${mx.map(x=>`<tr><td>${esc(mixKey(x.grade))}</td>${['cement','flyash','sand','a20','a10','water','admixture','wc'].map(k=>`<td class="n">${x[k]??''}</td>`).join('')}</tr>`).join('')}</tbody></table></div><span class="note">Re-generate the registers (MB → Uploaded MB → Fill registers from all MBs) to apply the new cement, sand and aggregate contents. Sand / 10 mm / 20 mm quantities and the number of tests then appear in Summary → Test Schedule.</span>`:null}
+    /* cement per cum of every MB item before the change, to show the effect */
+    const perOf=()=>{const o={};try{planMB(blocksFromEntries(w),w).filter(p=>p.kind==='conc'||p.kind==='cem').forEach(p=>{const g=p.grade||'';(o[p.itemNo]??={item:p.itemNo,grade:g,key:p.lab,per:p.per,qty:0,unit:p.unit}).qty+=p.qty;o[p.itemNo].per=p.per})}catch(e){}return o};
+    const before=perOf();
+    mx.forEach(x=>{const k=mixKey(x.grade);const old=w.mix[k]||{};w.mix[k]={cement:num(x.cement),flyash:num(x.flyash)??num(x.ggbs),sand:num(x.sand),a20:num(x.a20),a10:num(x.a10),a40:num(x.a40),water:num(x.water),admixture:num(x.admixture),wc:num(x.wc),
+      ref:[x.labRef,d.lab,d.reportDate&&fdate(d.reportDate)].filter(Boolean).join(' · ')||old.ref||'',src:'upload'};Object.keys(w.mix[k]).forEach(z=>w.mix[k][z]==null&&delete w.mix[k][z]);
+      /* Mix Design Register – one line per grade per report */
+      state.data[w.id]??={};const reg=state.data[w.id].mixDesign??=[];const rk=(k+'|'+(x.labRef||d.reportDate||'')).toUpperCase();
+      if(!reg.some(r=>r.mixKey===rk)){reg.push({id:uid(),_c:Date.now()+reg.length,date:/^\d{4}-\d{2}-\d{2}$/.test(d.reportDate||'')?d.reportDate:'',type:GRADES.includes(k)?k:'',nos:'',sampleReq:'1 per grade (before first pour)',submission:x.labRef||'',lab:d.lab||'',
+        result:[x.cement&&`Cement ${x.cement} kg${x.cementType?' ('+x.cementType+')':''}`,x.flyash&&`fly ash ${x.flyash} kg`,x.wc&&`w/c ${x.wc}`,x.slump&&`slump ${x.slump}`,x.target&&`target ${x.target} N/mm²`,x.str7&&`7d ${x.str7}`,x.str28&&`28d ${x.str28}`].filter(Boolean).join(', '),
+        nature:/^y/i.test(String(x.approved||''))?'Approved':/^n/i.test(String(x.approved||''))&&!/not stated/i.test(String(x.approved))?'Not approved':'Awaited',remarks:'From uploaded mix design report',src:'mixdoc',mixKey:rk})}});
+    persist('mixDesign');const after=perOf();
+    const eff=Object.values(after).filter(a=>mx.some(x=>mixKey(x.grade)===a.key)).sort((a,b)=>(parseFloat(a.item)||0)-(parseFloat(b.item)||0));
+    const effH=eff.length?`<div style="margin-top:8px"><b>Applied to MB items</b> (bags per unit; registers, Material Planning, Test Schedule and the Cement Consumption Statement are re-calculated automatically):<div class="tablewrap" style="margin:6px 0"><table class="reg"><thead><tr><th>Item</th><th>Grade</th><th>MB quantity</th><th>Before</th><th>Now</th><th>Cement (bags)</th></tr></thead><tbody>${eff.map(a=>{const b=before[a.item];return `<tr><td>${esc(a.item)}</td><td>${esc(a.key)}</td><td class="n">${fmt(a.qty,2)} ${esc(a.unit)}</td><td class="n">${b?fmt(b.per,2):'–'}</td><td class="n"><b>${fmt(a.per,2)}</b></td><td class="n">${fmt(a.qty*a.per,2)}</td></tr>`}).join('')}</tbody></table></div></div>`:'<div class="note" style="margin-top:6px">No MB item uses these grades yet – the values will be used as soon as the MB is uploaded.</div>';
+    return mx.length?`Saved to <b>Settings → Mix design</b> and the <b>Mix Design Register</b> (per cum, kg):<div class="tablewrap" style="margin:6px 0"><table class="reg"><thead><tr><th>Grade</th><th>Cement</th><th>Fly ash</th><th>Sand</th><th>20 mm</th><th>10 mm</th><th>40 mm</th><th>Water</th><th>Admixture</th><th>w/c</th></tr></thead><tbody>${mx.map(x=>`<tr><td>${esc(mixKey(x.grade))}</td>${['cement','flyash','sand','a20','a10','a40','water','admixture','wc'].map(k=>`<td class="n">${x[k]??''}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${effH}`:null}
   if(type==='boq'){const items=(d.items||[]).filter(x=>x&&x.desc);
     items.forEach(x=>{const o={id:uid(),no:String(x.no).trim(),qty:num(x.qty),unit:x.unit||'',rate:num(x.rate),desc:x.desc};const k=w.items.findIndex(y=>String(y.no)===o.no);if(k>=0){o.id=w.items[k].id;w.items[k]=o}else w.items.push(o)});
     w.items.sort((a,b)=>(parseFloat(a.no)||0)-(parseFloat(b.no)||0));
