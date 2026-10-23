@@ -654,10 +654,10 @@ function renderShelf(){
     ${dd('Work',['works','items'],btn('works','My works',state.works.length)+btn('items','Tender Items',w0.items.length))}
     ${dd('MB',['mbCover','mbRecord','mbAbstract','mbup'],btn('mbup','Uploaded MB (Excel)',(w0.mbFiles||[]).length)+'<h4>Measurement Book</h4>'+btn('mbCover','CMB Page 1–5')+btn('mbRecord','For Record',w0.mb.entries.length)+btn('mbAbstract','Abstract'))}`;
   for(const g in groups){const rs=groups[g].map(r=>{const rows=compute(r);return {r,n:rows.length,bad:rows.some(x=>x._flag?.[0]==='bad')}});
-    h+=dd(g,groups[g].map(r=>r.id).concat(g==='Summary'?['tests','tforms']:[]),`<h4>${esc(g)}</h4>`+(g==='Summary'?btn('tests','Test Schedule (IS / CPWD)')+btn('tforms','Test Formats & Calculations'):'')+rs.map(o=>btn(o.r.id,o.r.short,o.n,o.bad)).join(''),rs.some(o=>o.bad))}
+    h+=dd(g,groups[g].map(r=>r.id).concat(g==='Summary'?['tests','tforms','ccs']:[]),`<h4>${esc(g)}</h4>`+(g==='Summary'?btn('tests','Test Schedule (IS / CPWD)')+btn('tforms','Test Formats & Calculations')+btn('ccs','Cement Consumption Statement'):'')+rs.map(o=>btn(o.r.id,o.r.short,o.n,o.bad)).join(''),rs.some(o=>o.bad))}
   h+=` <span class="spacer"></span>${tab('settings','⚙ Settings')}<button class="tab" data-act="pickRegs" title="Choose the registers for this work">☰ Registers <span class="cnt">${myRegs().length}/${REGS.length}</span></button>${isAdmin()?tab('admin','Admin'):''}</div>`;
   const opt=(id,l)=>`<option value="${id}" ${view.reg===id?'selected':''}>${esc(l)}</option>`;
-  h=`<select class="mobsel" id="mobSel" aria-label="Select page">${opt('dash','Dashboard')}${opt('chat','Assistant')}${opt('aavak','Material Planning')}${opt('settings','⚙ Settings')}${opt('tests','Test Schedule')}${opt('tforms','Test Formats')}${isAdmin()?opt('admin','Admin'):''}<optgroup label="Work / MB">${opt('works','My works')}${opt('mbup','Uploaded MB')}${Object.entries(MBV).map(([k,v])=>opt(k,v)).join('')}</optgroup>${Object.keys(groups).map(g=>`<optgroup label="${g}">${groups[g].map(r=>opt(r.id,r.short)).join('')}</optgroup>`).join('')}<option value="__pick">☰ Choose registers…</option></select>`+h;
+  h=`<select class="mobsel" id="mobSel" aria-label="Select page">${opt('dash','Dashboard')}${opt('chat','Assistant')}${opt('aavak','Material Planning')}${opt('settings','⚙ Settings')}${opt('tests','Test Schedule')}${opt('tforms','Test Formats')}${opt('ccs','Cement Consumption Statement')}${isAdmin()?opt('admin','Admin'):''}<optgroup label="Work / MB">${opt('works','My works')}${opt('mbup','Uploaded MB')}${Object.entries(MBV).map(([k,v])=>opt(k,v)).join('')}</optgroup>${Object.keys(groups).map(g=>`<optgroup label="${g}">${groups[g].map(r=>opt(r.id,r.short)).join('')}</optgroup>`).join('')}<option value="__pick">☰ Choose registers…</option></select>`+h;
   $('#shelf').innerHTML=h;$('#mobSel').onchange=e=>{if(e.target.value==='__pick'){e.target.value=view.reg;return openRegPicker()}go(e.target.value)};
 }
 document.addEventListener('click',e=>{const t=e.target.closest('.ddbtn');document.querySelectorAll('.dd.open').forEach(d=>{if(!t||d!==t.parentElement)d.classList.remove('open')});if(t)t.parentElement.classList.toggle('open')});
@@ -767,7 +767,7 @@ function renderReg(){
   $('#xls')?.addEventListener('click',()=>exportReg(reg));
   document.querySelectorAll('#main tbody tr[data-id]').forEach(tr=>tr.onclick=()=>openForm(reg,rowsOf(reg.id).find(r=>r.id===tr.dataset.id)));
 }
-function render(){autoRefill(W());renderWorks();renderShelf();view.reg==='dash'?renderDash():view.reg==='chat'?renderChat():view.reg==='works'?renderWorksList():view.reg==='admin'?renderAdmin():view.reg==='mbup'?renderMbUp():view.reg==='aavak'?renderAavak():view.reg==='settings'?renderSettings():view.reg==='tests'?renderTests():view.reg==='tforms'?renderTForms():MBV[view.reg]?renderMB(view.reg):renderReg()}
+function render(){autoRefill(W());renderWorks();renderShelf();view.reg==='dash'?renderDash():view.reg==='chat'?renderChat():view.reg==='works'?renderWorksList():view.reg==='admin'?renderAdmin():view.reg==='mbup'?renderMbUp():view.reg==='aavak'?renderAavak():view.reg==='settings'?renderSettings():view.reg==='tests'?renderTests():view.reg==='tforms'?renderTForms():view.reg==='ccs'?renderCCS():MBV[view.reg]?renderMB(view.reg):renderReg()}
 function go(id){view.reg=id;try{localStorage.setItem(LS_KEY+'_view',id)}catch(e){}render();window.scrollTo(0,0)}
 
 /* ===================== FORM ===================== */
@@ -1369,7 +1369,7 @@ function planMB(blocks,w=W()){return blocks.map((b,i)=>{const steel=/kg/i.test(b
   const kind=steel?'steel':ru?(ru.kind==='conc'?'conc':'cem'):'other';
   const name=steel?'Steel (TMT)':kind==='other'?'No cement content':elemName(b.desc,b.unit);
   const p={i,kind,bill:b.bill||'',use:kind!=='other'&&!!b.date&&(!steel||!!b.dia),itemNo:b.itemNo,date:b.date,desc:b.desc,qty:b.total,unit:b.unit,page:b.page,dia:b.dia,
-    grade:ru?.grade||null,lab:ru?.key||'',rlab:ru?.lab||'',src:ru?.src||'',ctrl:!!ru?.ctrl,agg:ru?.agg||{},name,per:ru?Math.round(ru.kg/50*10000)/10000:0};
+    grade:ru?.grade||null,lab:ru?.key||'',rlab:ru?.lab||'',src:ru?.src||'',ctrl:!!ru?.ctrl,agg:ru?.agg||{},name,per:ru?Math.round(ru.kg/50*100)/100:0};
   p.wk=wkKey(p);p.avg=num(w.dayAvg?.[p.wk])||dayRate(b.desc,b.unit);p.days=Math.max(1,Math.round(b.total/p.avg));return p})}
 const planCement=planMB;
 /* chhota seeded random – har baar wahi nateeja */
@@ -1476,13 +1476,13 @@ const MBGEN={
 const KINDL={steel:'Steel',conc:'Concrete',cem:'Cement work',other:'—'};
 const MBF_NOTE={cement4:'daily consumption',steel2:'daily consumption, dia-wise',slump:'every pour',cube3:'every pour, cubes required',cement1:'one line per bill',steel1:'one block per bill',sampling:'samples required',cementTest:'per lot',cementCons:'per lot',petro:'per source',aggTest:'per lot',sieve:'coarse aggregate + sand',brick:'per lot',tiles:'per lot',mixDesign:'per grade',calib:'monthly',corrBatch:'every pour',batchPlant:'every pour',proforma3:'required vs. MB'};
 /* registers generated from the MB with an older day-splitting method are regenerated once, automatically (same settings) */
-const SPLIT_VER=3;
+const SPLIT_VER=4;
 function autoRefill(w){try{if(!w||w.splitVer===SPLIT_VER||W()!==w)return;const ids=REGS.filter(g=>MBGEN[g.id]&&rowsOf(g.id,w).some(e=>e.src==='mbx')).map(g=>g.id);
   if(!ids.length){w.splitVer=SPLIT_VER;return}const bl=blocksFromEntries(w);if(!bl.length)return;const plan=planMB(bl,w);const bills=[...new Set(bl.map(b=>b.bill))];const x=mbCtx(plan,freqOf(w),{bill:bills[bills.length-1]});
   ids.forEach(id=>{const old=rowsOf(id,w);const om=old.filter(e=>e.src==='mbx').sort((a,b)=>(a.date||'')<(b.date||'')?-1:1);const ents=MBGEN[id](x);
     if((id==='cement4'||id==='steel2')&&ents.length){ents.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);if(om[0]?.opening!=null&&om[0].opening!=='')ents[0].opening=om[0].opening}
     state.data[w.id][id]=[...old.filter(e=>e.src!=='mbx'),...ents]});
-  w.splitVer=SPLIT_VER;ids.forEach(id=>persist(id));persist();toast('Registers re-generated from the MB with practical day-to-day variation.',4000)}catch(e){console.warn('autoRefill',e)}}
+  w.splitVer=SPLIT_VER;ids.forEach(id=>persist(id));persist();toast('Registers re-generated from the MB (current mix design, daily output and variation).',4000)}catch(e){console.warn('autoRefill',e)}}
 function openMbFill(r){let D;const plan=planMB(r.blocks);const on=Object.fromEntries(REGS.map(g=>[g.id,!!MBGEN[g.id]&&regOn(g.id)]));const F=freqOf(W());
   const rowsH=()=>plan.map(p=>`<tr><td><input type="checkbox" data-u="${p.i}" ${p.use?'checked':''} ${p.kind==='other'&&!isTile(p)?'disabled':''} aria-label="Use"></td><td>${esc(p.itemNo)}</td><td class="d">${fdate(p.date)||'<span class="chip bad">no date</span>'}${r.blocks[p.i].inherited?'<div class="note">previous date</div>':''}</td>
     <td>${esc(p.name)}<div class="note">${esc((p.desc||'').slice(0,80))}</div>${p.kind==='steel'?`<div class="note">${p.dia?Object.entries(p.dia).map(([d,v])=>`${d}ø ${fmt(v,0)} kg`).join(' · '):'<span class="chip bad">dia-wise weight not found</span>'}</div>`:''}</td>
@@ -2084,6 +2084,87 @@ function renderTForms(){const w=W();if(!tfSel||!TF.some(t=>t.id===tfSel))tfSel=T
   $('#tfPdf').onclick=()=>printNow(pg(t),`${t.name} - ${w.name}`);
   $('#tfAll').onclick=()=>printNow(TF.map(pg).join(''),`Test formats - ${w.name}`)}
 
+/* ===================== CEMENT CONSUMPTION STATEMENT (bill-wise, up to date) ===================== */
+let ccsBill=null;
+function ccsData(w,billId){const mb=mbOf(w);const bills=mb.bills;const k=Math.max(0,bills.findIndex(b=>b.id===billId));const bi=Object.fromEntries(bills.map((b,i)=>[b.id,i]));
+  const L=mbLayout(w).entries.filter(e=>bi[e.bill]!=null&&bi[e.bill]<=k&&!e._calc.steel);
+  const lastOf=i=>{const d=mbLayout(w).entries.filter(e=>bi[e.bill]===i&&e.date).map(e=>e.date).sort();return d[d.length-1]||null};
+  const cut=lastOf(k),prevCut=k>0?lastOf(k-1):null;
+  const S=(w.ccs??={})[bills[k]?.id]??={};S.rate??={};S.act??={};
+  const items={};L.forEach(e=>{const it=itemOf(w,e);const key=String(e.itemNo);const o=items[key]??={no:key,desc:it.desc||e.desc||'',unit:it.unit||e._calc.unit||e.unit||'',qty:0};o.qty=r2(o.qty+e._calc.qty)});
+  const c4=rowsOf('cement4',w);
+  const rows=Object.values(items).map(o=>{const ru=cemRule(o.desc,o.unit,w);if(!ru||!ru.kg)return null;const rT=Math.round(ru.kg/50*100)/100;
+      const rate=num(S.rate[o.no])??rT;const theo=Math.round(o.qty*rate*100)/100;
+      const used=c4.filter(r=>String(r.itemNo)===o.no&&(!cut||!r.date||r.date<=cut)).reduce((a,r)=>a+(+r.used||0),0);
+      const act=num(S.act[o.no])??(used>0?used:theo);const ar=o.qty?act/o.qty:0;const diff=theo?(act-theo)/theo*100:0;
+      return {...o,rT,rate,theo,used,act,ar,diff}}).filter(Boolean).sort((a,b)=>(parseFloat(a.no)||0)-(parseFloat(b.no)||0)||String(a.no).localeCompare(String(b.no)));
+  const tT=rows.reduce((a,r)=>a+r.theo,0),tA=rows.reduce((a,r)=>a+r.act,0);
+  /* receipts from Patrak-4 (opening balance + new receipts) */
+  const c4s=c4.slice().sort((a,b)=>(a.date||'')<(b.date||'')?-1:1);const open=num(c4s[0]?.opening)||0;
+  const rcvTo=d=>open+c4s.filter(r=>r.date&&(!d||r.date<=d)).reduce((a,r)=>a+(+r.receipt||0),0);
+  const prevR=num(S.prevR)??(prevCut?rcvTo(prevCut):open),allR=rcvTo(cut);const thisR=num(S.thisR)??Math.max(0,allR-(prevCut?rcvTo(prevCut):open));
+  const say=Math.round(tA);
+  return {bills,k,bill:bills[k],cut,rows,tT,tA,say,prevR,thisR,totR:prevR+thisR,S,tol:num(S.tol)??2}}
+function ccsRemark(r,tol){return Math.abs(r.diff)<=tol+1e-9?'Within Permissible Limit':r.diff<0?`Less than theoretical by ${fmt(-r.diff,2)}% – beyond permissible limit`:`Excess consumption ${fmt(r.diff,2)}%`}
+function ccsHTML(w,D,print){const f2=v=>fmt(v,2);const cls=print?'p':'reg';
+  const sign=(w.ccsSign||'Deputy Executive Engineer\nRoad & Building Division\nDahod').split('\n');
+  const head=`<div style="text-align:center;font-weight:700;font-size:${print?16:18}px;text-decoration:underline;margin-bottom:6px">CEMENT CONSUMPTION STATEMENT</div>
+   <div style="font-weight:700;line-height:1.5">Name of Work :- ${esc(w.name||'')}<br>Name of Agency :- ${esc(w.agency||'')}<br>Agreement No:- ${esc(w.agreementNo||'')}</div>
+   <div style="text-align:center;font-weight:700;margin:6px 0">${esc((D.bill?.name||'').toUpperCase())}</div>`;
+  const th=`<thead><tr><th>Tender Item No</th><th>Description of Item</th><th>Quantity</th><th>Unit</th><th>Theoretical rate of consumption in Bags</th><th>Total Theoretical consumption in Bags</th><th>Total Actual consumption in Bags</th><th>Actual rate of consumption in Bags</th><th>Difference in percentage</th><th>Remarks</th></tr>
+   <tr>${[1,2,3,4,5,6,7,8,9,10].map(n=>`<th>${n}</th>`).join('')}</tr></thead>`;
+  const body=D.rows.map(r=>`<tr><td class="n" style="text-align:center">${esc(r.no)}</td><td style="min-width:${print?'auto':'320px'};text-align:justify">${esc(r.desc)}</td><td class="n">${f2(r.qty)}</td><td style="text-align:center">${esc(r.unit)}</td>
+   <td class="n">${print?f2(r.rate):`<input data-cr="${esc(r.no)}" value="${f2(r.rate)}" inputmode="decimal" style="width:70px;text-align:right" title="Theoretical rate (from mix design / PWD table: ${f2(r.rT)})">`}</td><td class="n">${f2(r.theo)}</td>
+   <td class="n">${print?f2(r.act):`<input data-ca="${esc(r.no)}" value="${f2(r.act)}" inputmode="decimal" style="width:90px;text-align:right" title="${r.used>0?`From Cement Patrak-4: ${fmt(r.used,0)} bags`:'No Patrak-4 entries – equal to theoretical'}">`}</td>
+   <td class="n">${f2(r.ar)}</td><td class="n">${f2(r.diff)}</td><td style="text-align:center">${print?esc(ccsRemark(r,D.tol)):(()=>{const t=ccsRemark(r,D.tol);return `<span class="chip ${/Within/.test(t)?'ok':'bad'}">${esc(t)}</span>`})()}</td></tr>`).join('');
+  const tot=`<tr><td></td><td></td><td colspan="3" style="text-align:left"><b>Total</b></td><td class="n"><b>${f2(D.tT)}</b></td><td class="n"><b>${f2(D.tA)}</b></td><td colspan="3"></td></tr>
+   <tr><td></td><td></td><td colspan="3" style="text-align:left"><b>Say</b></td><td class="n"><b>${f2(Math.round(D.tT))}</b></td><td class="n"><b>${f2(D.say)}</b></td><td colspan="3"></td></tr>
+   <tr><td></td><td></td><td colspan="4"></td><td class="n"><b>${f2(D.say*0.05)}</b></td><td style="text-align:left"><b>MT</b></td><td colspan="2"></td></tr>`;
+  const inp=(k,v)=>print?f2(v):`<input data-cf="${k}" value="${f2(v)}" inputmode="decimal" style="width:100px;text-align:right">`;
+  const bal=D.totR-D.say;
+  const foot=`<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:24px;margin-top:18px;flex-wrap:wrap">
+    <div style="font-weight:700;line-height:1.4;min-width:240px;padding-top:40px">${sign.map(esc).join('<br>')}</div>
+    <table class="${cls}" style="width:auto"><tbody>
+     <tr><td>Cement received upto previous RA bill</td><td class="n">${inp('prevR',D.prevR)}</td><td>Bag</td></tr>
+     <tr><td>Cement received in this RA bill</td><td class="n">${inp('thisR',D.thisR)}</td><td>Bag</td></tr>
+     <tr><td>Total cement received</td><td class="n">${f2(D.totR)}</td><td>Bag</td></tr>
+     <tr><td>Used</td><td class="n">${f2(D.say)}</td><td>Bag</td></tr>
+     <tr><td>Balance</td><td class="n" style="${bal<0?'color:var(--bad);font-weight:700':''}">${f2(bal)}</td><td>Bag</td></tr></tbody></table></div>`;
+  return `${head}<div class="tablewrap"><table class="${cls}">${th}<tbody>${body}${tot}</tbody></table></div>${foot}`}
+function renderCCS(){const w=W();ensureMbImported(w,()=>{if(view.reg==='ccs'&&W()===w)renderCCS()});const mb=mbOf(w);
+  if(!ccsBill||!mb.bills.some(b=>b.id===ccsBill)){const used=mb.bills.filter(b=>mb.entries.some(e=>e.bill===b.id));ccsBill=(used[used.length-1]||mb.bills[mb.bills.length-1])?.id}
+  const D=ccsData(w,ccsBill);
+  $('#main').innerHTML=`<div class="sheethead"><div><h2>Cement Consumption Statement</h2><div class="sub">${esc(w.name)} · quantities up to date from all MBs; theoretical rate from ⚙ Settings mix design / PWD consumption table</div></div>
+    <div class="actions"><label class="note">Up to bill <select id="ccsB">${mb.bills.map(b=>`<option value="${b.id}" ${b.id===ccsBill?'selected':''}>${esc(b.name)}</option>`).join('')}</select></label>
+     <label class="note">Permissible variation ± <input id="ccsTol" value="${D.tol}" inputmode="decimal" style="width:50px"> %</label>
+     <button class="btn" id="ccsReset">Reset edits</button><button class="btn" id="ccsPdf">PDF</button><button class="btn" id="ccsXls">Excel</button></div></div>
+    ${D.rows.length?'':'<div class="banner">No cement items found in the MB for this bill. Upload the MB first.</div>'}
+    <div style="background:var(--surface);padding:14px;border:1px solid var(--rule);border-radius:10px">${ccsHTML(w,D,false)}</div>
+    <p class="note">Columns 5 and 7 and the receipt figures can be edited (saved for this bill). Column 7 defaults to the cement used for that item in Cement Patrak-4 up to the last MB date of this bill (${D.cut?fdate(D.cut):'–'}); if there is none it equals the theoretical consumption. Receipts default to Patrak-4 opening balance + new receipts. Signature block text: <a href="#" id="ccsSign">edit</a>.</p>`;
+  const M=$('#main');const sv=()=>{persist();renderCCS()};
+  $('#ccsB').onchange=e=>{ccsBill=e.target.value;renderCCS()};
+  $('#ccsTol').onchange=e=>{const v=num(e.target.value);if(v!=null)D.S.tol=v;sv()};
+  M.querySelectorAll('[data-cr]').forEach(i=>i.onchange=()=>{const v=num(i.value);if(v==null)delete D.S.rate[i.dataset.cr];else D.S.rate[i.dataset.cr]=v;sv()});
+  M.querySelectorAll('[data-ca]').forEach(i=>i.onchange=()=>{const v=num(i.value);if(v==null)delete D.S.act[i.dataset.ca];else D.S.act[i.dataset.ca]=v;sv()});
+  M.querySelectorAll('[data-cf]').forEach(i=>i.onchange=()=>{const v=num(i.value);if(v==null)delete D.S[i.dataset.cf];else D.S[i.dataset.cf]=v;sv()});
+  $('#ccsReset').onclick=()=>{delete w.ccs[ccsBill];sv()};
+  $('#ccsSign').onclick=e=>{e.preventDefault();const t=prompt('Signature block (one line per row):',(w.ccsSign||'Deputy Executive Engineer\nRoad & Building Division\nDahod').replace(/\n/g,' | '));if(t!=null){w.ccsSign=t.split('|').map(x=>x.trim()).join('\n');sv()}};
+  $('#ccsPdf').onclick=()=>printNow(`<div class="pg">${ccsHTML(w,D,true)}</div>`,`Cement Consumption Statement - ${D.bill?.name||''} - ${w.name}`);
+  $('#ccsXls').onclick=async()=>{if(typeof ExcelJS==='undefined')return toast('The Excel library could not be loaded (internet connection required).');const wb=new ExcelJS.Workbook();const ws=wb.addWorksheet('Cement Consumption');
+    const B={top:{style:'thin'},left:{style:'thin'},bottom:{style:'thin'},right:{style:'thin'}};
+    ws.mergeCells('A1:J1');ws.getCell('A1').value='CEMENT CONSUMPTION STATEMENT';ws.getCell('A1').font={bold:true,size:14,underline:true};ws.getCell('A1').alignment={horizontal:'center'};
+    [['Name of Work :- '+(w.name||'')],['Name of Agency :- '+(w.agency||'')],['Agreement No:- '+(w.agreementNo||'')]].forEach((t,i)=>{ws.mergeCells(`A${i+2}:J${i+2}`);const c=ws.getCell(`A${i+2}`);c.value=t[0];c.font={bold:true}});
+    ws.mergeCells('A5:J5');ws.getCell('A5').value=(D.bill?.name||'').toUpperCase();ws.getCell('A5').font={bold:true};ws.getCell('A5').alignment={horizontal:'center'};
+    const h=ws.addRow(['Tender Item No','Description of Item','Quantity','Unit','Theoretical rate of consumption in Bags','Total Theoretical consumption in Bags','Total Actual consumption in Bags','Actual rate of consumption in Bags','Difference in percentage','Remarks']);
+    const h2=ws.addRow([1,2,3,4,5,6,7,8,9,10]);[h,h2].forEach(r=>r.eachCell(c=>{c.font={bold:true};c.border=B;c.alignment={horizontal:'center',vertical:'middle',wrapText:true}}));
+    D.rows.forEach(r=>{const x=ws.addRow([r.no,r.desc,r.qty,r.unit,r.rate,+r.theo.toFixed(2),+r.act.toFixed(2),+r.ar.toFixed(2),+r.diff.toFixed(2),ccsRemark(r,D.tol)]);x.eachCell({includeEmpty:true},c=>{c.border=B;c.alignment={vertical:'middle',wrapText:true}});[3,5,6,7,8,9].forEach(i=>x.getCell(i).numFmt='0.00')});
+    const t1=ws.addRow(['','','Total','','',+D.tT.toFixed(2),+D.tA.toFixed(2)]),t2=ws.addRow(['','','Say','','',Math.round(D.tT),D.say]),t3=ws.addRow(['','','','','','',+(D.say*0.05).toFixed(2),'MT']);
+    [t1,t2,t3].forEach(r=>{r.font={bold:true};[6,7].forEach(i=>r.getCell(i).numFmt='0.00')});ws.addRow([]);
+    [['Cement received upto previous RA bill',D.prevR],['Cement received in this RA bill',D.thisR],['Total cement received',D.totR],['Used',D.say],['Balance',D.totR-D.say]].forEach(([a,b])=>{const r=ws.addRow(['','','','',a,'','',+(+b).toFixed(2),'Bag']);r.getCell(8).numFmt='0.00'});
+    ws.addRow([]);(w.ccsSign||'Deputy Executive Engineer\nRoad & Building Division\nDahod').split('\n').forEach(t=>{ws.addRow(['',t]).font={bold:true}});
+    [8,60,11,8,14,14,14,14,12,18].forEach((v,i)=>ws.getColumn(i+1).width=v);ws.pageSetup={orientation:'landscape',paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0};
+    await xlSave(wb,`Cement Consumption Statement - ${D.bill?.name||''} - ${w.name}`)}}
+
 /* ===================== ⚙ SETTING (har kaam ki) ===================== */
 const WK_DEF=[['Steel|kg','Steel (TMT)','steel tmt','kg'],['PCC / foundation|cum','PCC / foundation / footing','foundation footing','cum'],['Plinth beam|cum','Plinth beam','plinth beam','cum'],
  ['Column (up to plinth)|cum','Column (up to plinth)','column','cum'],['Column|cum','Column','column','cum'],['Beam|cum','Beam','beam','cum'],['Slab|cum','Slab','slab','cum'],['Staircase|cum','Staircase','stair','cum'],
@@ -2115,10 +2196,10 @@ function renderSettings(){const w=W();w.mix??={};w.dayAvg??={};
   const M=$('#main');
   M.querySelectorAll('tr[data-g] input[data-k="cement"]').forEach(i=>i.oninput=()=>{const v=num(i.value);i.closest('tr').querySelector('[data-bg]').textContent=v?fmt(v/50,2):''});
   M.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
-  const save=(quiet)=>{M.querySelectorAll('tr[data-g]').forEach(tr=>{const g=tr.dataset.g;const o={...(w.mix[g]||{})};tr.querySelectorAll('[data-k]').forEach(i=>{const v=i.value.trim();if(v==='')delete o[i.dataset.k];else o[i.dataset.k]=i.dataset.k==='ref'?v:num(v)});
+  const save=(quiet)=>{const mix0=JSON.stringify(w.mix||{}),avg0=JSON.stringify(w.dayAvg||{})+w.dayVar;M.querySelectorAll('tr[data-g]').forEach(tr=>{const g=tr.dataset.g;const o={...(w.mix[g]||{})};tr.querySelectorAll('[data-k]').forEach(i=>{const v=i.value.trim();if(v==='')delete o[i.dataset.k];else o[i.dataset.k]=i.dataset.k==='ref'?v:num(v)});
       if(Object.keys(o).some(k=>!['ref','src'].includes(k)))w.mix[g]=o;else delete w.mix[g]});
     M.querySelectorAll('[data-wk]').forEach(i=>{const v=num(i.value);if(v>0)w.dayAvg[i.dataset.wk]=v;else delete w.dayAvg[i.dataset.wk]});{const vv=num($('#setVar')?.value);if(vv!=null&&vv>=0)w.dayVar=Math.min(60,vv)}
-    const fq={};M.querySelectorAll('[data-fq]').forEach(i=>{const v=num(i.value);if(v>0)fq[i.dataset.fq]=v});w.freq=fq;persist();if(!quiet)toast('Settings saved')};
+    const fq={};M.querySelectorAll('[data-fq]').forEach(i=>{const v=num(i.value);if(v>0)fq[i.dataset.fq]=v});w.freq=fq;if(JSON.stringify(w.mix||{})!==mix0||JSON.stringify(w.dayAvg||{})+w.dayVar!==avg0)delete w.splitVer;persist();if(!quiet)toast('Settings saved')};
   $('#setSave').onclick=()=>{save();render()};
   $('#addG').onclick=()=>{const g=($('#newG').value||'').toUpperCase().replace(/[^M0-9]/g,'');if(!/^M\d+$/.test(g))return toast('Enter a grade such as M45.');save(true);w.mix[g]??={};persist();render()}}
 function openRegPicker(){const w=W();const on=Object.fromEntries(REGS.map(g=>[g.id,regOn(g.id,w)]));const grp=[...new Set(REGS.map(g=>g.grp))];
@@ -2276,7 +2357,7 @@ const snapW=w=>JSON.stringify({w:Object.fromEntries(SNAP_KEYS.map(k=>[k,w[k]===u
 function undoSnap(w,s){const o=JSON.parse(s);Object.entries(o.w).forEach(([k,v])=>{if(v===null)delete w[k];else w[k]=v});mbOf(w).cover=o.cover;persist()}
 /* auto-apply what was detected; returns html summary */
 function autoApply(w,type,d){
-  if(type==='mix'){const mx=(d.mixes||[]).filter(x=>x&&x.grade);w.mix??={};
+  if(type==='mix'){const mx=(d.mixes||[]).filter(x=>x&&x.grade);w.mix??={};delete w.splitVer;
     mx.forEach(x=>{const k=mixKey(x.grade);w.mix[k]={cement:num(x.cement),flyash:num(x.flyash),sand:num(x.sand),a20:num(x.a20),a10:num(x.a10),water:num(x.water),admixture:num(x.admixture),wc:num(x.wc),ref:x.labRef||'',src:'upload'};Object.keys(w.mix[k]).forEach(z=>w.mix[k][z]==null&&delete w.mix[k][z])});
     return mx.length?`Saved to <b>Settings → Mix design</b> (per cum, kg):<div class="tablewrap" style="margin:6px 0"><table class="reg"><thead><tr><th>Grade</th><th>Cement</th><th>Fly ash</th><th>Sand</th><th>20 mm</th><th>10 mm</th><th>Water</th><th>Admixture</th><th>w/c</th></tr></thead><tbody>${mx.map(x=>`<tr><td>${esc(mixKey(x.grade))}</td>${['cement','flyash','sand','a20','a10','water','admixture','wc'].map(k=>`<td class="n">${x[k]??''}</td>`).join('')}</tr>`).join('')}</tbody></table></div><span class="note">Re-generate the registers (MB → Uploaded MB → Fill registers from all MBs) to apply the new cement, sand and aggregate contents. Sand / 10 mm / 20 mm quantities and the number of tests then appear in Summary → Test Schedule.</span>`:null}
   if(type==='boq'){const items=(d.items||[]).filter(x=>x&&x.desc);
@@ -2350,7 +2431,7 @@ async function sendChat(){const w=W();const fs=[...(chat.files||[])];const text=
 function applyResult(i){const m=chat.msgs[i];if(m.type==='mb')return openMbFillAll()}
 
 /* ===================== BOOT ===================== */
-try{const v=localStorage.getItem(LS_KEY+'_view');if(v&&(v==='dash'||v==='chat'||v==='works'||v==='mbup'||v==='aavak'||v==='settings'||v==='tests'||v==='tforms'||REG[v]||MBV[v]))view.reg=v}catch(e){}
+try{const v=localStorage.getItem(LS_KEY+'_view');if(v&&(v==='dash'||v==='chat'||v==='works'||v==='mbup'||v==='aavak'||v==='settings'||v==='tests'||v==='tforms'||v==='ccs'||REG[v]||MBV[v]))view.reg=v}catch(e){}
 document.getElementById('shelf').addEventListener('click',e=>{if(e.target.closest('[data-act="pickRegs"]'))return openRegPicker();const b=e.target.closest('[data-reg]');if(b)go(b.dataset.reg)});
 render();initFirebase();
 if(!EMBED&&'serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
