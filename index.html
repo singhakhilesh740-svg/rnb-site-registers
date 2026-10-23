@@ -1261,7 +1261,7 @@ const UCR={5:102.3,6:82.5},CRT={3:153,4:114,5:93,6:75},WSB={5:65.1,6:52.5};
 const POINT={brick:{3:1.53,4:1.14},stone:{3:1.17,4:1.17}};
 const FLOOR=[[/granite/,'Granite',12,9.52],[/kota|kotah/,'Kotah stone',null,12.52],[/vitrified/,'Vitrified tiles',10.44,9.52],[/glazed|ceramic/,'Glazed / ceramic tiles',10.44,9.52],[/chequer|checker/,'Chequered tiles',11.61,8.83]];
 const SWP={100:[2.17,6.19],150:[3.23,10.40]},NP3={300:1.02,450:2.04,600:2.38,750:3.06,900:3.74,1050:4.08,1200:5.10};
-const unitOf=u=>{u=String(u||'').toLowerCase();return /sq|m2|sqm/.test(u)?'sqm':/cu|m3|cum/.test(u)?'cum':/r\.?\s*m|rmt|running|metre|meter/.test(u)?'rmt':/kg|m\.?\s*t|tonne/.test(u)?'kg':/no|nos|each|number/.test(u)?'no':''};
+const unitOf=u=>{u=String(u||'').toLowerCase().trim();return /sq|m2|sqm|^s\.?\s*mt?\.?$/.test(u)?'sqm':/cu|m3|cum|^c\.?\s*mt?\.?$|cmt/.test(u)?'cum':/r\.?\s*m|rmt|running|metre|meter/.test(u)?'rmt':/kg|m\.?\s*t|tonne/.test(u)?'kg':/no|nos|each|number/.test(u)?'no':''};
 function mRatio(d){let m=/(?:c\.?\s*m\.?|cement\s*mortar|mortar)\s*\(?\s*1\s*[:\-]\s*(\d+)/.exec(d)||/1\s*-?\s*cement\s*:\s*(\d+)/.exec(d)||/\b1\s*:\s*(\d+)\b(?!\s*:)/.exec(d);return m?+m[1]:null}
 const thick=d=>{const m=/(\d+(?:\.\d+)?)\s*mm\b/.exec(d);return m?+m[1]:null};
 function interp(tab,t,r){const ks=Object.keys(tab).map(Number).sort((a,b)=>a-b);if(tab[t]?.[r]!=null)return tab[t][r];
@@ -1476,7 +1476,7 @@ const MBGEN={
 const KINDL={steel:'Steel',conc:'Concrete',cem:'Cement work',other:'—'};
 const MBF_NOTE={cement4:'daily consumption',steel2:'daily consumption, dia-wise',slump:'every pour',cube3:'every pour, cubes required',cement1:'one line per bill',steel1:'one block per bill',sampling:'samples required',cementTest:'per lot',cementCons:'per lot',petro:'per source',aggTest:'per lot',sieve:'coarse aggregate + sand',brick:'per lot',tiles:'per lot',mixDesign:'per grade',calib:'monthly',corrBatch:'every pour',batchPlant:'every pour',proforma3:'required vs. MB'};
 /* registers generated from the MB with an older day-splitting method are regenerated once, automatically (same settings) */
-const SPLIT_VER=5;
+const SPLIT_VER=6;
 function mbSig(w){let h=0;const st=x=>{for(const ch of String(x)){h=Math.imul(h^ch.charCodeAt(0),16777619)}};mbOf(w).entries.forEach(e=>{st(e.itemNo);st(e.date||'');st(e.bill);st(JSON.stringify(e.lines||[]))});st(JSON.stringify(w.mix||{}));return (h>>>0).toString(36)}
 function autoRefill(w){try{if(!w||W()!==w)return;const sig=mbSig(w);if(w.splitVer===SPLIT_VER&&(w.mbSig==null||w.mbSig===sig))return;const ids=REGS.filter(g=>MBGEN[g.id]&&rowsOf(g.id,w).some(e=>e.src==='mbx')).map(g=>g.id);
   if(!ids.length){w.splitVer=SPLIT_VER;w.mbSig=sig;return}const bl=blocksFromEntries(w);if(!bl.length)return;const plan=planMB(bl,w);const bills=[...new Set(bl.map(b=>b.bill))];const x=mbCtx(plan,freqOf(w),{bill:bills[bills.length-1]});
@@ -1660,9 +1660,11 @@ function importMbEntries(w,meta,sheets){const mb=mbOf(w);const b=billFor(w,meta.
   /* a real MB of this bill replaces quantities carried forward from a later bill's abstract */
   mb.entries=mb.entries.filter(e=>e.fid!==meta.id&&!(e.src==='abstract'&&e.bill===b.id)).concat(ents);meta.imported=true;meta.billId=b.id;
   try{const pv=prevFromAbstract(w,meta,sheets[1],b,ents);if(pv){meta.prevInfo=pv;delete w.splitVer}}catch(e){console.warn('prev abstract',e)}meta.prevChk=true;
-  const tot={};ents.forEach(e=>{const k=e.itemNo+'|'+e.mbTotal+'|'+(e.page||'');(tot[k]??={no:e.itemNo,mb:e.mbTotal,app:0}).app+=entryCalc(w,e).qty});
+  const tot={};ents.forEach(e=>{const k=e.itemNo+'|'+e.mbTotal+'|'+(e.page||'')+'|'+(e._blk?.first||e.date||'');(tot[k]??={no:e.itemNo,mb:e.mbTotal,app:0}).app+=entryCalc(w,e).qty});
   const bad=[];Object.values(tot).forEach(t=>{if(t.mb!=null&&Math.abs(t.app-t.mb)>Math.max(0.05,Math.abs(t.mb)*0.001))bad.push(`Item ${t.no}: MB ${t.mb}, app ${r2(t.app)}`)});
-  meta.check=bad;persist();return {bill:b.name,count:ents.length,bad}}
+  /* identical measurement repeated in the same bill → possible duplicate */
+  const dup=[];const seen={};ents.forEach(e=>{const ec=entryCalc(w,e);const sig=e.itemNo+'|'+(ec.steel?JSON.stringify(ec.wt):String(ec.qty));if(!(ec.steel?ec.kg:ec.qty))return;if((e.lines||[]).length>2){if(seen[sig])dup.push(`Item ${e.itemNo}: same measurement on ${fdate(seen[sig].date)||'–'} and ${fdate(e.date)||'–'} (${fmt(entryCalc(w,e).steel?entryCalc(w,e).kg:entryCalc(w,e).qty,2)}) – possible duplicate`);else seen[sig]=e}});
+  meta.check=bad;meta.dup=dup;persist();return {bill:b.name,count:ents.length,bad,dup}}
 function blocksFromEntries(w){const L=mbLayout(w);const bn=Object.fromEntries(mbOf(w).bills.map(b=>[b.id,b.name]));
   const firstD={};L.entries.forEach(e=>{if(e.date&&(!firstD[e.bill]||e.date<firstD[e.bill]))firstD[e.bill]=e.date});let lastAny=null;
   L.entries.forEach(e=>{if(e.date)lastAny=e.date;else{const d=firstD[e.bill]||lastAny;if(d){e.date=d;e.dateInherited=true}}});
@@ -2121,7 +2123,7 @@ function ccsData(w,billId){const mb=mbOf(w);const bills=mb.bills;const k=Math.ma
   const lastOf=i=>{const d=mbLayout(w).entries.filter(e=>bi[e.bill]===i&&e.date).map(e=>e.date).sort();return d[d.length-1]||null};
   const cut=lastOf(k),prevCut=k>0?lastOf(k-1):null;
   const S=(w.ccs??={})[bills[k]?.id]??={};S.rate??={};S.act??={};
-  const items={};L.forEach(e=>{const it=itemOf(w,e);const key=String(e.itemNo);const o=items[key]??={no:key,desc:it.desc||e.desc||'',unit:it.unit||e._calc.unit||e.unit||'',qty:0};o.qty=r2(o.qty+e._calc.qty)});
+  const UD={cum:'Cu.M',sqm:'Sq.M',rmt:'R.M'};const items={};L.forEach(e=>{const it=itemOf(w,e);const key=String(e.itemNo);const u0=it.unit||e._calc.unit||e.unit||'';const o=items[key]??={no:key,desc:it.desc||e.desc||'',unit:UD[unitOf(u0)]||u0,qty:0};o.qty=r2(o.qty+e._calc.qty)});
   const c4=rowsOf('cement4',w);
   const rows=Object.values(items).map(o=>{const ru=cemRule(o.desc,o.unit,w);if(!ru||!ru.kg)return null;const rT=Math.round(ru.kg/50*100)/100;
       const rate=num(S.rate[o.no])??rT;const theo=Math.round(o.qty*rate*100)/100;
@@ -2439,7 +2441,7 @@ async function sendChat(){const w=W();const fs=[...(chat.files||[])];const text=
     const r=await isMBWorkbook(f);
     if(r){try{const m=await saveMbUpload(f.name,r);mbDone++;const pl=planMB(r.blocks);const c=k=>pl.filter(p=>p.kind===k).length;const ii=m.importInfo||{};
         chat.msgs.push({role:'bot',html:`<b>${esc(f.name)}</b> – detected as <b>Measurement Book</b> (${esc(m.bill||'RA bill')}${m.pages?`, pages ${m.pages[0]}–${m.pages[1]}`:''})${m.replaced?' – replaced the earlier copy of this bill':''}.<br>Sheets: ${esc(r.sheet)}${r.absName?' + '+esc(r.absName):''} · ${r.blocks.length} items (concrete ${c('conc')}, steel ${c('steel')}, other cement work ${c('cem')}) → <b>${ii.count||0} measurements</b> added to MB → For Record (${esc(ii.bill||'')}).
-          ${ii.bad&&ii.bad.length?`<br><span class="chip warn">Differs from the MB totals: ${ii.bad.map(esc).join('; ')}</span>`:' <span class="chip ok">Totals match the MB</span>'} <button class="btn small" data-gomb="${m.billId}">View / edit</button>`})}
+          ${ii.bad&&ii.bad.length?`<br><span class="chip warn">Differs from the MB totals: ${ii.bad.map(esc).join('; ')}</span>`:' <span class="chip ok">Totals match the MB</span>'}${ii.dup&&ii.dup.length?`<br><span class="chip bad">Check: ${ii.dup.map(esc).join('; ')}</span>`:''} <button class="btn small" data-gomb="${m.billId}">View / edit</button>`})}
       catch(e){chat.msgs.push({role:'bot',text:`${f.name}: ${e.message}`})}
       renderChat();continue}
     /* 2. any other document → AI detects type and extracts */
