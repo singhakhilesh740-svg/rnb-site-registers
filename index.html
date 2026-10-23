@@ -2291,14 +2291,15 @@ let testMode=false;const cloudOn=()=>!!(fb&&user&&!testMode);
 function enterTestMode(){testMode=true;try{sessionStorage.setItem('rnbTest','1')}catch(e){}
   state=seed();state.cur=state.works[0]?.id;try{localStorage.setItem(LS_KEY+'_test',JSON.stringify(state))}catch(e){}
   updSync();view.reg='dash';render();toast('Test mode on – you are now using the app as a brand-new user. Your admin data is safe.',5000)}
-function exitTestMode(){testMode=false;try{sessionStorage.removeItem('rnbTest')}catch(e){}updSync();
+function exitTestMode(){testMode=false;testAI=false;try{sessionStorage.removeItem('rnbTest')}catch(e){}updSync();
   if(cloudOn()){go('admin');cloudPull()}else{state=load()||seed();render()}toast('Back to your own account.')}
 function updSync(){const box=$('#syncBox');if(!box||!user)return;
   box.innerHTML=testMode
-    ?`<span class="chip warn" title="You are testing the app as a new user – nothing is saved to any account">TEST MODE · new user</span><button class="btn small" id="texit">Exit test</button>`
+    ?`<span class="chip warn" title="You are testing the app as a new user – nothing is saved to any account">TEST MODE · new user</span><label class="chk" style="margin:0 6px" title="Simulate a user whose Assistant the admin has enabled (ON) or not yet enabled (OFF). ON uses your admin API key.">Assistant <input type="checkbox" id="tAI" ${testAI?'checked':''}> ${testAI?'ON':'OFF'}</label><button class="btn small" id="texit">Exit test</button>`
     :`<span title="${esc(user.email)}">${esc(user.displayName||user.email)}${isAdmin()?' · Admin':''}</span><button class="btn small" id="gout">Sign out</button>`;
-  const te=$('#texit');if(te)te.onclick=exitTestMode;const go2=$('#gout');if(go2)go2.onclick=()=>firebase.auth().signOut()}
-const canAI=()=>!testMode&&(isAdmin()||(profile.approved===true&&!profile.blocked));
+  const te=$('#texit');if(te)te.onclick=exitTestMode;const go2=$('#gout');if(go2)go2.onclick=()=>firebase.auth().signOut();
+  const ta=$('#tAI');if(ta)ta.onchange=()=>{testAI=ta.checked;updSync();render()}}
+let testAI=false;const canAI=()=>testMode?(testAI&&(isAdmin()||(profile.approved===true&&!profile.blocked))):(isAdmin()||(profile.approved===true&&!profile.blocked));
 function loadScript(src){return new Promise((ok,no)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=no;document.head.appendChild(s)})}
 function gate(html){const g=$('#gate');if(!html){g.hidden=true;return}g.querySelector('.gbody').innerHTML=html;g.hidden=false}
 async function initFirebase(){
@@ -2490,7 +2491,7 @@ function autoApply(w,type,d){
 const itemsTable=items=>`<div class="tablewrap" style="margin:6px 0"><table class="reg"><thead><tr><th>No.</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Item</th></tr></thead><tbody>${items.slice(0,40).map(x=>`<tr><td>${esc(x.no)}</td><td class="n">${x.qty??''}</td><td>${esc(x.unit||'')}</td><td class="n">${x.rate??''}</td><td>${esc((x.desc||'').slice(0,90))}</td></tr>`).join('')}${items.length>40?`<tr><td colspan="5" class="note">…and ${items.length-40} more</td></tr>`:''}</tbody></table></div>`;
 function aiReady(){return !!(FIREBASE_CONFIG&&!EMBED&&user&&canAI()&&appCfg.workerUrl)}
 function renderChat(){const w=W();
-  const why=!FIREBASE_CONFIG||EMBED?'The assistant is available in the online app after Google sign-in and Worker setup.':!user?'Please sign in first.':testMode?'In test mode the Assistant is off, exactly as it is for a brand-new user until the admin enables it.':!canAI()?'The administrator has not enabled the assistant for your account yet.':!appCfg.workerUrl?'The administrator has not configured the Worker URL yet (Admin → Assistant settings).':'';
+  const why=!FIREBASE_CONFIG||EMBED?'The assistant is available in the online app after Google sign-in and Worker setup.':!user?'Please sign in first.':testMode&&!testAI?'In test mode the Assistant is OFF, exactly as it is for a brand-new user until the admin enables it. Turn it ON above to try it (uses your admin API key).':!canAI()?'The administrator has not enabled the assistant for your account yet.':!appCfg.workerUrl?'The administrator has not configured the Worker URL yet (Admin → Assistant settings).':'';
   $('#main').innerHTML=`<div class="sheethead"><div><h2>Assistant</h2><div class="sub">${esc(w.name)}</div></div></div>
   ${why?`<div class="banner"><span>${esc(why)} Measurement Book (Excel) uploads still work without it.</span></div>`:''}
   <div class="chatlog" id="chatlog">${chat.msgs.length?'':`<div class="empty">Upload any document – TS letter, tender approval, work order, BOQ, estimate, mix design report, cement / steel supply bill or Measurement Book (Excel). The document type is detected automatically and the details are filled in.<br>You can also ask a question, e.g. "What is the up-to-date MB quantity of item 5?" or "How much cement is in stock?"</div>`}</div>
