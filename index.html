@@ -1865,6 +1865,18 @@ let mbImpBusy=false;
 async function ensureMbImported(w,after){const pend=(w.mbFiles||[]).filter(m=>!m.imported||!m.prevChk);if(!pend.length||mbImpBusy)return;mbImpBusy=true;let n=0;
   for(const m of pend){try{const sh=await getSheets(m.id);if(!m.imported)importMbEntries(w,m,sh);else{const b=mbOf(w).bills.find(x=>x.id===m.billId)||billFor(w,m.bill||m.name);
       const pv=prevFromAbstract(w,m,sh[1],b,mbOf(w).entries.filter(e=>e.fid===m.id));m.prevChk=true;if(pv){m.prevInfo=pv;delete w.splitVer}}n++}catch(e){}}mbImpBusy=false;if(n){persist();after&&after()}}
+/* cube & slump test dates – casting dates taken from the Cement Patrak-4 (concrete daily consumption) */
+function pourSchedule(w){const addD=(iso,n)=>{const d=new Date(iso+'T00:00:00');d.setDate(d.getDate()+n);return isoD(d)};
+  const cem=rowsOf('cement4',w).filter(r=>r.date&&r.mk&&/^M\d+$/.test(r.mk)&&+r.mq>0);const g={};
+  cem.forEach(r=>{const k=r.date+'|'+r.mk;(g[k]??={date:r.date,grade:r.mk,qty:0,items:new Set()});g[k].qty=r2(g[k].qty+ +r.mq);if(String(r.itemNo||'').trim())g[k].items.add(String(r.itemNo))});
+  return Object.values(g).sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:(a.grade<b.grade?-1:1)).map(x=>{const samples=reqSamples(x.qty);
+    return {...x,items:[...x.items].sort((a,b)=>(parseFloat(a)||0)-(parseFloat(b)||0)),samples,cubes:samples*6,slump:x.date,d7:addD(x.date,7),d28:addD(x.date,28)}})}
+function pourHTML(P,print){if(!P.length)return `<p class="note">No controlled-concrete consumption in the Cement Patrak-4 yet – upload the MB (and mix design) first.</p>`;const cls=print?'p':'reg';
+  const tot={q:0,s:0,c:0};P.forEach(x=>{tot.q+=x.qty;tot.s+=x.samples;tot.c+=x.cubes});
+  return `<div class="tablewrap"><table class="${cls}"><thead><tr><th>Casting date</th><th>Grade</th><th>Item(s)</th><th>Quantity (cum)</th><th>Samples</th><th>Cubes (6 per sample)</th><th>Slump test on</th><th>7-day cube test on</th><th>28-day cube test on</th></tr></thead><tbody>
+   ${P.map(x=>`<tr><td class="d">${fdate(x.date)}</td><td>${esc(x.grade)}</td><td>${esc(x.items.join(', '))}</td><td class="n">${fmt(x.qty,2)}</td><td class="n">${x.samples}</td><td class="n">${x.cubes}</td><td class="d">${fdate(x.slump)}</td><td class="d">${fdate(x.d7)}</td><td class="d">${fdate(x.d28)}</td></tr>`).join('')}
+   <tr><td colspan="3"><b>Total</b></td><td class="n"><b>${fmt(tot.q,2)}</b></td><td class="n"><b>${tot.s}</b></td><td class="n"><b>${tot.c}</b></td><td colspan="3"></td></tr></tbody></table></div>
+   <p class="note">Casting dates are the concreting dates in the Cement Patrak-4. Slump is tested on the casting day; cubes are cast on that day and tested at 7 and 28 days (IS 456 cl. 15: 6 cubes per sample – 3 at 7 days, 3 at 28 days). Number of samples per day: 1–5 cum → 1, 6–15 → 2, 16–30 → 3, 31–50 → 4, then +1 per 50 cum.</p>`}
 function renderTests(){const w=W();ensureMbImported(w,()=>{if(view.reg==='tests'&&W()===w)renderTests()});const F=freqOf(w);const N=testCtx(w);const AP=aggPlan(w);
   const aggSec=print=>`<h3 style="margin:18px 0 6px">Aggregates and sand – quantity from mix design and tests due</h3>${aggPlanHTML(AP,print)}`;
   const stages=[...new Set(TESTS.map(t=>t.st))];
@@ -1876,16 +1888,20 @@ function renderTests(){const w=W();ensureMbImported(w,()=>{if(view.reg==='tests'
   $('#main').innerHTML=`<div class="sheethead"><div><h2>Test Schedule – Building Works</h2><div class="sub">${esc(w.name)}</div></div>
     <div class="actions"><button class="btn" id="tsFmt">Test formats &amp; calculations</button><button class="btn" id="tsPdf">PDF</button><button class="btn" id="tsXls">Excel</button></div></div>
     <p class="note" style="margin:0">Tests, frequencies and timing as per CPWD Specifications 2019 (Vol. 1 – lists of mandatory tests in Sub-heads 3, 4, 5, 6, 7, 8, 10 and 11), IS 456:2000 and the current Indian Standards for each material. "Required for this work" is calculated from the MB quantities filled in the registers (cement and steel from Patrak-4 / Patrak-2, aggregates and bricks from Material Planning, cubes and slump from Cube Patrak-3) using the frequencies in ⚙ Settings. Where the tender or the Gujarat R&B Quality Control Manual specifies a different frequency, that frequency governs – change it in ⚙ Settings.</p>
+    <h3 style="margin:18px 0 6px">Cube &amp; slump test dates (casting dates from the Cement Patrak-4)</h3>${pourHTML(pourSchedule(w),false)}
     ${aggSec(false)}
     ${tables(false)}
     <div class="list" style="margin-top:18px"><h3>Codes followed</h3>${CODES.map(([c,t])=>`<div class="li"><b>${esc(c)}</b><span class="note" style="flex:1;margin-left:12px">${esc(t)}</span></div>`).join('')}</div>`;
   $('#tsFmt').onclick=()=>go('tforms');
-  $('#tsPdf').onclick=()=>printNow(`<div class="pg"><div class="ph"><h2>Test Schedule – Building Works – ${esc(w.name)}</h2></div>${aggSec(true)}${tables(true)}<h3>Codes followed</h3><table class="p"><tbody>${CODES.map(([c,t])=>`<tr><td><b>${esc(c)}</b></td><td>${esc(t)}</td></tr>`).join('')}</tbody></table></div>`,`Test Schedule - ${w.name}`);
+  $('#tsPdf').onclick=()=>printNow(`<div class="pg"><div class="ph"><h2>Test Schedule – Building Works – ${esc(w.name)}</h2></div><h3>Cube &amp; slump test dates (casting dates from the Cement Patrak-4)</h3>${pourHTML(pourSchedule(w),true)}${aggSec(true)}${tables(true)}<h3>Codes followed</h3><table class="p"><tbody>${CODES.map(([c,t])=>`<tr><td><b>${esc(c)}</b></td><td>${esc(t)}</td></tr>`).join('')}</tbody></table></div>`,`Test Schedule - ${w.name}`);
   $('#tsXls').onclick=async()=>{if(typeof ExcelJS==='undefined')return toast('The Excel library could not be loaded (internet connection required).');const wb=new ExcelJS.Workbook();const ws=wb.addWorksheet('Test Schedule');
     ws.addRow([`Test Schedule – Building Works – ${w.name}`]).font={bold:true,size:13};ws.addRow([]);
     const hr=ws.addRow(['Stage','Material / work','Tests','Code','Frequency','When to perform','Acceptance','Required for this work','Recorded','Basis']);hr.font={bold:true};
     TESTS.forEach(t=>{const r=ws.addRow([t.st,t.mat,t.test,t.code,t.freq,t.when,t.acc,reqOf(t)??'',doneOf(t)??'',t.src]);r.alignment={wrapText:true,vertical:'top'}});
     [22,24,40,28,34,30,40,12,10,12].forEach((v,i)=>ws.getColumn(i+1).width=v);
+    const wsp=wb.addWorksheet('Cube & slump dates');wsp.addRow(['Casting date','Grade','Item(s)','Quantity (cum)','Samples','Cubes','Slump test on','7-day cube test on','28-day cube test on']).font={bold:true};
+    pourSchedule(w).forEach(x=>{const r=wsp.addRow([fdate(x.date),x.grade,x.items.join(', '),+x.qty.toFixed(2),x.samples,x.cubes,fdate(x.slump),fdate(x.d7),fdate(x.d28)]);r.getColumn&&0});
+    [14,8,16,14,10,10,16,18,18].forEach((v,i)=>wsp.getColumn(i+1).width=v);
     const ws3=wb.addWorksheet('Aggregate tests');ws3.addRow(['Material','Total (cum)','Total (MT)','Test','Frequency','Tests required','Lots – first-use date']).font={bold:true};
     AP.mat.forEach(m=>m.T.forEach(t=>{const r=ws3.addRow([m.name,+m.tot.toFixed(2),+(m.kg/1000).toFixed(2),t.test,t.freq,t.n,t.lots.map(l=>`Lot ${l.k}: ${fdate(l.d)}`).join(', ')]);r.alignment={wrapText:true,vertical:'top'}}));
     ws3.addRow([]);ws3.addRow(['Mix / item','Work qty','Unit',...AGG_M.map(m=>m[1]+' (kg/unit)'),'Basis']).font={bold:true};AP.mixes.forEach(m=>ws3.addRow([m.k,+m.q.toFixed(2),m.u,...AGG_M.map(([k])=>m.per[k]??''),m.src]));
