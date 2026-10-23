@@ -554,7 +554,7 @@ const myRegs=(w=W())=>REGS.filter(r=>regOn(r.id,w));
 let state=load();if(!state||state.works.every(w=>w.sample)&&!state.works.some(w=>w.mb))state=seed();
 let view={reg:'dash'};
 function load(){try{const s=localStorage.getItem(LS_KEY);return s?JSON.parse(s):null}catch(e){return null}}
-function persist(regId){try{localStorage.setItem(LS_KEY,JSON.stringify(state))}catch(e){} cloudPush(regId)}
+function persist(regId){try{localStorage.setItem(testMode?LS_KEY+'_test':LS_KEY,JSON.stringify(state))}catch(e){} cloudPush(regId)}
 const W=()=>state.works.find(w=>w.id===state.cur)||state.works[0];
 function rowsOf(regId,work=W()){if(!work)return[];state.data[work.id]??={};return state.data[work.id][regId]??=[]}
 
@@ -655,9 +655,9 @@ function renderShelf(){
     ${dd('MB',['mbCover','mbRecord','mbAbstract','mbup'],btn('mbup','Uploaded MB (Excel)',(w0.mbFiles||[]).length)+'<h4>Measurement Book</h4>'+btn('mbCover','CMB Page 1–5')+btn('mbRecord','For Record',w0.mb.entries.length)+btn('mbAbstract','Abstract'))}`;
   for(const g in groups){const rs=groups[g].map(r=>{const rows=compute(r);return {r,n:rows.length,bad:rows.some(x=>x._flag?.[0]==='bad')}});
     h+=dd(g,groups[g].map(r=>r.id).concat(g==='Summary'?['tests','tforms','ccs']:[]),`<h4>${esc(g)}</h4>`+(g==='Summary'?btn('tests','Test Schedule (IS / CPWD)')+btn('tforms','Test Formats & Calculations')+btn('ccs','Cement Consumption Statement'):'')+rs.map(o=>btn(o.r.id,o.r.short,o.n,o.bad)).join(''),rs.some(o=>o.bad))}
-  h+=` <span class="spacer"></span>${tab('settings','⚙ Settings')}<button class="tab" data-act="pickRegs" title="Choose the registers for this work">☰ Registers <span class="cnt">${myRegs().length}/${REGS.length}</span></button>${isAdmin()?tab('admin','Admin'):''}</div>`;
+  h+=` <span class="spacer"></span>${tab('settings','⚙ Settings')}<button class="tab" data-act="pickRegs" title="Choose the registers for this work">☰ Registers <span class="cnt">${myRegs().length}/${REGS.length}</span></button>${isAdmin()&&!testMode?tab('admin','Admin'):''}</div>`;
   const opt=(id,l)=>`<option value="${id}" ${view.reg===id?'selected':''}>${esc(l)}</option>`;
-  h=`<select class="mobsel" id="mobSel" aria-label="Select page">${opt('dash','Dashboard')}${opt('chat','Assistant')}${opt('aavak','Material Planning')}${opt('settings','⚙ Settings')}${opt('tests','Test Schedule')}${opt('tforms','Test Formats')}${opt('ccs','Cement Consumption Statement')}${isAdmin()?opt('admin','Admin'):''}<optgroup label="Work / MB">${opt('works','My works')}${opt('mbup','Uploaded MB')}${Object.entries(MBV).map(([k,v])=>opt(k,v)).join('')}</optgroup>${Object.keys(groups).map(g=>`<optgroup label="${g}">${groups[g].map(r=>opt(r.id,r.short)).join('')}</optgroup>`).join('')}<option value="__pick">☰ Choose registers…</option></select>`+h;
+  h=`<select class="mobsel" id="mobSel" aria-label="Select page">${opt('dash','Dashboard')}${opt('chat','Assistant')}${opt('aavak','Material Planning')}${opt('settings','⚙ Settings')}${opt('tests','Test Schedule')}${opt('tforms','Test Formats')}${opt('ccs','Cement Consumption Statement')}${isAdmin()&&!testMode?opt('admin','Admin'):''}<optgroup label="Work / MB">${opt('works','My works')}${opt('mbup','Uploaded MB')}${Object.entries(MBV).map(([k,v])=>opt(k,v)).join('')}</optgroup>${Object.keys(groups).map(g=>`<optgroup label="${g}">${groups[g].map(r=>opt(r.id,r.short)).join('')}</optgroup>`).join('')}<option value="__pick">☰ Choose registers…</option></select>`+h;
   $('#shelf').innerHTML=h;$('#mobSel').onchange=e=>{if(e.target.value==='__pick'){e.target.value=view.reg;return openRegPicker()}go(e.target.value)};
 }
 document.addEventListener('click',e=>{const t=e.target.closest('.ddbtn');document.querySelectorAll('.dd.open').forEach(d=>{if(!t||d!==t.parentElement)d.classList.remove('open')});if(t)t.parentElement.classList.toggle('open')});
@@ -901,7 +901,7 @@ async function importWorkObj(work,data,sheets){const same=state.works.find(x=>x.
   let id=work.id;if(same){if(confirm(`A work named "${same.name}" already exists in this account.\n\nOK = replace it with the imported work (MB, edits, mix design, settings and registers)\nCancel = keep both (the import is added as a copy)`)){id=same.id;state.works=state.works.filter(x=>x.id!==same.id);delete state.data[same.id];await cloudDropWork(same.id)}else{id=uid();work={...work,name:work.name+' (imported)'}}}
   else if(state.works.some(x=>x.id===id))id=uid();
   const nw={...JSON.parse(JSON.stringify(work)),id};state.works.push(nw);state.data[id]=JSON.parse(JSON.stringify(data||{}));state.cur=id;
-  for(const [fid,sh] of Object.entries(sheets||{})){try{await IDB.put(fid,sh);if(fb&&user){const json=JSON.stringify(sh);const CH=700000;const n=Math.ceil(json.length/CH);const col=uref().collection('works').doc(id).collection('mbfiles');for(let k=0;k<n;k++)await col.doc(fid+'_'+k).set({fid,i:k,n,d:json.slice(k*CH,(k+1)*CH)})}}catch(e){}}
+  for(const [fid,sh] of Object.entries(sheets||{})){try{await IDB.put(fid,sh);if(cloudOn()){const json=JSON.stringify(sh);const CH=700000;const n=Math.ceil(json.length/CH);const col=uref().collection('works').doc(id).collection('mbfiles');for(let k=0;k<n;k++)await col.doc(fid+'_'+k).set({fid,i:k,n,d:json.slice(k*CH,(k+1)*CH)})}}catch(e){}}
   persist();Object.keys(state.data[id]).forEach(rid=>persist(rid));return nw}
 function restore(e){const f=e.target.files[0];e.target.value='';if(!f)return;const rd=new FileReader();rd.onload=async()=>{try{const s=JSON.parse(rd.result);
     if(s.kind==='rnb-work'&&s.work){const nw=await importWorkObj(s.work,s.data,s.sheets);view.reg='dash';render();toast(`Imported: ${nw.name}`,4000);return}
@@ -1564,7 +1564,7 @@ async function saveMbUpload(fileName,r){const w=W();w.mbFiles??=[];const abs=pic
   const json=JSON.stringify(sheets);const CH=700000;const n=Math.ceil(json.length/CH);
   const meta={id,name:fileName,bill:r.bill||'',billNo:billNum(r.bill),pages:pg.length?[Math.min(...pg),Math.max(...pg)]:null,at:Date.now(),sheets:sheets.map(x=>({name:x.name,rows:x.rows.length})),items:r.blocks.length,size:json.length,chunks:n};
   w.mbFiles=sortMb([meta,...w.mbFiles.filter(m=>m.id!==id)]);persist();meta.replaced=!!old;await IDB.put(id,sheets);
-  if(fb&&user){try{const col=uref().collection('works').doc(w.id).collection('mbfiles');const ex=await col.where('fid','==',id).get();for(const d of ex.docs)await d.ref.delete();
+  if(cloudOn()){try{const col=uref().collection('works').doc(w.id).collection('mbfiles');const ex=await col.where('fid','==',id).get();for(const d of ex.docs)await d.ref.delete();
     for(let k=0;k<n;k++)await col.doc(id+'_'+k).set({fid:id,i:k,n,d:json.slice(k*CH,(k+1)*CH)})}catch(e){toast('The MB could not be saved to the cloud: '+e.message,5000)}}
   const imp=importMbEntries(w,meta,sheets);meta.importInfo=imp;return meta}
 function billNum(b){const m=/(\d+)/.exec(b||'');if(m)return +m[1];const o=['FIRST','SECOND','THIRD','FOURTH','FIFTH','SIXTH','SEVENTH','EIGHTH','NINTH','TENTH'].findIndex(x=>new RegExp(x,'i').test(b||''));return o>=0?o+1:null}
@@ -2285,7 +2285,20 @@ function openMbImport(){const inp=document.createElement('input');inp.type='file
 const ADMIN_EMAIL='112ce0489@gmail.com';
 let fb=null,user=null,pushT,profile={},appCfg={};
 const isAdmin=()=>!!user&&user.email===ADMIN_EMAIL&&user.emailVerified;
-const canAI=()=>isAdmin()||(profile.approved===true&&!profile.blocked);
+/* Test mode: the admin uses the app as a brand-new user would. Nothing is read from or written to the cloud,
+   and the real admin data is never touched – test data lives only under a separate local key for this session. */
+let testMode=false;const cloudOn=()=>!!(fb&&user&&!testMode);
+function enterTestMode(){testMode=true;try{sessionStorage.setItem('rnbTest','1')}catch(e){}
+  state=seed();state.cur=state.works[0]?.id;try{localStorage.setItem(LS_KEY+'_test',JSON.stringify(state))}catch(e){}
+  updSync();view.reg='dash';render();toast('Test mode on – you are now using the app as a brand-new user. Your admin data is safe.',5000)}
+function exitTestMode(){testMode=false;try{sessionStorage.removeItem('rnbTest')}catch(e){}updSync();
+  if(cloudOn()){go('admin');cloudPull()}else{state=load()||seed();render()}toast('Back to your own account.')}
+function updSync(){const box=$('#syncBox');if(!box||!user)return;
+  box.innerHTML=testMode
+    ?`<span class="chip warn" title="You are testing the app as a new user – nothing is saved to any account">TEST MODE · new user</span><button class="btn small" id="texit">Exit test</button>`
+    :`<span title="${esc(user.email)}">${esc(user.displayName||user.email)}${isAdmin()?' · Admin':''}</span><button class="btn small" id="gout">Sign out</button>`;
+  const te=$('#texit');if(te)te.onclick=exitTestMode;const go2=$('#gout');if(go2)go2.onclick=()=>firebase.auth().signOut()}
+const canAI=()=>!testMode&&(isAdmin()||(profile.approved===true&&!profile.blocked));
 function loadScript(src){return new Promise((ok,no)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=no;document.head.appendChild(s)})}
 function gate(html){const g=$('#gate');if(!html){g.hidden=true;return}g.querySelector('.gbody').innerHTML=html;g.hidden=false}
 async function initFirebase(){
@@ -2301,6 +2314,7 @@ async function initFirebase(){
     if(!u){box.innerHTML='';gate(`<p>Sign in with your Google account. Your data is stored securely in your account and is available on any phone or computer.</p>
       <button class="btn primary" id="gin">Sign in with Google</button>`);$('#gin').onclick=()=>firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>toast(e.message));render();return}
     box.innerHTML=`<span title="${esc(u.email)}">${esc(u.displayName||u.email)}${isAdmin()?' · Admin':''}</span><button class="btn small" id="gout">Sign out</button>`;$('#gout').onclick=()=>firebase.auth().signOut();
+    if(isAdmin()&&sessionStorage.getItem('rnbTest')){testMode=true;try{const t=localStorage.getItem(LS_KEY+'_test');state=t?JSON.parse(t):seed()}catch(e){state=seed()}state.cur=state.works.some(w=>w.id===state.cur)?state.cur:state.works[0]?.id;gate(null);updSync();render();return}
     try{const ref=uref();const snap=await ref.get();profile=snap.exists?snap.data():{};
       if(profile.blocked&&!isAdmin()){gate('<p><b>Your access has been disabled.</b> Please contact the administrator.</p><button class="btn" id="gout2">Sign out</button>');$('#gout2').onclick=()=>firebase.auth().signOut();return}
       await ref.set({email:u.email,name:u.displayName||'',photo:u.photoURL||'',lastLogin:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
@@ -2309,7 +2323,7 @@ async function initFirebase(){
     if(isAdmin()&&!sessionStorage.getItem('adminShown')){try{sessionStorage.setItem('adminShown',1)}catch(e){}go('admin')}else render()});
 }
 const uref=()=>fb.collection('users').doc(user.uid);
-async function cloudPull(){try{
+async function cloudPull(){if(!cloudOn())return;try{
   const ws=await uref().collection('works').get();
   if(ws.empty){await cloudPushAll();toast('Data saved to your account');return}
   const works=[],data={};
@@ -2317,15 +2331,15 @@ async function cloudPull(){try{
     const rs=await d.ref.collection('regs').get();rs.forEach(r=>data[w.info.id][r.id]=r.data().rows||[])}
   state={works,data,cur:works.some(w=>w.id===state.cur)?state.cur:works[0].id};
   try{localStorage.setItem(LS_KEY,JSON.stringify(state))}catch(e){}render()}catch(e){toast('Sync error: '+e.message)}}
-async function cloudPushAll(){for(const w of state.works){await uref().collection('works').doc(w.id).set({info:w});
+async function cloudPushAll(){if(!cloudOn())return;for(const w of state.works){await uref().collection('works').doc(w.id).set({info:w});
   for(const k in (state.data[w.id]||{}))await uref().collection('works').doc(w.id).collection('regs').doc(k).set({rows:state.data[w.id][k],at:Date.now()})}
   await uref().set({worksCount:state.works.length},{merge:true})}
 const dirty=new Set();
-function cloudPush(regId){if(!fb||!user)return;const w=W();dirty.add(w.id+'|'+(regId||''));clearTimeout(pushT);
+function cloudPush(regId){if(!cloudOn())return;const w=W();dirty.add(w.id+'|'+(regId||''));clearTimeout(pushT);
   pushT=setTimeout(async()=>{try{for(const k of dirty){const[wid,rid]=k.split('|');const wo=state.works.find(x=>x.id===wid);if(!wo)continue;
     const ref=uref().collection('works').doc(wid);await ref.set({info:wo});
     if(rid)await ref.collection('regs').doc(rid).set({rows:state.data[wid][rid]||[],at:Date.now()})}dirty.clear();uref().set({worksCount:state.works.length},{merge:true})}catch(e){toast('Sync error: '+e.message)}},800)}
-async function cloudDropWork(id){if(!fb||!user)return;try{const ref=uref().collection('works').doc(id);const rs=await ref.collection('regs').get();for(const d of rs.docs)await d.ref.delete();const ms=await ref.collection('mbfiles').get();for(const d of ms.docs)await d.ref.delete();await ref.delete()}catch(e){}}
+async function cloudDropWork(id){if(!cloudOn())return;try{const ref=uref().collection('works').doc(id);const rs=await ref.collection('regs').get();for(const d of rs.docs)await d.ref.delete();const ms=await ref.collection('mbfiles').get();for(const d of ms.docs)await d.ref.delete();await ref.delete()}catch(e){}}
 
 /* ---------- Admin page ---------- */
 async function renderAdmin(){
@@ -2335,7 +2349,8 @@ async function renderAdmin(){
   users.sort((a,b)=>(b.lastLogin?.seconds||0)-(a.lastLogin?.seconds||0));
   const ts=t=>t?.seconds?new Date(t.seconds*1000).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'}):'';
   const calls=users.reduce((a,u)=>a+(u.aiCalls||0),0);
-  $('#main').innerHTML=`<div class="sheethead"><div><h2>Admin</h2><div class="sub">${esc(user.email)}</div></div></div>
+  $('#main').innerHTML=`<div class="sheethead"><div><h2>Admin</h2><div class="sub">${esc(user.email)}</div></div><div class="actions"><button class="btn" id="adTest" title="Open the app the way a brand-new user sees it. Nothing is saved to any account – your admin data stays untouched.">▶ Test as a new user</button></div></div>
+  <div class="list" style="margin-bottom:12px"><div class="li note">Use <b>Test as a new user</b> to see exactly what a person opening the app for the first time gets – an empty start with only the sample work, uploading their first MB, etc. Nothing in test mode is saved to the cloud, and your own admin data is never changed. Press <b>Exit test</b> (top right) to come back.</div></div>
   <div class="cards"><div class="card"><span class="k">Users</span><span class="v">${users.length}</span></div><div class="card"><span class="k">Assistant enabled</span><span class="v">${users.filter(u=>u.approved&&!u.blocked).length}</span></div>
    <div class="card"><span class="k">Assistant calls (total)</span><span class="v">${calls}</span></div><div class="card"><span class="k">Worker</span><span class="v" style="font-size:15px">${appCfg.workerUrl?'<span class="chip ok">Connected</span>':'<span class="chip bad">URL not set</span>'}</span></div></div>
   <div class="list"><h3>Assistant settings</h3><div class="li" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
@@ -2348,6 +2363,7 @@ async function renderAdmin(){
    <td>${u.email===ADMIN_EMAIL?'<span class="chip ok">Admin</span>':`<button class="btn small" data-ap="${u.uid}" data-v="${u.approved?0:1}">${u.approved?'Disable':'Enable'}</button> ${u.approved?'<span class="chip ok">Allowed</span>':''}`}</td>
    <td>${u.email===ADMIN_EMAIL?'':`<button class="btn small ${u.blocked?'':'danger'}" data-bl="${u.uid}" data-v="${u.blocked?0:1}">${u.blocked?'Unblock':'Block'}</button> ${u.blocked?'<span class="chip bad">Blocked</span>':''}`}</td></tr>`).join('')}
   </tbody></table></div><p class="note">New users appear here as soon as they sign in with Google. Every signed-in user can use the registers and MB. The Assistant (which incurs API cost) is available only to enabled users. The administrator cannot see anyone's work data – only this list.</p>`;
+  $('#adTest').onclick=enterTestMode;
   $('#ad_save').onclick=async()=>{try{appCfg={workerUrl:gv('ad_url').trim().replace(/\/$/,''),model:gv('ad_model')};await fb.collection('config').doc('app').set(appCfg,{merge:true});toast('Settings saved');renderAdmin()}catch(e){toast(e.message)}};
   document.querySelectorAll('[data-ap]').forEach(b=>b.onclick=async()=>{await fb.collection('users').doc(b.dataset.ap).set({approved:b.dataset.v==='1'},{merge:true});renderAdmin()});
   document.querySelectorAll('[data-bl]').forEach(b=>b.onclick=async()=>{await fb.collection('users').doc(b.dataset.bl).set({blocked:b.dataset.v==='1'},{merge:true});renderAdmin()});
@@ -2474,7 +2490,7 @@ function autoApply(w,type,d){
 const itemsTable=items=>`<div class="tablewrap" style="margin:6px 0"><table class="reg"><thead><tr><th>No.</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Item</th></tr></thead><tbody>${items.slice(0,40).map(x=>`<tr><td>${esc(x.no)}</td><td class="n">${x.qty??''}</td><td>${esc(x.unit||'')}</td><td class="n">${x.rate??''}</td><td>${esc((x.desc||'').slice(0,90))}</td></tr>`).join('')}${items.length>40?`<tr><td colspan="5" class="note">…and ${items.length-40} more</td></tr>`:''}</tbody></table></div>`;
 function aiReady(){return !!(FIREBASE_CONFIG&&!EMBED&&user&&canAI()&&appCfg.workerUrl)}
 function renderChat(){const w=W();
-  const why=!FIREBASE_CONFIG||EMBED?'The assistant is available in the online app after Google sign-in and Worker setup.':!user?'Please sign in first.':!canAI()?'The administrator has not enabled the assistant for your account yet.':!appCfg.workerUrl?'The administrator has not configured the Worker URL yet (Admin → Assistant settings).':'';
+  const why=!FIREBASE_CONFIG||EMBED?'The assistant is available in the online app after Google sign-in and Worker setup.':!user?'Please sign in first.':testMode?'In test mode the Assistant is off, exactly as it is for a brand-new user until the admin enables it.':!canAI()?'The administrator has not enabled the assistant for your account yet.':!appCfg.workerUrl?'The administrator has not configured the Worker URL yet (Admin → Assistant settings).':'';
   $('#main').innerHTML=`<div class="sheethead"><div><h2>Assistant</h2><div class="sub">${esc(w.name)}</div></div></div>
   ${why?`<div class="banner"><span>${esc(why)} Measurement Book (Excel) uploads still work without it.</span></div>`:''}
   <div class="chatlog" id="chatlog">${chat.msgs.length?'':`<div class="empty">Upload any document – TS letter, tender approval, work order, BOQ, estimate, mix design report, cement / steel supply bill or Measurement Book (Excel). The document type is detected automatically and the details are filled in.<br>You can also ask a question, e.g. "What is the up-to-date MB quantity of item 5?" or "How much cement is in stock?"</div>`}</div>
