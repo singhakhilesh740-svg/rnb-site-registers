@@ -679,7 +679,7 @@ function renderDash(){
   $('#main').innerHTML=`
   ${w.sample?`<div class="banner"><span>This is <b>sample data</b> for demonstration only. Remove it after adding your own work.</span><button class="btn small" id="dropSample">Remove sample work</button></div>`:''}
   <div class="sheethead"><div><h2>${esc(w.name)}</h2><div class="sub">${esc(w.subdivision||'')}${w.agency?' · Agency: '+esc(w.agency):''}${w.agreementNo?' · Agreement: '+esc(w.agreementNo):''}</div></div>
-   <div class="actions"><button class="btn" id="dEdit">Edit work details</button><button class="btn danger" id="dDel">Delete work</button>${EMBED?'':'<button class="btn" id="xlsAll">Excel (all registers)</button>'}<button class="btn" id="bkp">Backup</button><label class="btn" for="restore">Restore</label><input type="file" id="restore" accept=".json" hidden></div></div>
+   <div class="actions"><button class="btn" id="dEdit">Edit work details</button><button class="btn danger" id="dDel">Delete work</button>${EMBED?'':'<button class="btn" id="xlsAll">Excel (all registers)</button>'}<button class="btn" id="wExp" title="Download this work (MB, edits, mix design, settings, registers) to open it in another account or device">Export this work</button><label class="btn" for="restore" title="Add a work from an exported / backup file – existing works are kept">Import work</label><input type="file" id="restore" accept=".json" hidden><button class="btn" id="bkp">Backup (all)</button></div></div>
   <div class="cards">
     <div class="card"><span class="k">Cement stock (bags)</span><span class="v">${c2.length?fmt(last(c2).closing,0):'—'}</span><span class="note">As on last Patrak-4 date ${c2.length?fdate(last(c2).date):''}</span></div>
     <div class="card"><span class="k">Steel stock (MT)</span><span class="v">${sc!=null?fmt(sc,3):'—'}</span><span class="note">Consumed to date ${fmt(steelUsed,3)} MT</span></div>
@@ -696,7 +696,7 @@ function renderDash(){
   <p class="note">${FIREBASE_CONFIG?'Data is synced to the cloud (Firebase).':'Data is currently saved only in this browser. Take regular backups, or add the Firebase config (see README).'}</p>`;
   $('#dropSample')?.addEventListener('click',e=>{if(e.target.dataset.sure){dropWork(w.id)}else{e.target.dataset.sure=1;e.target.textContent='Confirm removal?'}});
   $('#dEdit').onclick=()=>openWork(false);$('#dDel').onclick=e=>confirm2(e.target,'Confirm? All registers and MB of this work will be deleted',()=>dropWork(w.id));
-  $('#bkp').onclick=backup;$('#restore').onchange=restore;$('#xlsAll')?.addEventListener('click',()=>exportAllRegs());
+  $('#bkp').onclick=backup;$('#restore').onchange=restore;$('#wExp').onclick=()=>exportWork(w);$('#xlsAll')?.addEventListener('click',()=>exportAllRegs());
   document.querySelectorAll('[data-go]').forEach(a=>a.onclick=e=>{e.preventDefault();go(a.dataset.go)});
 }
 
@@ -894,7 +894,18 @@ function sheetRows(reg){const rows=compute(reg);
 function download(name,text){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'application/json'}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)}
 function backup(){if(EMBED){navigator.clipboard?.writeText(JSON.stringify(state)).then(()=>toast('Backup JSON copied to clipboard'),()=>toast('Copy failed'));return}
   download('site-registers-backup-'+today()+'.json',JSON.stringify(state,null,1));toast('Backup downloaded')}
-function restore(e){const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const s=JSON.parse(rd.result);if(!s.works||!s.data)throw 0;state=s;persist();view.reg='dash';render();toast('Restored')}catch(x){toast('This is not a valid backup file.')}};rd.readAsText(f)}
+/* one work → file, with its uploaded MB sheets, so it can be opened in another account / device */
+async function exportWork(w){const sheets={};for(const m of (w.mbFiles||[])){try{sheets[m.id]=await getSheets(m.id)}catch(e){}}
+  download(`work-${(w.name||'work').replace(/[^A-Za-z0-9]+/g,'-').slice(0,40)}-${today()}.json`,JSON.stringify({kind:'rnb-work',v:1,at:Date.now(),work:w,data:state.data[w.id]||{},sheets}));toast('Work exported – open it in the other account with "Import work"')}
+async function importWorkObj(work,data,sheets){const same=state.works.find(x=>x.id===work.id||(x.name||'').trim().toLowerCase()===(work.name||'').trim().toLowerCase());
+  let id=work.id;if(same){if(confirm(`A work named "${same.name}" already exists in this account.\n\nOK = replace it with the imported work (MB, edits, mix design, settings and registers)\nCancel = keep both (the import is added as a copy)`)){id=same.id;state.works=state.works.filter(x=>x.id!==same.id);delete state.data[same.id];await cloudDropWork(same.id)}else{id=uid();work={...work,name:work.name+' (imported)'}}}
+  else if(state.works.some(x=>x.id===id))id=uid();
+  const nw={...JSON.parse(JSON.stringify(work)),id};state.works.push(nw);state.data[id]=JSON.parse(JSON.stringify(data||{}));state.cur=id;
+  for(const [fid,sh] of Object.entries(sheets||{})){try{await IDB.put(fid,sh);if(fb&&user){const json=JSON.stringify(sh);const CH=700000;const n=Math.ceil(json.length/CH);const col=uref().collection('works').doc(id).collection('mbfiles');for(let k=0;k<n;k++)await col.doc(fid+'_'+k).set({fid,i:k,n,d:json.slice(k*CH,(k+1)*CH)})}}catch(e){}}
+  persist();Object.keys(state.data[id]).forEach(rid=>persist(rid));return nw}
+function restore(e){const f=e.target.files[0];e.target.value='';if(!f)return;const rd=new FileReader();rd.onload=async()=>{try{const s=JSON.parse(rd.result);
+    if(s.kind==='rnb-work'&&s.work){const nw=await importWorkObj(s.work,s.data,s.sheets);view.reg='dash';render();toast(`Imported: ${nw.name}`,4000);return}
+    if(!s.works||!s.data)throw 0;let n=0;for(const w of s.works){await importWorkObj(w,s.data[w.id],{});n++}view.reg='dash';render();toast(`${n} work(s) imported – existing works were kept`,4000)}catch(x){toast('This is not a valid backup / export file.')}};rd.readAsText(f)}
 
 let tt;function toast(m,ms=2400){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,ms)}
 
@@ -1476,13 +1487,20 @@ const MBGEN={
 const KINDL={steel:'Steel',conc:'Concrete',cem:'Cement work',other:'—'};
 const MBF_NOTE={cement4:'daily consumption',steel2:'daily consumption, dia-wise',slump:'every pour',cube3:'every pour, cubes required',cement1:'one line per bill',steel1:'one block per bill',sampling:'samples required',cementTest:'per lot',cementCons:'per lot',petro:'per source',aggTest:'per lot',sieve:'coarse aggregate + sand',brick:'per lot',tiles:'per lot',mixDesign:'per grade',calib:'monthly',corrBatch:'every pour',batchPlant:'every pour',proforma3:'required vs. MB'};
 /* registers generated from the MB with an older day-splitting method are regenerated once, automatically (same settings) */
-const SPLIT_VER=6;
+const SPLIT_VER=7;
+/* rows made from the MB (also older ones that lack the flag) */
+const P4CK=new Map();
+const isMbRow=e=>e.src==='mbx'||(!e.src&&/^From MB\b/.test(e.remarks||''));
+/* Patrak-4 per item must equal MB quantity × bags per unit – otherwise the registers are stale */
+function p4Stale(w){try{const want={};planMB(blocksFromEntries(w),w).filter(p=>p.use&&p.per>0&&p.date&&p.kind!=='steel').forEach(p=>want[p.itemNo]=(want[p.itemNo]||0)+Math.round(p.qty*p.per));
+  const have={};rowsOf('cement4',w).filter(isMbRow).forEach(r=>have[r.itemNo]=(have[r.itemNo]||0)+(+r.used||0));
+  if(!Object.keys(have).length)return false;return [...new Set([...Object.keys(want),...Object.keys(have)])].some(k=>Math.abs((want[k]||0)-(have[k]||0))>1)}catch(e){return false}}
 function mbSig(w){let h=0;const st=x=>{for(const ch of String(x)){h=Math.imul(h^ch.charCodeAt(0),16777619)}};mbOf(w).entries.forEach(e=>{st(e.itemNo);st(e.date||'');st(e.bill);st(JSON.stringify(e.lines||[]))});st(JSON.stringify(w.mix||{}));return (h>>>0).toString(36)}
-function autoRefill(w){try{if(!w||W()!==w)return;const sig=mbSig(w);if(w.splitVer===SPLIT_VER&&(w.mbSig==null||w.mbSig===sig))return;const ids=REGS.filter(g=>MBGEN[g.id]&&rowsOf(g.id,w).some(e=>e.src==='mbx')).map(g=>g.id);
+function autoRefill(w){try{if(!w||W()!==w)return;const sig=mbSig(w);const ck=w.id+'|'+sig+'|'+rowsOf('cement4',w).length;const fresh=P4CK.get(w.id)===ck;if(w.splitVer===SPLIT_VER&&(w.mbSig==null||w.mbSig===sig)&&(fresh||!p4Stale(w))){P4CK.set(w.id,ck);return}const ids=REGS.filter(g=>MBGEN[g.id]&&rowsOf(g.id,w).some(isMbRow)).map(g=>g.id);
   if(!ids.length){w.splitVer=SPLIT_VER;w.mbSig=sig;return}const bl=blocksFromEntries(w);if(!bl.length)return;const plan=planMB(bl,w);const bills=[...new Set(bl.map(b=>b.bill))];const x=mbCtx(plan,freqOf(w),{bill:bills[bills.length-1]});
-  ids.forEach(id=>{const old=rowsOf(id,w);const om=old.filter(e=>e.src==='mbx').sort((a,b)=>(a.date||'')<(b.date||'')?-1:1);const ents=MBGEN[id](x);
+  ids.forEach(id=>{const old=rowsOf(id,w);const om=old.filter(isMbRow).sort((a,b)=>(a.date||'')<(b.date||'')?-1:1);const ents=MBGEN[id](x);
     if((id==='cement4'||id==='steel2')&&ents.length){ents.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);if(om[0]?.opening!=null&&om[0].opening!=='')ents[0].opening=om[0].opening}
-    state.data[w.id][id]=[...old.filter(e=>e.src!=='mbx'),...ents]});
+    state.data[w.id][id]=[...old.filter(e=>!isMbRow(e)),...ents]});
   w.splitVer=SPLIT_VER;w.mbSig=sig;ids.forEach(id=>persist(id));persist();toast('Registers re-generated from the MB (current mix design, daily output and variation).',4000)}catch(e){console.warn('autoRefill',e)}}
 function openMbFill(r){let D;const plan=planMB(r.blocks);const on=Object.fromEntries(REGS.map(g=>[g.id,!!MBGEN[g.id]&&regOn(g.id)]));const F=freqOf(W());
   const rowsH=()=>plan.map(p=>`<tr><td><input type="checkbox" data-u="${p.i}" ${p.use?'checked':''} ${p.kind==='other'&&!isTile(p)?'disabled':''} aria-label="Use"></td><td>${esc(p.itemNo)}</td><td class="d">${fdate(p.date)||'<span class="chip bad">no date</span>'}${r.blocks[p.i].inherited?'<div class="note">previous date</div>':''}</td>
@@ -1506,7 +1524,7 @@ function openMbFill(r){let D;const plan=planMB(r.blocks);const on=Object.fromEnt
      sel.forEach(g=>{const ents=MBGEN[g.id](x);const key=g.sortKey||'date';
        if(ents.length&&g.id==='cement4'){ents.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);const op=num(gv('mbxOpen'));if(op!=null)ents[0].opening=String(op)}
        if(ents.length&&g.id==='steel2'){ents.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);const op=num(gv('mbxOpenS'));if(op!=null)ents[0].opening=String(op)}
-       const keep=rowsOf(g.id).filter(e=>e.src!=='mbx');state.data[w.id][g.id]=[...keep,...ents];persist(g.id);tot+=ents.length;if(ents.length)msg.push(`${g.short}: ${ents.length}`)});
+       const keep=rowsOf(g.id).filter(e=>!isMbRow(e));state.data[w.id][g.id]=[...keep,...ents];persist(g.id);tot+=ents.length;if(ents.length)msg.push(`${g.short}: ${ents.length}`)});
      $('#dlg').close();go('aavak');toast(`${tot} entries filled in ${msg.length} registers – review the material requirement below`,7000)});
   const sum=()=>{const u=plan.filter(p=>p.use);const bags=u.filter(p=>p.per&&p.kind!=='steel').reduce((a,p)=>a+Math.round(p.qty*p.per),0);const st=u.filter(p=>p.kind==='steel').reduce((a,p)=>a+p.qty,0);
     const pours=u.filter(p=>p.kind==='conc').reduce((a,p)=>a+Math.max(1,+p.days||1),0);D=$('#dlgBody');
