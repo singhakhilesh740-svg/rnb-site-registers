@@ -1580,8 +1580,24 @@ async function loadMbUpload(meta,w=W()){let sh=await IDB.get(meta.id);if(sh)retu
   const q=await uref().collection('works').doc(w.id).collection('mbfiles').where('fid','==',meta.id).get();
   const parts=q.docs.map(d=>d.data()).sort((a,b)=>a.i-b.i);if(!parts.length)throw new Error('This MB was not found in the cloud.');
   sh=JSON.parse(parts.map(p=>p.d).join(''));await IDB.put(meta.id,sh);return sh}
-async function dropMbUpload(id){const w=W();w.mbFiles=(w.mbFiles||[]).filter(m=>m.id!==id);mbOf(w).entries=mbOf(w).entries.filter(e=>e.fid!==id);persist();await IDB.del(id);
-  if(fb&&user){try{const q=await uref().collection('works').doc(w.id).collection('mbfiles').where('fid','==',id).get();for(const d of q.docs)await d.ref.delete()}catch(e){}}}
+async function dropMbUpload(id){const w=W();w.mbFiles=(w.mbFiles||[]).filter(m=>m.id!==id);
+  mbOf(w).entries=mbOf(w).entries.filter(e=>e.fid!==id&&e.fid!==id+'_prev');delete mbup.cache?.[id];
+  const anyMB=(w.mbFiles||[]).length>0&&mbOf(w).entries.some(e=>e.fid&&e.src==='upload');
+  if(!anyMB){
+    /* last MB of this work removed → clear everything generated from the MB (cement bags, steel, slump, cube, sampling …); genuine supply-bill receipts are kept */
+    state.data[w.id]??={};REGS.forEach(g=>{if(!MBGEN[g.id]||!state.data[w.id][g.id])return;
+      state.data[w.id][g.id]=rowsOf(g.id,w).filter(e=>keepOnMbDelete(g.id,e))});
+    delete w.splitVer;delete w.mbSig;P4CK.delete(w.id);REGS.forEach(g=>{if(MBGEN[g.id])persist(g.id)})}
+  else{delete w.splitVer;delete w.mbSig;P4CK.delete(w.id)}
+  persist();await IDB.del(id);
+  if(cloudOn()){try{const q=await uref().collection('works').doc(w.id).collection('mbfiles').where('fid','==',id).get();for(const d of q.docs)await d.ref.delete()}catch(e){}}}
+/* which rows survive when the last MB is deleted: only genuine supply-bill receipts */
+function keepOnMbDelete(id,e){if(isMbRow(e))return false;
+  if(id==='cement4')return num(e.receipt)>0&&!String(e.itemNo||'').trim();
+  if(id==='steel2')return num(e.receipt)>0;
+  if(id==='cement1'||id==='steel1')return e.src==='bill'||num(e.qty)>0||DIAS.some(d=>num(e['r'+d]));
+  if(id==='cementTest')return e.src==='bill';
+  return false}
 const cellTxt=v=>v==null?'':typeof v==='object'&&v.d?fdate(v.d):typeof v==='number'?String(+v.toFixed(3)):String(v);
 function gridHtml(g,print){const R=g.rows.length;let C=0;g.rows.forEach(r=>{if(r&&r.length>C)C=r.length});
   const span={},skip=new Set();const ci=t=>{let n=0;for(const ch of t)n=n*26+ch.charCodeAt(0)-64;return n};
@@ -1609,7 +1625,7 @@ async function renderMbUp(){const w=W();const L=sortMb(w.mbFiles||[]);
   const M=$('#main');M.querySelectorAll('[data-me]').forEach(b=>b.onclick=async()=>{const m=L.find(x=>x.id===b.dataset.me);if(!m.imported){try{importMbEntries(w,m,await getSheets(m.id))}catch(e){return toast(e.message,5000)}}view.bill=m.billId;go('mbRecord')});
   M.querySelectorAll('[data-mo]').forEach(b=>b.onclick=()=>{mbup.sel=b.dataset.mo;mbup.sheet=0;renderMbUp()});
   M.querySelectorAll('[data-mx]').forEach(b=>b.onclick=async()=>{try{const m=L.find(x=>x.id===b.dataset.mx);await xlSave(wbFromGrids(await getSheets(m.id)),`${m.bill||'MB'} - ${w.name}`)}catch(e){toast(e.message,5000)}});
-  M.querySelectorAll('[data-md]').forEach(b=>b.onclick=()=>confirm2(b,'Delete MB and its measurements?',async()=>{await dropMbUpload(b.dataset.md);delete mbup.cache[b.dataset.md];render();toast('MB deleted')}));
+  M.querySelectorAll('[data-md]').forEach(b=>b.onclick=()=>confirm2(b,'Delete this MB? Its measurements and everything generated from it (Cement Patrak-4, Steel Patrak-2, slump, cube, testing schedule, aggregate / sand) will be removed from this work. Supply-bill receipts are kept.',async()=>{await dropMbUpload(b.dataset.md);delete mbup.cache[b.dataset.md];render();toast('MB deleted')}));
   if(!mbup.sel)return;const V=$('#mbuView');V.innerHTML='<div class="empty">Loading MB…</div>';
   let sh;try{sh=await getSheets(mbup.sel)}catch(e){V.innerHTML=`<div class="banner">${esc(e.message)}</div>`;return}
   const m=L.find(x=>x.id===mbup.sel);if(mbup.sheet>=sh.length)mbup.sheet=0;const g=sh[mbup.sheet];
