@@ -767,7 +767,7 @@ function renderReg(){
   $('#xls')?.addEventListener('click',()=>exportReg(reg));
   document.querySelectorAll('#main tbody tr[data-id]').forEach(tr=>tr.onclick=()=>openForm(reg,rowsOf(reg.id).find(r=>r.id===tr.dataset.id)));
 }
-function render(){autoRefill(W());renderWorks();renderShelf();view.reg==='dash'?renderDash():view.reg==='chat'?renderChat():view.reg==='works'?renderWorksList():view.reg==='admin'?renderAdmin():view.reg==='mbup'?renderMbUp():view.reg==='aavak'?renderAavak():view.reg==='settings'?renderSettings():view.reg==='tests'?renderTests():view.reg==='tforms'?renderTForms():view.reg==='ccs'?renderCCS():MBV[view.reg]?renderMB(view.reg):renderReg()}
+function render(){if(W())ensureMbImported(W(),()=>render());autoRefill(W());renderWorks();renderShelf();view.reg==='dash'?renderDash():view.reg==='chat'?renderChat():view.reg==='works'?renderWorksList():view.reg==='admin'?renderAdmin():view.reg==='mbup'?renderMbUp():view.reg==='aavak'?renderAavak():view.reg==='settings'?renderSettings():view.reg==='tests'?renderTests():view.reg==='tforms'?renderTForms():view.reg==='ccs'?renderCCS():MBV[view.reg]?renderMB(view.reg):renderReg()}
 function go(id){view.reg=id;try{localStorage.setItem(LS_KEY+'_view',id)}catch(e){}render();window.scrollTo(0,0)}
 
 /* ===================== FORM ===================== */
@@ -1629,10 +1629,36 @@ function entriesFromGrid(g,billId,fid){const out=[];let cur=null,blk=null,date=n
   close();
   out.forEach(e=>{const k=e._blk;delete e._blk;e.desc=k.desc;e.unit=k.unit;if(k.uw)e.uw=k.uw;if(!e.date&&k.first)e.date=k.first;e.mbTotal=k.total});
   return out}
+/* Previous-bill quantities ("Qty as per 1st CMB … Paid in 1st RA Bill") read from the abstract of this bill.
+   Used only when the MB of that earlier bill has not been uploaded. Dates are not in the abstract, so they are placed
+   just before this bill's period, item by item (marked as estimated); uploading the earlier MB replaces them with exact dates. */
+function prevFromAbstract(w,meta,g,bill,ents){const mb=mbOf(w);const fid=meta.id+'_prev';mb.entries=mb.entries.filter(e=>e.fid!==fid);if(!g)return null;
+  const thisN=billNum(bill.name);if(thisN==null||thisN<2)return null;
+  const found={};let item=null,desc='';
+  g.rows.forEach(row=>{row=Array.from(row||[]);const t=row.map(v=>typeof v==='string'?v:'');const im=t.map(x=>/^\s*Item\s*No\.?\s*(\d+[A-Za-z]?)\s*$/i.exec(x)).find(Boolean);
+    if(im){item=im[1];desc='';return}if(!item)return;
+    const lab=t.find(x=>/qty\s*as\s*per\s*\d+\s*(st|nd|rd|th)?\s*c\.?m\.?b/i.test(x));
+    if(!lab){const long=t.find(x=>x.length>40);if(long&&!desc)desc=long.trim();return}
+    const cmb=+(/(\d+)/.exec(lab)[1]);const rem=t.find(x=>/paid\s*in\s*\d+/i.test(x));const n=rem?+(/(\d+)/.exec(rem.replace(/.*paid\s*in/i,''))[1]):cmb;if(!(n<thisN))return;
+    const qty=[...row].reverse().map(v=>typeof v==='number'?v:null).find(v=>v!=null);if(qty==null||!qty)return;
+    const pg=t.map(x=>/P\.?\s*No\.?\s*(\d+)/i.exec(x)).find(Boolean);const unit=t.find(x=>/^(cu\.?\s*m|sq\.?\s*m|sq\.?\s*mt|kg|m\.?\s*t|r\.?\s*m|nos?)\.?$/i.test(x.trim()))||'';
+    const key=n+'|'+item;(found[key]??={n,item,desc,unit,lines:[]}).lines.push({desc:`Qty as per ${ORD(cmb)} CMB${pg?' P.No.'+pg[1]:''} (from ${bill.name} abstract)`,n1:1,L:qty,_pg:pg?+pg[1]:null})});
+  const groups=Object.values(found);if(!groups.length)return null;
+  const realBills=new Set(mb.entries.filter(e=>e.src!=='abstract').map(e=>e.bill));
+  const start=ents.map(e=>e.date).filter(Boolean).sort()[0];let cursor=start||null;let c=Date.now();const out=[];
+  [...new Set(groups.map(x=>x.n))].sort((a,b)=>b-a).forEach(n=>{const pb=billFor(w,`${ORD(n)} RA Bill`);if(realBills.has(pb.id))return;
+    groups.filter(x=>x.n===n).sort((a,b)=>(parseFloat(b.item)||0)-(parseFloat(a.item)||0)).forEach(x=>{const it=itemOf(w,{itemNo:x.item,desc:x.desc,unit:x.unit});const q=x.lines.reduce((a,l)=>a+l.L,0);
+      const d=cursor?workDaysBefore(cursor,1)[0]:null;const steelish=/kg|m\.?\s*t/i.test(it.unit||x.unit)&&/steel|tmt|reinforce|\bbar/i.test(it.desc||x.desc);
+      out.push({id:uid(),_c:c++,bill:pb.id,date:d,dateInherited:true,estDate:true,itemNo:x.item,page:x.lines[0]._pg!=null?String(x.lines[0]._pg):'',desc:x.desc,unit:x.unit,src:'abstract',fid,
+        lines:x.lines.map(l=>({desc:l.desc,n1:l.n1,L:l.L}))});
+      if(d&&!steelish){const days=Math.max(1,Math.round(q/(dayRate(it.desc||x.desc||'',it.unit||x.unit)||1)));cursor=workDaysBefore(d,Math.max(1,Math.ceil(days*0.6)))[0]}})});
+  mb.entries=mb.entries.concat(out);return {count:out.length,bills:[...new Set(out.map(e=>e.bill))].length}}
 function importMbEntries(w,meta,sheets){const mb=mbOf(w);const b=billFor(w,meta.bill||meta.name);
   const ents=entriesFromGrid(sheets[0],b.id,meta.id);
   let last='';ents.forEach(e=>{if(e.date)last=e.date;else{e.date=last;e.dateInherited=true}});
-  mb.entries=mb.entries.filter(e=>e.fid!==meta.id).concat(ents);meta.imported=true;meta.billId=b.id;
+  /* a real MB of this bill replaces quantities carried forward from a later bill's abstract */
+  mb.entries=mb.entries.filter(e=>e.fid!==meta.id&&!(e.src==='abstract'&&e.bill===b.id)).concat(ents);meta.imported=true;meta.billId=b.id;
+  try{const pv=prevFromAbstract(w,meta,sheets[1],b,ents);if(pv){meta.prevInfo=pv;delete w.splitVer}}catch(e){console.warn('prev abstract',e)}meta.prevChk=true;
   const tot={};ents.forEach(e=>{const k=e.itemNo+'|'+e.mbTotal+'|'+(e.page||'');(tot[k]??={no:e.itemNo,mb:e.mbTotal,app:0}).app+=entryCalc(w,e).qty});
   const bad=[];Object.values(tot).forEach(t=>{if(t.mb!=null&&Math.abs(t.app-t.mb)>Math.max(0.05,Math.abs(t.mb)*0.001))bad.push(`Item ${t.no}: MB ${t.mb}, app ${r2(t.app)}`)});
   meta.check=bad;persist();return {bill:b.name,count:ents.length,bad}}
@@ -1790,8 +1816,9 @@ function testCtx(w=W()){const N=needTable(w);const c3=rowsOf('cube3',w).filter(r
   N.samples=c3.reduce((a,r)=>a+reqSamples(+r.qty),0);N.slumps=c3.reduce((a,r)=>a+Math.max(1,Math.ceil(+r.qty/50)),0)||rowsOf('slump',w).length;
   N.grades=[...new Set(c3.map(r=>r.grade).filter(g=>fck(g)))];N.months=new Set(c3.map(r=>(r.date||'').slice(0,7)).filter(Boolean)).size;return N}
 let mbImpBusy=false;
-async function ensureMbImported(w,after){const pend=(w.mbFiles||[]).filter(m=>!m.imported);if(!pend.length||mbImpBusy)return;mbImpBusy=true;let n=0;
-  for(const m of pend){try{importMbEntries(w,m,await getSheets(m.id));n++}catch(e){}}mbImpBusy=false;if(n){persist();after&&after()}}
+async function ensureMbImported(w,after){const pend=(w.mbFiles||[]).filter(m=>!m.imported||!m.prevChk);if(!pend.length||mbImpBusy)return;mbImpBusy=true;let n=0;
+  for(const m of pend){try{const sh=await getSheets(m.id);if(!m.imported)importMbEntries(w,m,sh);else{const b=mbOf(w).bills.find(x=>x.id===m.billId)||billFor(w,m.bill||m.name);
+      const pv=prevFromAbstract(w,m,sh[1],b,mbOf(w).entries.filter(e=>e.fid===m.id));m.prevChk=true;if(pv){m.prevInfo=pv;delete w.splitVer}}n++}catch(e){}}mbImpBusy=false;if(n){persist();after&&after()}}
 function renderTests(){const w=W();ensureMbImported(w,()=>{if(view.reg==='tests'&&W()===w)renderTests()});const F=freqOf(w);const N=testCtx(w);const AP=aggPlan(w);
   const aggSec=print=>`<h3 style="margin:18px 0 6px">Aggregates and sand – quantity from mix design and tests due</h3>${aggPlanHTML(AP,print)}`;
   const stages=[...new Set(TESTS.map(t=>t.st))];
