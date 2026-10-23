@@ -1476,13 +1476,14 @@ const MBGEN={
 const KINDL={steel:'Steel',conc:'Concrete',cem:'Cement work',other:'—'};
 const MBF_NOTE={cement4:'daily consumption',steel2:'daily consumption, dia-wise',slump:'every pour',cube3:'every pour, cubes required',cement1:'one line per bill',steel1:'one block per bill',sampling:'samples required',cementTest:'per lot',cementCons:'per lot',petro:'per source',aggTest:'per lot',sieve:'coarse aggregate + sand',brick:'per lot',tiles:'per lot',mixDesign:'per grade',calib:'monthly',corrBatch:'every pour',batchPlant:'every pour',proforma3:'required vs. MB'};
 /* registers generated from the MB with an older day-splitting method are regenerated once, automatically (same settings) */
-const SPLIT_VER=4;
-function autoRefill(w){try{if(!w||w.splitVer===SPLIT_VER||W()!==w)return;const ids=REGS.filter(g=>MBGEN[g.id]&&rowsOf(g.id,w).some(e=>e.src==='mbx')).map(g=>g.id);
-  if(!ids.length){w.splitVer=SPLIT_VER;return}const bl=blocksFromEntries(w);if(!bl.length)return;const plan=planMB(bl,w);const bills=[...new Set(bl.map(b=>b.bill))];const x=mbCtx(plan,freqOf(w),{bill:bills[bills.length-1]});
+const SPLIT_VER=5;
+function mbSig(w){let h=0;const st=x=>{for(const ch of String(x)){h=Math.imul(h^ch.charCodeAt(0),16777619)}};mbOf(w).entries.forEach(e=>{st(e.itemNo);st(e.date||'');st(e.bill);st(JSON.stringify(e.lines||[]))});st(JSON.stringify(w.mix||{}));return (h>>>0).toString(36)}
+function autoRefill(w){try{if(!w||W()!==w)return;const sig=mbSig(w);if(w.splitVer===SPLIT_VER&&(w.mbSig==null||w.mbSig===sig))return;const ids=REGS.filter(g=>MBGEN[g.id]&&rowsOf(g.id,w).some(e=>e.src==='mbx')).map(g=>g.id);
+  if(!ids.length){w.splitVer=SPLIT_VER;w.mbSig=sig;return}const bl=blocksFromEntries(w);if(!bl.length)return;const plan=planMB(bl,w);const bills=[...new Set(bl.map(b=>b.bill))];const x=mbCtx(plan,freqOf(w),{bill:bills[bills.length-1]});
   ids.forEach(id=>{const old=rowsOf(id,w);const om=old.filter(e=>e.src==='mbx').sort((a,b)=>(a.date||'')<(b.date||'')?-1:1);const ents=MBGEN[id](x);
     if((id==='cement4'||id==='steel2')&&ents.length){ents.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);if(om[0]?.opening!=null&&om[0].opening!=='')ents[0].opening=om[0].opening}
     state.data[w.id][id]=[...old.filter(e=>e.src!=='mbx'),...ents]});
-  w.splitVer=SPLIT_VER;ids.forEach(id=>persist(id));persist();toast('Registers re-generated from the MB (current mix design, daily output and variation).',4000)}catch(e){console.warn('autoRefill',e)}}
+  w.splitVer=SPLIT_VER;w.mbSig=sig;ids.forEach(id=>persist(id));persist();toast('Registers re-generated from the MB (current mix design, daily output and variation).',4000)}catch(e){console.warn('autoRefill',e)}}
 function openMbFill(r){let D;const plan=planMB(r.blocks);const on=Object.fromEntries(REGS.map(g=>[g.id,!!MBGEN[g.id]&&regOn(g.id)]));const F=freqOf(W());
   const rowsH=()=>plan.map(p=>`<tr><td><input type="checkbox" data-u="${p.i}" ${p.use?'checked':''} ${p.kind==='other'&&!isTile(p)?'disabled':''} aria-label="Use"></td><td>${esc(p.itemNo)}</td><td class="d">${fdate(p.date)||'<span class="chip bad">no date</span>'}${r.blocks[p.i].inherited?'<div class="note">previous date</div>':''}</td>
     <td>${esc(p.name)}<div class="note">${esc((p.desc||'').slice(0,80))}</div>${p.kind==='steel'?`<div class="note">${p.dia?Object.entries(p.dia).map(([d,v])=>`${d}ø ${fmt(v,0)} kg`).join(' · '):'<span class="chip bad">dia-wise weight not found</span>'}</div>`:''}</td>
@@ -1501,7 +1502,7 @@ function openMbFill(r){let D;const plan=planMB(r.blocks);const on=Object.fromEnt
     <div class="fld"><label for="mbxOpenS">Steel opening balance (MT), if known</label><input id="mbxOpenS" inputmode="decimal" placeholder="optional"></div>
     <div class="fld wide note"><div>Registers unticked here are also hidden from this work's menu (restore them from "☰ Registers"). Entries previously filled from the MB are replaced; manually entered entries are kept.</div></div>`,
    ()=>{const sel=REGS.filter(g=>on[g.id]&&MBGEN[g.id]);if(!sel.length)return toast('Select at least one register.');const w=W();const x=mbCtx(plan,F,r);const msg=[];let tot=0;
-     w.regsOff=REGS.filter(g=>MBGEN[g.id]?!on[g.id]:!regOn(g.id,w)).map(g=>g.id);w.freq={...F};w.splitVer=SPLIT_VER;w.dayAvg??={};D.querySelectorAll('[data-avg]').forEach(c=>{const v=num(c.value);if(v>0)w.dayAvg[c.dataset.avg]=v});{const vv=num(D.querySelector('#mbxVar')?.value);if(vv!=null&&vv>=0)w.dayVar=Math.min(60,vv)}persist();
+     w.regsOff=REGS.filter(g=>MBGEN[g.id]?!on[g.id]:!regOn(g.id,w)).map(g=>g.id);w.freq={...F};w.splitVer=SPLIT_VER;w.mbSig=mbSig(w);w.dayAvg??={};D.querySelectorAll('[data-avg]').forEach(c=>{const v=num(c.value);if(v>0)w.dayAvg[c.dataset.avg]=v});{const vv=num(D.querySelector('#mbxVar')?.value);if(vv!=null&&vv>=0)w.dayVar=Math.min(60,vv)}persist();
      sel.forEach(g=>{const ents=MBGEN[g.id](x);const key=g.sortKey||'date';
        if(ents.length&&g.id==='cement4'){ents.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);const op=num(gv('mbxOpen'));if(op!=null)ents[0].opening=String(op)}
        if(ents.length&&g.id==='steel2'){ents.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);const op=num(gv('mbxOpenS'));if(op!=null)ents[0].opening=String(op)}
@@ -1663,6 +1664,8 @@ function importMbEntries(w,meta,sheets){const mb=mbOf(w);const b=billFor(w,meta.
   const bad=[];Object.values(tot).forEach(t=>{if(t.mb!=null&&Math.abs(t.app-t.mb)>Math.max(0.05,Math.abs(t.mb)*0.001))bad.push(`Item ${t.no}: MB ${t.mb}, app ${r2(t.app)}`)});
   meta.check=bad;persist();return {bill:b.name,count:ents.length,bad}}
 function blocksFromEntries(w){const L=mbLayout(w);const bn=Object.fromEntries(mbOf(w).bills.map(b=>[b.id,b.name]));
+  const firstD={};L.entries.forEach(e=>{if(e.date&&(!firstD[e.bill]||e.date<firstD[e.bill]))firstD[e.bill]=e.date});let lastAny=null;
+  L.entries.forEach(e=>{if(e.date)lastAny=e.date;else{const d=firstD[e.bill]||lastAny;if(d){e.date=d;e.dateInherited=true}}});
   return L.entries.filter(e=>e.date).map(e=>{const c=e._calc;const it=itemOf(w,e);const blk={itemNo:String(e.itemNo),date:e.date,desc:it.desc||e.desc||'',total:c.qty,unit:c.unit||e.unit||'',page:'P.No.'+e._page,bill:bn[e.bill]||'',inherited:!!e.dateInherited};
     if(c.steel){blk.dia={};MBDIAS.forEach(d=>{if(c.wt[d])blk.dia[d]=c.wt[d]});blk.total=c.kg;blk.unit='Kg.'}return blk}).filter(b=>b.total)}
 /* ===================== AAVAK PLANNING: kis din tak kitna maal chahiye ===================== */
@@ -2123,7 +2126,7 @@ function ccsData(w,billId){const mb=mbOf(w);const bills=mb.bills;const k=Math.ma
   const rows=Object.values(items).map(o=>{const ru=cemRule(o.desc,o.unit,w);if(!ru||!ru.kg)return null;const rT=Math.round(ru.kg/50*100)/100;
       const rate=num(S.rate[o.no])??rT;const theo=Math.round(o.qty*rate*100)/100;
       const used=c4.filter(r=>String(r.itemNo)===o.no&&(!cut||!r.date||r.date<=cut)).reduce((a,r)=>a+(+r.used||0),0);
-      const act=num(S.act[o.no])??(used>0?used:theo);const ar=o.qty?act/o.qty:0;const diff=theo?(act-theo)/theo*100:0;
+      const fromP4=S.src==='p4';const act=num(S.act[o.no])??(fromP4&&used>0?used:theo);const ar=o.qty?act/o.qty:0;const diff=theo?(act-theo)/theo*100:0;
       return {...o,rT,rate,theo,used,act,ar,diff}}).filter(Boolean).sort((a,b)=>(parseFloat(a.no)||0)-(parseFloat(b.no)||0)||String(a.no).localeCompare(String(b.no)));
   const tT=rows.reduce((a,r)=>a+r.theo,0),tA=rows.reduce((a,r)=>a+r.act,0);
   /* receipts from Patrak-4 (opening balance + new receipts) */
@@ -2142,7 +2145,7 @@ function ccsHTML(w,D,print){const f2=v=>fmt(v,2);const cls=print?'p':'reg';
    <tr>${[1,2,3,4,5,6,7,8,9,10].map(n=>`<th>${n}</th>`).join('')}</tr></thead>`;
   const body=D.rows.map(r=>`<tr><td class="n" style="text-align:center">${esc(r.no)}</td><td style="min-width:${print?'auto':'320px'};text-align:justify">${esc(r.desc)}</td><td class="n">${f2(r.qty)}</td><td style="text-align:center">${esc(r.unit)}</td>
    <td class="n">${print?f2(r.rate):`<input data-cr="${esc(r.no)}" value="${f2(r.rate)}" inputmode="decimal" style="width:70px;text-align:right" title="Theoretical rate (from mix design / PWD table: ${f2(r.rT)})">`}</td><td class="n">${f2(r.theo)}</td>
-   <td class="n">${print?f2(r.act):`<input data-ca="${esc(r.no)}" value="${f2(r.act)}" inputmode="decimal" style="width:90px;text-align:right" title="${r.used>0?`From Cement Patrak-4: ${fmt(r.used,0)} bags`:'No Patrak-4 entries – equal to theoretical'}">`}</td>
+   <td class="n">${print?f2(r.act):`<input data-ca="${esc(r.no)}" value="${f2(r.act)}" inputmode="decimal" style="width:90px;text-align:right">${Math.abs(r.used-r.theo)>Math.max(1,r.theo*0.02)?`<div class="note" style="color:var(--bad)">Patrak-4: ${fmt(r.used,0)} bags</div>`:''}`}</td>
    <td class="n">${f2(r.ar)}</td><td class="n">${f2(r.diff)}</td><td style="text-align:center">${print?esc(ccsRemark(r,D.tol)):(()=>{const t=ccsRemark(r,D.tol);return `<span class="chip ${/Within/.test(t)?'ok':'bad'}">${esc(t)}</span>`})()}</td></tr>`).join('');
   const tot=`<tr><td></td><td></td><td colspan="3" style="text-align:left"><b>Total</b></td><td class="n"><b>${f2(D.tT)}</b></td><td class="n"><b>${f2(D.tA)}</b></td><td colspan="3"></td></tr>
    <tr><td></td><td></td><td colspan="3" style="text-align:left"><b>Say</b></td><td class="n"><b>${f2(Math.round(D.tT))}</b></td><td class="n"><b>${f2(D.say)}</b></td><td colspan="3"></td></tr>
@@ -2163,13 +2166,15 @@ function renderCCS(){const w=W();ensureMbImported(w,()=>{if(view.reg==='ccs'&&W(
   const D=ccsData(w,ccsBill);
   $('#main').innerHTML=`<div class="sheethead"><div><h2>Cement Consumption Statement</h2><div class="sub">${esc(w.name)} · quantities up to date from all MBs; theoretical rate from ⚙ Settings mix design / PWD consumption table</div></div>
     <div class="actions"><label class="note">Up to bill <select id="ccsB">${mb.bills.map(b=>`<option value="${b.id}" ${b.id===ccsBill?'selected':''}>${esc(b.name)}</option>`).join('')}</select></label>
+     <label class="note">Actual consumption from <select id="ccsSrc"><option value="mix" ${D.S.src!=='p4'?'selected':''}>Mix design (rate × quantity)</option><option value="p4" ${D.S.src==='p4'?'selected':''}>Cement Patrak-4</option></select></label>
      <label class="note">Permissible variation ± <input id="ccsTol" value="${D.tol}" inputmode="decimal" style="width:50px"> %</label>
      <button class="btn" id="ccsReset">Reset edits</button><button class="btn" id="ccsPdf">PDF</button><button class="btn" id="ccsXls">Excel</button></div></div>
     ${D.rows.length?'':'<div class="banner">No cement items found in the MB for this bill. Upload the MB first.</div>'}
     <div style="background:var(--surface);padding:14px;border:1px solid var(--rule);border-radius:10px">${ccsHTML(w,D,false)}</div>
-    <p class="note">Columns 5 and 7 and the receipt figures can be edited (saved for this bill). Column 7 defaults to the cement used for that item in Cement Patrak-4 up to the last MB date of this bill (${D.cut?fdate(D.cut):'–'}); if there is none it equals the theoretical consumption. Receipts default to Patrak-4 opening balance + new receipts. Signature block text: <a href="#" id="ccsSign">edit</a>.</p>`;
+    <p class="note">Columns 5 and 7 and the receipt figures can be edited (saved for this bill). Column 7 = quantity × mix design rate (same as column 6), or – if "Cement Patrak-4" is selected – the cement entered for that item in Patrak-4 up to ${D.cut?fdate(D.cut):'–'}. A red note under column 7 shows when Patrak-4 does not match the MB. Receipts default to Patrak-4 opening balance + new receipts. Signature block text: <a href="#" id="ccsSign">edit</a>.</p>`;
   const M=$('#main');const sv=()=>{persist();renderCCS()};
   $('#ccsB').onchange=e=>{ccsBill=e.target.value;renderCCS()};
+  $('#ccsSrc').onchange=e=>{D.S.src=e.target.value;sv()};
   $('#ccsTol').onchange=e=>{const v=num(e.target.value);if(v!=null)D.S.tol=v;sv()};
   M.querySelectorAll('[data-cr]').forEach(i=>i.onchange=()=>{const v=num(i.value);if(v==null)delete D.S.rate[i.dataset.cr];else D.S.rate[i.dataset.cr]=v;sv()});
   M.querySelectorAll('[data-ca]').forEach(i=>i.onchange=()=>{const v=num(i.value);if(v==null)delete D.S.act[i.dataset.ca];else D.S.act[i.dataset.ca]=v;sv()});
