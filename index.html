@@ -1489,7 +1489,7 @@ const MBGEN={
 const KINDL={steel:'Steel',conc:'Concrete',cem:'Cement work',other:'—'};
 const MBF_NOTE={cement4:'daily consumption',steel2:'daily consumption, dia-wise',slump:'every pour',cube3:'every pour, cubes required',cement1:'one line per bill',steel1:'one block per bill',sampling:'samples required',cementTest:'per lot',cementCons:'per lot',petro:'per source',aggTest:'per lot',sieve:'coarse aggregate + sand',brick:'per lot',tiles:'per lot',mixDesign:'per grade',calib:'monthly',corrBatch:'every pour',batchPlant:'every pour',proforma3:'required vs. MB'};
 /* registers generated from the MB with an older day-splitting method are regenerated once, automatically (same settings) */
-const SPLIT_VER=8;
+const SPLIT_VER=9;
 /* rows made from the MB (also older ones that lack the flag) */
 const P4CK=new Map();
 /* Cement Patrak-1: the daily-consumption column auto-fills from the daily-consumption register (Patrak-2 / Patrak-4),
@@ -1545,7 +1545,7 @@ function p4Stale(w){try{const want={};planMB(blocksFromEntries(w),w).filter(p=>p
   const have={};rowsOf('cement4',w).filter(r=>String(r.itemNo||'').trim()).forEach(r=>have[r.itemNo]=(have[r.itemNo]||0)+(+r.used||0));
   if(!Object.keys(have).length)return false;return [...new Set([...Object.keys(want),...Object.keys(have)])].some(k=>Math.abs((want[k]||0)-(have[k]||0))>1)}catch(e){return false}}
 function mbSig(w){let h=0;const st=x=>{for(const ch of String(x)){h=Math.imul(h^ch.charCodeAt(0),16777619)}};mbOf(w).entries.forEach(e=>{st(e.itemNo);st(e.date||'');st(e.bill);st(JSON.stringify(e.lines||[]))});st(JSON.stringify(w.mix||{}));return (h>>>0).toString(36)}
-function autoRefill(w){try{if(!w||W()!==w)return;const sig=mbSig(w);const ck=w.id+'|'+sig+'|'+rowsOf('cement4',w).length;const fresh=P4CK.get(w.id)===ck;if(w.splitVer===SPLIT_VER&&(w.mbSig==null||w.mbSig===sig)&&(fresh||!p4Stale(w))){P4CK.set(w.id,ck);return}const ids=REGS.filter(g=>MBGEN[g.id]&&rowsOf(g.id,w).some(isMbRow)).map(g=>g.id);
+function autoRefill(w){try{if(!w||W()!==w)return;const sig=mbSig(w);const ck=w.id+'|'+sig+'|'+rowsOf('cement4',w).length;const fresh=P4CK.get(w.id)===ck;if(w.splitVer===SPLIT_VER&&(w.mbSig==null||w.mbSig===sig)&&(fresh||!p4Stale(w))){P4CK.set(w.id,ck);return}const ids=REGS.filter(g=>MBGEN[g.id]).map(g=>g.id);
   if(!ids.length){w.splitVer=SPLIT_VER;w.mbSig=sig;return}const bl=blocksFromEntries(w);if(!bl.length)return;const plan=planMB(bl,w);const bills=[...new Set(bl.map(b=>b.bill))];const x=mbCtx(plan,freqOf(w),{bill:bills[bills.length-1]});
   ids.forEach(id=>{const old=rowsOf(id,w);const om=old.filter(isMbRow).sort((a,b)=>(a.date||'')<(b.date||'')?-1:1);const ents=MBGEN[id](x);
     if((id==='cement4'||id==='steel2')&&ents.length){ents.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);if(om[0]?.opening!=null&&om[0].opening!=='')ents[0].opening=om[0].opening}
@@ -1902,7 +1902,7 @@ function aggPlanHTML(P,print){if(!P.mat.length)return `<p class="note">No aggreg
    ${P.mat.map(m=>m.T.map((t,i)=>`<tr>${i?'':`<td rowspan="${m.T.length}"><b>${esc(m.name)}</b></td><td rowspan="${m.T.length}" class="n">${fmt(m.tot,2)} cum<div class="note">${fmt(m.kg/1000,2)} MT @ ${m.bd} kg/cum${m.dmq?`; design mix ${fmt(m.dmq,2)} cum`:''}</div></td>`}<td>${esc(t.test)}</td><td>${esc(t.freq)}</td><td class="n"><b>${t.n}</b></td><td class="note">${lots(t)}</td></tr>`).join('')).join('')}</tbody></table></div>
   <p class="note">Grading (sieve analysis) is done for each size separately. Impact, crushing value and other rock properties are tested on the 12.5–10 mm fraction (IS 2386 Part 4) obtained from the 20 mm aggregate – one result represents all sizes from the same quarry; test again for each new source. Lot dates are the first day that lot is used as per the MB – the sample must be tested before that date. Frequencies can be changed in ⚙ Settings → Testing frequency.</p>`}
 function testCtx(w=W()){const N=needTable(w);const c3=rowsOf('cube3',w).filter(r=>num(r.qty)!=null);
-  N.samples=c3.reduce((a,r)=>a+reqSamples(+r.qty),0);N.slumps=c3.reduce((a,r)=>a+Math.max(1,Math.ceil(+r.qty/50)),0)||rowsOf('slump',w).length;
+  N.samples=c3.filter(r=>!r.setN||r.setN===1).reduce((a,r)=>a+reqSamples(+r.qty),0);N.slumps=c3.filter(r=>!r.setN||r.setN===1).reduce((a,r)=>a+Math.max(1,Math.ceil(+r.qty/50)),0)||rowsOf('slump',w).length;
   N.grades=[...new Set(c3.map(r=>r.grade).filter(g=>fck(g)))];N.months=new Set(c3.map(r=>(r.date||'').slice(0,7)).filter(Boolean)).size;return N}
 let mbImpBusy=false;
 async function ensureMbImported(w,after){const pend=(w.mbFiles||[]).filter(m=>!m.imported||!m.prevChk);if(!pend.length||mbImpBusy)return;mbImpBusy=true;let n=0;
