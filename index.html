@@ -817,11 +817,11 @@ function updCalc(){
 }
 $('#dlgForm').addEventListener('submit',e=>{e.preventDefault();if(formCtx?.kind==='custom')return formCtx.save();if(formCtx?.kind==='work')return saveWork();readForm();const{reg,row,draft}=formCtx;
   const arr=rowsOf(reg.id);if(row){arr[arr.findIndex(r=>r.id===row.id)]=draft}else arr.push(draft);
-  draft._u=Date.now();persist(reg.id);$('#dlg').close();render();toast('Saved')});
+  draft._u=Date.now();persist(reg.id);if(reg.id==='cement1'||reg.id==='cement4')mirrorReceiptEdit(reg.id,draft);$('#dlg').close();render();toast('Saved')});
 $('#dlgDel').onclick=e=>{const b=e.target;if(!b.dataset.sure){b.dataset.sure=1;b.textContent=formCtx.kind==='work'?'Confirm? All registers will be deleted':'Confirm delete?';return}
   if(formCtx.kind==='work'){dropWork(formCtx.work.id);$('#dlg').close();return}
   if(formCtx.kind==='custom'){formCtx.del?.();return}
-  const{reg,row}=formCtx;state.data[W().id][reg.id]=rowsOf(reg.id).filter(r=>r.id!==row.id);persist(reg.id);$('#dlg').close();render();toast('Deleted')};
+  const{reg,row}=formCtx;state.data[W().id][reg.id]=rowsOf(reg.id).filter(r=>r.id!==row.id);persist(reg.id);if((reg.id==='cement1'||reg.id==='cement4')&&row.rid)removeReceiptPair(reg.id,row.rid);$('#dlg').close();render();toast('Deleted')};
 $('#dlgCancel').onclick=$('#dlgClose').onclick=()=>$('#dlg').close();
 
 /* ===================== WORK (title page) ===================== */
@@ -1494,13 +1494,33 @@ const SPLIT_VER=8;
 const P4CK=new Map();
 /* Cement Patrak-1: the daily-consumption column auto-fills from the daily-consumption register (Patrak-2 / Patrak-4),
    so the closing balance (stock) always reflects the cement used. Consumption is allocated per entry date. */
+/* Cement receipts (આવક) are kept in both Patrak-1 and Patrak-4, paired by a shared "rid". This sync only CREATES
+   a missing mirror – it never overwrites an existing row, so manual edits are preserved. Editing or deleting one
+   side propagates to its pair through mirrorReceiptEdit / removeReceiptPair below. */
+const isR4=r=>+r.receipt>0&&!String(r.itemNo||'').trim();
+const isR1=r=>+r.qty>0&&r.rcvDate;
 function syncReceipts(w){if(!w)return;state.data[w.id]??={};const p1=rowsOf('cement1',w),p4=rowsOf('cement4',w);
-  const key=(d,q)=>(d||'')+'|'+Math.round(q);const k1=new Set(),k4=new Set();let changed=false,c=Date.now();
-  p1.forEach(r=>{if(+r.qty>0&&r.rcvDate)k1.add(key(r.rcvDate,+r.qty))});
-  p4.forEach(r=>{if(+r.receipt>0&&!String(r.itemNo||'').trim())k4.add(key(r.date,+r.receipt))});
-  p1.forEach(r=>{if(+r.qty>0&&r.rcvDate){const kk=key(r.rcvDate,+r.qty);if(!k4.has(kk)){p4.push({id:uid(),_c:c++,date:r.rcvDate,receipt:String(Math.round(+r.qty)),itemNo:'',item:'',workQty:'',used:'',remarks:'આવક (પત્રક-૧ મુજબ) '+(r.supplier||''),src:'rcpt'});k4.add(kk);changed=true}}});
-  p4.forEach(r=>{if(+r.receipt>0&&!String(r.itemNo||'').trim()&&r.date){const kk=key(r.date,+r.receipt);if(!k1.has(kk)){p1.push({id:uid(),_c:c++,rcvDate:r.date,billDate:r.date,qty:String(Math.round(+r.receipt)),supplier:(r.remarks||'આવક'),src:'rcpt'});k1.add(kk);changed=true}}});
+  let changed=false,c=Date.now();const key=(d,q)=>(d||'')+'|'+Math.round(q);
+  const r4=p4.filter(isR4),r1=p1.filter(isR1);
+  /* legacy rows without rid: pair existing ones by date+amount first, then give each a shared rid */
+  const byKey1={};r1.forEach(r=>{if(r.rid)return;byKey1[key(r.rcvDate,+r.qty)]=r});
+  r4.forEach(r=>{if(r.rid)return;const m=byKey1[key(r.date,+r.receipt)];if(m){const rid='rc'+uid();r.rid=rid;m.rid=rid;delete byKey1[key(r.date,+r.receipt)];changed=true}});
+  const has=(arr,rid)=>arr.some(x=>x.rid===rid);
+  r4.forEach(r=>{if(!r.rid){r.rid='rc'+uid();changed=true}if(!has(p1,r.rid)){p1.push({id:uid(),_c:c++,rid:r.rid,rcvDate:r.date||'',billDate:r.date||'',qty:String(Math.round(+r.receipt)),supplier:(r.remarks||'આવક'),src:'rcpt'});changed=true}});
+  r1.forEach(r=>{if(!r.rid){r.rid='rc'+uid();changed=true}if(!has(p4,r.rid)){p4.push({id:uid(),_c:c++,rid:r.rid,date:r.rcvDate||'',receipt:String(Math.round(+r.qty)),itemNo:'',item:'',workQty:'',used:'',remarks:(r.supplier||'આવક'),src:'rcpt'});changed=true}});
   if(changed){persist('cement1');persist('cement4')}}
+/* an edited receipt in one Patrak updates its paired row in the other (date + quantity) */
+function mirrorReceiptEdit(regId,d){const w=W();
+  if(regId==='cement4'){if(!isR4(d))return;if(!d.rid){d.rid='rc'+uid();persist('cement4')}
+    const p1=rowsOf('cement1',w);let m=p1.find(r=>r.rid===d.rid);if(!m){m={id:uid(),_c:Date.now(),rid:d.rid,src:'rcpt'};p1.push(m)}
+    m.rcvDate=d.date||'';m.billDate=d.date||'';m.qty=String(Math.round(+d.receipt));if(!m.supplier)m.supplier=d.remarks||'આવક';persist('cement1')}
+  else if(regId==='cement1'){if(!isR1(d))return;if(!d.rid){d.rid='rc'+uid();persist('cement1')}
+    const p4=rowsOf('cement4',w);let m=p4.find(r=>r.rid===d.rid);if(!m){m={id:uid(),_c:Date.now(),rid:d.rid,itemNo:'',item:'',workQty:'',used:'',src:'rcpt'};p4.push(m)}
+    m.date=d.rcvDate||'';m.receipt=String(Math.round(+d.qty));if(!m.remarks)m.remarks=d.supplier||'આવક';persist('cement4')}}
+/* deleting a receipt in one Patrak removes its pair in the other */
+function removeReceiptPair(regId,rid){if(!rid)return;const w=W();const other=regId==='cement4'?'cement1':'cement4';
+  const before=rowsOf(other,w).length;state.data[w.id][other]=rowsOf(other,w).filter(r=>r.rid!==rid);if(rowsOf(other,w).length!==before)persist(other)}
+/* which existing rows survive an MB re-generation. For Patrak-4 / Steel Patrak-2 the consumption is 100% MB-driven,
 /* which existing rows survive an MB re-generation. For Patrak-4 / Steel Patrak-2 the consumption is 100% MB-driven,
    so every consumption row is dropped (the MB re-adds a fresh, correct set) and only genuine receipts are kept –
    this stops stale or duplicated consumption rows from piling up when the flag is missing. */
@@ -2493,9 +2513,9 @@ function applySupplyBill(w,type,d){const inv=(d.invoices||[]).filter(x=>x&&(x.da
   inv.forEach(x=>{const k=key(x);const ref=`${x.supplier||x.manufacturer||'Supplier'} – Bill ${x.billNo||x.challanNo||'–'}${dd(x)?' dt '+fdate(dd(x)):''}`;
     if(type==='cementbill'){if(D('cement4').some(r=>r.billKey===k)){skip.push(ref);return}
       const bags=Math.round(qn(x.bags)??((qn(x.mt)||0)*20));if(!bags){skip.push(ref+' (no quantity)');return}
-      const br=[x.manufacturer,x.type,x.grade].filter(Boolean).join(' ');const wk=[x.weekNo&&('week '+x.weekNo),x.lotNo&&('lot '+x.lotNo)].filter(Boolean).join(', ');
-      D('cement4').push({id:uid(),_c:c++,date:dd(x),receipt:String(bags),itemNo:'',item:'',workQty:'',used:'',remarks:`Receipt: ${ref}${br?' · '+br:''}${wk?' · '+wk:''}${x.vehicleNo?' · Veh. '+x.vehicleNo:''}`,src:'bill',billKey:k});
-      D('cement1').push({id:uid(),_c:c++,rcvDate:dd(x),billDate:dd(x),qty:String(bags),supplier:`${x.manufacturer||''} – ${x.supplier||''} Bill ${x.billNo||x.challanNo||''}${dd(x)?' / '+fdate(dd(x)):''}`.replace(/^ – /,''),remarks:wk,src:'bill',billKey:k});
+      const br=[x.manufacturer,x.type,x.grade].filter(Boolean).join(' ');const wk=[x.weekNo&&('week '+x.weekNo),x.lotNo&&('lot '+x.lotNo)].filter(Boolean).join(', ');const rid='rc'+uid();
+      D('cement4').push({id:uid(),_c:c++,rid,date:dd(x),receipt:String(bags),itemNo:'',item:'',workQty:'',used:'',remarks:`Receipt: ${ref}${br?' · '+br:''}${wk?' · '+wk:''}${x.vehicleNo?' · Veh. '+x.vehicleNo:''}`,src:'bill',billKey:k});
+      D('cement1').push({id:uid(),_c:c++,rid,rcvDate:dd(x),billDate:dd(x),qty:String(bags),supplier:`${x.manufacturer||''} – ${x.supplier||''} Bill ${x.billNo||x.challanNo||''}${dd(x)?' / '+fdate(dd(x)):''}`.replace(/^ – /,''),remarks:wk,src:'bill',billKey:k});
       const ty=/ppc/i.test(x.type||'')?'PPC':/psc|slag/i.test(x.type||'')?'PSC':/opc|ordinary/i.test(x.type||'')?'OPC':'';const gr=(/(33|43|53)/.exec(String(x.grade||''))||[])[1]||'';
       D('cementTest').push({id:uid(),_c:c++,type:ty,grade:gr,mfr:x.manufacturer||'',lot:[x.lotNo,x.weekNo].filter(Boolean).join(' / '),qty:`${bags} bags (${fmt(bags/20,2)} MT) – ${ref}`,result:'',remarks:'Test before use (1 per 50 MT / lot)',src:'bill',billKey:k});
       done.push(`${fdate(dd(x))||'–'}: <b>${bags} bags</b> – ${esc(ref)}${br?' · '+esc(br):''}`)}
