@@ -298,7 +298,7 @@ const REGS=[
 /* ---- CEMENT & STEEL ---- */
 {id:'cement1',grp:'Cement & Steel',short:'Cement Patrak-1 (Receipt & Issue)',gu:true,
  title:'સિમેન્ટના વપરાશની આવક અને જાવક દર્શાવતું પત્રક (પત્રક-૧ રીવાઈઝડ)',
- note:'One line per RA bill. Enter the bill date and click "Fill from Patrak-4" – the total daily consumption from Patrak-4 is filled automatically. Unit: bags.',
+ note:'Receipts (આવક) are added automatically when you upload a cement bill in the Assistant, or add them with "+ New entry". The consumption column fills automatically from the daily-consumption register (Patrak-2 / Patrak-4) – the cement used up to each entry date – so the closing balance (stock) always reflects the daily consumption. Unit: bags.',
  sortKey:'billDate',
  cols:[C('_sr','અ.નં.','sr'),
   C('opening','ખુલતી સિલક','carry',{fn:carryPrev('opening','closing'),dp:0,xf:x=>x.prevRow?x.R('closing',-1):'0'}),
@@ -306,13 +306,13 @@ const REGS=[
   C('qty','જથ્થો','num',{dp:0}),
   C('supplier','કંપનીનો સિમેન્ટ આવ્યો, સપ્લાયરના બિલ નં. / તારીખ'),
   C('billDate','RA બિલ તારીખ','date',{formOnly:true}),
-  C('cons','પત્રક-૨ મુજબ બિલ બનાવ્યા તારીખે વપરાશનો જથ્થો','num',{dp:0,fill:'cementP4'}),
+  C('cons','આ તારીખ સુધીનો દૈનિક વપરાશ (પત્રક-૨ / ૪ મુજબ, આપોઆપ)','num',{dp:0,fill:'cementP4'}),
   C('closing','બિલ રજૂ કર્યા તારીખે બંધ સિલક (જથ્થો)','calc',{dp:0,fn:r=>(+r.opening||0)+(+r.qty||0)-(+r.cons||0),xf:x=>`${x.R('opening')}+N(${x.R('qty')})-N(${x.R('cons')})`}),
   C('remarks','વિશેષ નોંધ')],
  flag:r=>r.closing<0?['bad','Closing balance negative']:null},
 
-{id:'cement4',grp:'Cement & Steel',short:'Cement Patrak-4 (Daily Consumption)',gu:true,layout:'dayGroup',
- title:'સિમેન્ટના રોજ વપરાશનું પત્રક (પત્રક નં. ૪ રીવાઈઝડ)',
+{id:'cement4',grp:'Cement & Steel',short:'Cement Patrak-2 / 4 (Daily Consumption)',gu:true,layout:'dayGroup',
+ title:'સિમેન્ટના રોજ વપરાશનું પત્રક (પત્રક નં. ૨ / ૪ – દૈનિક વપરાશ)',
  note:'One line per item per day. Opening balance and total stock appear on the first line of the day; total daily consumption and closing balance appear on the last line of the day. Unit: bags.',
  sortKey:'date',
  cols:[C('_sr','અ.નં.','sr'),C('date','તારીખ','date'),
@@ -758,16 +758,16 @@ function sieveHtml(reg,rows,forPrint){
 function renderReg(){
   const reg=REG[view.reg];const rows=compute(reg);
   $('#main').innerHTML=`<div class="sheethead"><div><h2>${esc(reg.title)}</h2><div class="sub">${esc(W().name)}</div></div>
-   <div class="actions"><button class="btn primary" id="add">+ New entry</button>${MBGEN[reg.id]?'<button class="btn" id="mbx">Fill from MB (Excel)</button>':''}${EMBED?'':'<button class="btn" id="prn">PDF</button><button class="btn" id="xls">Excel</button>'}</div></div>
+   <div class="actions">${reg.auto?'':`<button class="btn primary" id="add">+ New entry</button>${MBGEN[reg.id]?'<button class="btn" id="mbx">Fill from MB (Excel)</button>':''}`}${EMBED?'':'<button class="btn" id="prn">PDF</button><button class="btn" id="xls">Excel</button>'}</div></div>
    ${reg.note?`<p class="note" style="margin:0">${esc(reg.note)}</p>`:''}${needBanner(reg.id)}
    <div class="tablewrap">${tableHtml(reg,rows)}</div>
-   <p class="note">Figures in blue are calculated automatically. Click any line to edit it. Signature columns print blank.</p>`;
+   <p class="note">${reg.auto?'This register is filled automatically from Patrak-4 and cannot be edited here.':'Figures in blue are calculated automatically. Click any line to edit it. Signature columns print blank.'}</p>`;
   $('#add').onclick=()=>openForm(reg,null);$('#mbx')?.addEventListener('click',openMbImport);$('#main').querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
   $('#prn')?.addEventListener('click',()=>printReg(reg));
   $('#xls')?.addEventListener('click',()=>exportReg(reg));
-  document.querySelectorAll('#main tbody tr[data-id]').forEach(tr=>tr.onclick=()=>openForm(reg,rowsOf(reg.id).find(r=>r.id===tr.dataset.id)));
+  if(!reg.auto)document.querySelectorAll('#main tbody tr[data-id]').forEach(tr=>tr.onclick=()=>openForm(reg,rowsOf(reg.id).find(r=>r.id===tr.dataset.id)));
 }
-function render(){if(W())ensureMbImported(W(),()=>render());autoRefill(W());renderWorks();renderShelf();view.reg==='dash'?renderDash():view.reg==='chat'?renderChat():view.reg==='works'?renderWorksList():view.reg==='admin'?renderAdmin():view.reg==='mbup'?renderMbUp():view.reg==='aavak'?renderAavak():view.reg==='settings'?renderSettings():view.reg==='tests'?renderTests():view.reg==='tforms'?renderTForms():view.reg==='ccs'?renderCCS():MBV[view.reg]?renderMB(view.reg):renderReg()}
+function render(){if(W())ensureMbImported(W(),()=>render());autoRefill(W());syncReceipts(W());syncCement1(W());renderWorks();renderShelf();view.reg==='dash'?renderDash():view.reg==='chat'?renderChat():view.reg==='works'?renderWorksList():view.reg==='admin'?renderAdmin():view.reg==='mbup'?renderMbUp():view.reg==='aavak'?renderAavak():view.reg==='settings'?renderSettings():view.reg==='tests'?renderTests():view.reg==='tforms'?renderTForms():view.reg==='ccs'?renderCCS():MBV[view.reg]?renderMB(view.reg):renderReg()}
 function go(id){view.reg=id;try{localStorage.setItem(LS_KEY+'_view',id)}catch(e){}render();window.scrollTo(0,0)}
 
 /* ===================== FORM ===================== */
@@ -1492,6 +1492,22 @@ const MBF_NOTE={cement4:'daily consumption',steel2:'daily consumption, dia-wise'
 const SPLIT_VER=8;
 /* rows made from the MB (also older ones that lack the flag) */
 const P4CK=new Map();
+/* Cement Patrak-1: the daily-consumption column auto-fills from the daily-consumption register (Patrak-2 / Patrak-4),
+   so the closing balance (stock) always reflects the cement used. Consumption is allocated per entry date. */
+function syncReceipts(w){if(!w)return;state.data[w.id]??={};const p1=rowsOf('cement1',w),p4=rowsOf('cement4',w);
+  const key=(d,q)=>(d||'')+'|'+Math.round(q);const k1=new Set(),k4=new Set();let changed=false,c=Date.now();
+  p1.forEach(r=>{if(+r.qty>0&&r.rcvDate)k1.add(key(r.rcvDate,+r.qty))});
+  p4.forEach(r=>{if(+r.receipt>0&&!String(r.itemNo||'').trim())k4.add(key(r.date,+r.receipt))});
+  p1.forEach(r=>{if(+r.qty>0&&r.rcvDate){const kk=key(r.rcvDate,+r.qty);if(!k4.has(kk)){p4.push({id:uid(),_c:c++,date:r.rcvDate,receipt:String(Math.round(+r.qty)),itemNo:'',item:'',workQty:'',used:'',remarks:'આવક (પત્રક-૧ મુજબ) '+(r.supplier||''),src:'rcpt'});k4.add(kk);changed=true}}});
+  p4.forEach(r=>{if(+r.receipt>0&&!String(r.itemNo||'').trim()&&r.date){const kk=key(r.date,+r.receipt);if(!k1.has(kk)){p1.push({id:uid(),_c:c++,rcvDate:r.date,billDate:r.date,qty:String(Math.round(+r.receipt)),supplier:(r.remarks||'આવક'),src:'rcpt'});k1.add(kk);changed=true}}});
+  if(changed){persist('cement1');persist('cement4')}}
+function syncCement1(w){if(!w)return;const rows=rowsOf('cement1',w);if(!rows.length)return;
+  const ed=r=>r.billDate||r.rcvDate||'';const c4=rowsOf('cement4',w).filter(x=>x.date&&+x.used);
+  const ordered=rows.filter(r=>ed(r)).slice().sort((a,b)=>ed(a)<ed(b)?-1:ed(a)>ed(b)?1:(a._c||0)-(b._c||0));
+  let prev='',changed=false;
+  ordered.forEach(r=>{const d=ed(r);const s=c4.filter(x=>x.date>prev&&x.date<=d).reduce((a,x)=>a+(+x.used||0),0);
+    const v=s?String(Math.round(s)):'';if((r.cons||'')!==v){r.cons=v;changed=true}prev=d});
+  if(changed)persist('cement1')}
 /* which existing rows survive an MB re-generation. For Patrak-4 / Steel Patrak-2 the consumption is 100% MB-driven,
    so every consumption row is dropped (the MB re-adds a fresh, correct set) and only genuine receipts are kept –
    this stops stale or duplicated consumption rows from piling up when the flag is missing. */
@@ -2424,14 +2440,14 @@ const DETECT_PROMPT=`First identify what this document is. Choose exactly one ty
 - "wo": work order letter
 - "boq": BOQ / Schedule-B (list of tender items with quantity and rate)
 - "estimate": estimate (abstract of cost)
-- "cementbill": cement purchase invoice / tax invoice / delivery challan (bags or MT of cement supplied)
-- "steelbill": reinforcement steel (TMT) purchase invoice / delivery challan (weights in MT, dia-wise)
+- "cementbill": anything recording cement RECEIVED at site – a purchase invoice, tax invoice, delivery challan, OR a plain handwritten / typed note or list of dates with cement quantities (e.g. "5/3 – 672 bags, 10/6 – 840 bags" or a page photo). One entry per date / line.
+- "steelbill": anything recording reinforcement steel (TMT) RECEIVED at site – an invoice, delivery challan, OR a plain handwritten / typed note or list of dates with steel weights (dia-wise if given). One entry per date / line.
 - "mix": concrete mix design report (quantities in kg per 1 cum for each grade; use the final / adopted (field-corrected SSD) values if given; sand = fine aggregate (crushed or natural), a20 = 20 mm, a10 = 10 mm, a40 = 40 mm coarse aggregate; if only a ratio by weight per bag is given, convert to kg per cum using the cement content; one entry per grade)
 - "other": anything else
 Then extract its data. Reply with ONLY this JSON: {"type":"<type>","data":<object>}
 The "data" object must follow the schema for that type:
 ${Object.entries({ts:1,tender:1,wo:1,mix:1,boq:1,estimate:1,cementbill:1,steelbill:1,other:1}).map(([k])=>`${k}: ${'${SCHEMA.'+k+'}'}`).join('\n')}
-For boq and estimate list every item without skipping; keep item numbers exactly as printed. For cementbill / steelbill give one entry per invoice or challan; quantities in MT (metric tonnes) for steel, dia in mm as the key; if steel weight is given in kg convert to MT; for cement give bags (1 bag = 50 kg) and MT.`;
+For boq and estimate list every item without skipping; keep item numbers exactly as printed. For cementbill / steelbill give one entry per invoice, challan OR line of the note; quantities in MT (metric tonnes) for steel, dia in mm as the key; if steel weight is given in kg convert to MT; for cement give bags (1 bag = 50 kg) and MT.`;
 const detectPrompt=()=>DETECT_PROMPT.replace(/\$\{SCHEMA\.(\w+)\}/g,(_,k)=>SCHEMA[k]);
 const b64=buf=>{let s='';const u=new Uint8Array(buf);for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s)};
 async function fileToBlocks(f){const buf=await f.arrayBuffer();
@@ -2495,7 +2511,7 @@ function applySupplyBill(w,type,d){const inv=(d.invoices||[]).filter(x=>x&&(x.da
       blk.supplier=[blk.supplier,`${x.supplier||x.manufacturer||''} Bill ${x.billNo||x.challanNo||''}${dd(x)?' dt '+fdate(dd(x)):''}`].filter(Boolean).join('; ');
       done.push(`${fdate(dd(x))||'–'}: <b>${fmt(tot,3)} MT</b> – ${esc(ref)}${diaTxt?' ('+esc(diaTxt)+')':''}`)}});
   ['cement4','cement1','cementTest','steel1','steel2'].forEach(id=>persist(id));persist();
-  const where=type==='cementbill'?'Cement Patrak-4 (new receipt), Cement Patrak-1 and the Cement Testing Register':'Steel Patrak-2 (receipt) and Steel Patrak-1 (dia-wise receipt)';
+  const where=type==='cementbill'?'Cement Patrak-1 and Cement Patrak-2/4 (new receipt – આવક) and the Cement Testing Register':'Steel Patrak-2 (receipt) and Steel Patrak-1 (dia-wise receipt)';
   return `${done.length?`Saved to <b>${where}</b>:<ul style="margin:4px 0 0 18px">${done.map(t=>`<li>${t}</li>`).join('')}</ul>`:''}${skip.length?`<div class="note">Already entered / skipped: ${skip.map(esc).join('; ')}</div>`:''}`||null}
 function autoApply(w,type,d){
   if(type==='mix'){const mx=(d.mixes||[]).filter(x=>x&&x.grade);w.mix??={};delete w.splitVer;
