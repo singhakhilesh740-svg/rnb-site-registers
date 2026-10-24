@@ -1497,9 +1497,20 @@ const P4CK=new Map();
 /* Cement receipts (આવક) are kept in both Patrak-1 and Patrak-4, paired by a shared "rid". This sync only CREATES
    a missing mirror – it never overwrites an existing row, so manual edits are preserved. Editing or deleting one
    side propagates to its pair through mirrorReceiptEdit / removeReceiptPair below. */
-const isR4=r=>+r.receipt>0&&!String(r.itemNo||'').trim();
-const isR1=r=>+r.qty>0&&r.rcvDate;
-function syncReceipts(w){if(!w)return;state.data[w.id]??={};const p1=rowsOf('cement1',w),p4=rowsOf('cement4',w);
+/* a Patrak-4 row that is a genuine receipt (આવક): quantity > 0, no item (so not a daily consumption),
+   AND not an MB-generated consumption row. Only such rows mirror into Patrak-1 as receipts. */
+const isR4=r=>+r.receipt>0&&!String(r.itemNo||'').trim()&&!(+r.used>0)&&r.src!=='mbx';
+/* a Patrak-1 row that is a genuine receipt (આવક): quantity > 0, has a receipt date,
+   AND no consumption / RA-bill fields filled (so it is NOT an RA bill reconciliation row). */
+/* a Patrak-1 row is a genuine receipt (આવક) if qty>0 and rcvDate is set, AND it has no consumption filled.
+   Bill-sourced receipts (src bill / rcpt) also set billDate=rcvDate; those still count as receipts. */
+const isR1=r=>+r.qty>0&&r.rcvDate&&!(+r.cons>0);
+function syncReceipts(w){if(!w)return;state.data[w.id]??={};
+  /* one-time self-heal: remove stale Patrak-1 rows that are neither genuine receipts nor RA-bill cons rows
+     (e.g. leaked daily lines from older app versions) */
+  const p1All=rowsOf('cement1',w);const cleaned=p1All.filter(r=>(+r.qty>0&&r.rcvDate)||(+r.cons>0)||(r.supplier||'').trim()||(r.remarks||'').trim());
+  if(cleaned.length!==p1All.length){state.data[w.id].cement1=cleaned;persist('cement1')}
+  const p1=rowsOf('cement1',w),p4=rowsOf('cement4',w);
   let changed=false,c=Date.now();const key=(d,q)=>(d||'')+'|'+Math.round(q);
   const r4=p4.filter(isR4),r1=p1.filter(isR1);
   /* legacy rows without rid: pair existing ones by date+amount first, then give each a shared rid */
@@ -1656,7 +1667,8 @@ async function renderMbUp(){const w=W();const L=sortMb(w.mbFiles||[]);
   const M=$('#main');M.querySelectorAll('[data-me]').forEach(b=>b.onclick=async()=>{const m=L.find(x=>x.id===b.dataset.me);if(!m.imported){try{importMbEntries(w,m,await getSheets(m.id))}catch(e){return toast(e.message,5000)}}view.bill=m.billId;go('mbRecord')});
   M.querySelectorAll('[data-mo]').forEach(b=>b.onclick=()=>{mbup.sel=b.dataset.mo;mbup.sheet=0;renderMbUp()});
   M.querySelectorAll('[data-mx]').forEach(b=>b.onclick=async()=>{try{const m=L.find(x=>x.id===b.dataset.mx);await xlSave(wbFromGrids(await getSheets(m.id)),`${m.bill||'MB'} - ${w.name}`)}catch(e){toast(e.message,5000)}});
-  M.querySelectorAll('[data-md]').forEach(b=>b.onclick=()=>confirm2(b,'Delete this MB? Its measurements and everything generated from it (Cement Patrak-4, Steel Patrak-2, slump, cube, testing schedule, aggregate / sand) will be removed from this work. Supply-bill receipts are kept.',async()=>{await dropMbUpload(b.dataset.md);delete mbup.cache[b.dataset.md];render();toast('MB deleted')}));
+  M.querySelectorAll('[data-md]').forEach(b=>b.onclick=async()=>{const id=b.dataset.md;const m=L.find(x=>x.id===id);if(!confirm(`Delete MB "${(m?.bill||m?.name||'this MB')}"?\n\nAll measurements and everything generated from it (Cement Patrak-4, Steel Patrak-2, slump, cube, testing schedule, aggregate / sand) will be removed from this work. Supply-bill receipts are kept.`))return;
+    try{await dropMbUpload(id);delete mbup.cache[id];if(mbup.sel===id)mbup.sel=null;renderMbUp();toast('MB deleted',3000)}catch(e){toast('Delete failed: '+e.message,5000)}});
   if(!mbup.sel)return;const V=$('#mbuView');V.innerHTML='<div class="empty">Loading MB…</div>';
   let sh;try{sh=await getSheets(mbup.sel)}catch(e){V.innerHTML=`<div class="banner">${esc(e.message)}</div>`;return}
   const m=L.find(x=>x.id===mbup.sel);if(mbup.sheet>=sh.length)mbup.sheet=0;const g=sh[mbup.sheet];
