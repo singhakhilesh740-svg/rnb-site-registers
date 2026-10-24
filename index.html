@@ -2311,7 +2311,7 @@ function renderSettings(){const w=W();w.mix??={};w.dayAvg??={};
   const wks=[...WK_DEF];Object.keys(w.dayAvg).forEach(k=>{if(!wks.some(x=>x[0]===k)){const[n,u]=k.split('|');wks.push([k,n,n.toLowerCase(),u])}});
   const F=freqOf(w);
   $('#main').innerHTML=`<div class="sheethead"><div><h2>⚙ Settings – this work</h2><div class="sub">${esc(w.name)}</div></div>
-    <div class="actions"><button class="btn primary" id="setSave">Save</button></div></div>
+    <div class="actions"><button class="btn" id="setGoP4" title="Open Cement Patrak-4 to see the impact">Open Patrak-4</button><button class="btn primary" id="setSave" title="Save and regenerate the registers from the MB using these values">Save &amp; apply</button></div></div>
    <div class="list"><h3>1. Controlled concrete – mix design (per cum)</h3><div style="padding:12px 16px">
     <p class="note" style="margin-top:0">The cement content of controlled cement concrete (M-150, M-200, M-250 …) is taken from here (Patrak-4, Batch Mix Plant, Material Planning). Upload the mix design report in the <b>Assistant</b> and it is filled in automatically, or enter / edit the values here. If cement is blank, the PWD table value is used (M-100 220, M-150 290, M-200 360, M-250 380 kg) and the grade is flagged.</p>
     <div class="tablewrap"><table class="reg ln"><thead><tr><th>Grade</th>${MIX_F.map(f=>`<th>${f[1]}${f[2]?` (${f[2]})`:''}</th>`).join('')}<th>Cement bags/cum</th><th></th></tr></thead><tbody>
@@ -2326,7 +2326,7 @@ function renderSettings(){const w=W();w.mix??={};w.dayAvg??={};
     ${wks.map(([k,n,d,u])=>`<tr><td>${esc(n)}</td><td><input data-wk="${esc(k)}" value="${w.dayAvg[k]??''}" placeholder="${dayRate(d,u==='kg'?'kg':'')}" inputmode="decimal" style="width:110px"></td><td>${u}/day</td><td class="n">${dayRate(d,u==='kg'?'kg':'')}</td></tr>`).join('')}
     </tbody></table></div></div></div>
    <div class="list"><h3>3. Testing frequency</h3><div style="padding:12px 16px"><div class="mbxg">${Object.keys(FREQ_DEF).map(k=>`<label class="chk" style="display:flex;gap:8px;align-items:center">${FREQ_L[k].split('__')[0]}<input data-fq="${k}" value="${F[k]}" inputmode="numeric" style="width:90px;padding:5px 8px;border:1px solid var(--rule-strong);border-radius:6px">${FREQ_L[k].split('__')[1]}</label>`).join('')}</div></div></div>
-   <p class="note">After changing settings, run <b>MB → Uploaded MB → "Fill registers from all MBs"</b> again so that the registers use the new values.</p>`;
+   <p class="note">After clicking <b>Save</b>, the registers (Cement Patrak-4, Patrak-1, slump, cube, sampling and Material Planning) are regenerated automatically from the MB with the new values. Open the register you want to check – the impact is already in it.</p>`;
   const M=$('#main');
   M.querySelectorAll('tr[data-g] input[data-k="cement"]').forEach(i=>i.oninput=()=>{const v=num(i.value);i.closest('tr').querySelector('[data-bg]').textContent=v?fmt(v/50,2):''});
   M.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
@@ -2334,7 +2334,11 @@ function renderSettings(){const w=W();w.mix??={};w.dayAvg??={};
       if(Object.keys(o).some(k=>!['ref','src'].includes(k)))w.mix[g]=o;else delete w.mix[g]});
     M.querySelectorAll('[data-wk]').forEach(i=>{const v=num(i.value);if(v>0)w.dayAvg[i.dataset.wk]=v;else delete w.dayAvg[i.dataset.wk]});{const vv=num($('#setVar')?.value);if(vv!=null&&vv>=0)w.dayVar=Math.min(60,vv)}
     const fq={};M.querySelectorAll('[data-fq]').forEach(i=>{const v=num(i.value);if(v>0)fq[i.dataset.fq]=v});w.freq=fq;if(JSON.stringify(w.mix||{})!==mix0||JSON.stringify(w.dayAvg||{})+w.dayVar!==avg0)delete w.splitVer;persist();if(!quiet)toast('Settings saved')};
-  $('#setSave').onclick=()=>{save();render()};
+  $('#setGoP4').onclick=()=>go('cement4');
+  $('#setSave').onclick=()=>{const before={mix:JSON.stringify(w.mix||{}),avg:JSON.stringify(w.dayAvg||{}),v:w.dayVar,fq:JSON.stringify(w.freq||{})};save(true);
+    const after={mix:JSON.stringify(w.mix||{}),avg:JSON.stringify(w.dayAvg||{}),v:w.dayVar,fq:JSON.stringify(w.freq||{})};
+    const changed=[];if(before.mix!==after.mix)changed.push('mix design');if(before.avg!==after.avg)changed.push('daily output');if(before.v!==after.v)changed.push('variation');if(before.fq!==after.fq)changed.push('test frequency');
+    delete w.splitVer;delete w.mbSig;P4CK.delete(w.id);persist();render();toast(changed.length?`Settings saved (${changed.join(', ')}) – registers regenerated.`:'Settings saved.',4500)};
   $('#addG').onclick=()=>{const g=($('#newG').value||'').toUpperCase().replace(/[^M0-9]/g,'');if(!/^M\d+$/.test(g))return toast('Enter a grade such as M45.');save(true);w.mix[g]??={};persist();render()}}
 function openRegPicker(){const w=W();const on=Object.fromEntries(REGS.map(g=>[g.id,regOn(g.id,w)]));const grp=[...new Set(REGS.map(g=>g.grp))];
   openCustom('Registers for this work',`<div class="fld wide note"><div>Untick registers that are not required for this work. They are removed from the menu, the Dashboard, the "all registers" Excel export and MB filling. Existing entries are not deleted – tick again to restore them.</div></div>
