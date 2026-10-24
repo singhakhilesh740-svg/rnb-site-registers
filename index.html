@@ -296,7 +296,7 @@ const carryPrev=(key,closeKey)=>(r,p)=>p?p[closeKey]:0;
 /* ===================== REGISTER DEFINITIONS ===================== */
 const REGS=[
 /* ---- CEMENT & STEEL ---- */
-{id:'cement1',grp:'Cement & Steel',short:'Cement Patrak-1 (Receipt & Issue)',gu:true,
+{id:'cement1',grp:'Cement & Steel',short:'Cement Patrak-1 (Receipt & Issue)',gu:true,sort:(a,b)=>{const da=a.billDate||a.rcvDate||'',db=b.billDate||b.rcvDate||'';if(da!==db)return da<db?-1:1;const ra=+a.qty>0?0:1,rb=+b.qty>0?0:1;if(ra!==rb)return ra-rb;return (a._c||0)-(b._c||0)},
  title:'સિમેન્ટના વપરાશની આવક અને જાવક દર્શાવતું પત્રક (પત્રક-૧ રીવાઈઝડ)',
  note:'One line per RA bill. Enter the bill date and click "Fill from Patrak-4" – the consumption up to the bill date is filled from the daily consumption register. Receipts (આવક) entered here also appear in Patrak-4, and vice versa. Closing balance = opening + receipt − consumption. Unit: bags.',
  sortKey:'billDate',
@@ -558,7 +558,7 @@ function persist(regId){try{localStorage.setItem(testMode?LS_KEY+'_test':LS_KEY,
 const W=()=>state.works.find(w=>w.id===state.cur)||state.works[0];
 function rowsOf(regId,work=W()){if(!work)return[];state.data[work.id]??={};return state.data[work.id][regId]??=[]}
 
-function sorted(reg,rows){const k=reg.sortKey||'_c';return [...rows].sort((a,b)=>{const x=(a[k]||'')+'', y=(b[k]||'')+'';return x<y?-1:x>y?1:(a._c||0)-(b._c||0)})}
+function sorted(reg,rows){if(reg.sort)return [...rows].sort(reg.sort);const k=reg.sortKey||'_c';return [...rows].sort((a,b)=>{const x=(a[k]||'')+'', y=(b[k]||'')+'';return x<y?-1:x>y?1:(a._c||0)-(b._c||0)})}
 function compute(reg,work=W()){
   const rows=sorted(reg,rowsOf(reg.id,work));
   if(reg.compute)return reg.compute(rows).map(c=>({...c,_flag:reg.flag?.(c)||null}));
