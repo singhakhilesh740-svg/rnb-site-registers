@@ -2424,7 +2424,7 @@ const SCHEMA={
  mix:'{"lab":"laboratory name","reportDate":"YYYY-MM-DD","mixes":[{"grade":"M25 / M20 / M15 ...","cement":0,"cementType":"OPC 53 / PPC ...","flyash":0,"ggbs":0,"sand":0,"a20":0,"a10":0,"a40":0,"water":0,"admixture":0,"wc":0,"slump":"design slump mm","target":"target mean strength N/mm2","str7":"7-day trial strength","str28":"28-day trial strength","approved":"yes / no / not stated","labRef":"lab report no. / date"}]}',
  boq:'{"items":[{"no":"item number as printed","qty":0,"unit":"Cum/Sq.m./Kg./Rmt/Nos","rate":0,"desc":"full item description"}]}',
  estimate:'{"items":[{"no":"item number as printed","sor":"SOR item code if any","qty":0,"unit":"","rate":0,"amount":0,"desc":"full item description"}]}',
- cementbill:'{"invoices":[{"date":"invoice / delivery date YYYY-MM-DD","billNo":"invoice or bill number","challanNo":"delivery challan no.","supplier":"dealer / supplier name","manufacturer":"cement brand / company","type":"OPC / PPC / PSC","grade":"33 / 43 / 53","bags":0,"mt":0,"weekNo":"week / month of manufacture","lotNo":"batch / lot no.","vehicleNo":""}]}',
+ cementbill:'{"invoices":[{"date":"date cement was received, YYYY-MM-DD","billNo":"bill / invoice number if any, else empty","challanNo":"challan no. if any","supplier":"dealer / supplier if any","manufacturer":"cement brand / company if any","type":"OPC / PPC / PSC if any","grade":"33 / 43 / 53 if any","bags":0,"mt":0,"weekNo":"","lotNo":"","vehicleNo":""}]}',
  steelbill:'{"invoices":[{"date":"invoice / delivery date YYYY-MM-DD","billNo":"","challanNo":"","supplier":"","manufacturer":"brand / mill","grade":"Fe 500D etc.","heatNo":"heat / cast numbers","vehicleNo":"","dia":{"8":0,"10":0,"12":0,"16":0,"20":0,"25":0,"32":0},"totalMT":0}]}',
  other:'{"summary":"one or two sentences describing the document"}'};
 const DETECT_PROMPT=`First identify what this document is. Choose exactly one type:
@@ -2440,7 +2440,13 @@ const DETECT_PROMPT=`First identify what this document is. Choose exactly one ty
 Then extract its data. Reply with ONLY this JSON: {"type":"<type>","data":<object>}
 The "data" object must follow the schema for that type:
 ${Object.entries({ts:1,tender:1,wo:1,mix:1,boq:1,estimate:1,cementbill:1,steelbill:1,other:1}).map(([k])=>`${k}: ${'${SCHEMA.'+k+'}'}`).join('\n')}
-For boq and estimate list every item without skipping; keep item numbers exactly as printed. For cementbill / steelbill give one entry per invoice, challan OR line of the note; quantities in MT (metric tonnes) for steel, dia in mm as the key; if steel weight is given in kg convert to MT; for cement give bags (1 bag = 50 kg) and MT.`;
+For boq and estimate list every item without skipping; keep item numbers exactly as printed.
+CEMENT RECEIPTS (cementbill): classify as "cementbill" ANY of these – (a) a cement purchase invoice / tax invoice / delivery challan; (b) a summary with just DATE and QUANTITY; (c) a summary with DATE, BILL NO and QUANTITY; (d) a handwritten page or photo listing cement received. Give ONE invoice object per date / row, in the order given. Rules:
+- Dates: accept any format (5/3/26, 05-03-2026, 5.3.26, 5 March 2026, 5 માર્ચ) and OUTPUT as YYYY-MM-DD; assume 20xx for a 2-digit year; if only day/month, use the current year.
+- Quantity: read bags (bag / bags / bori / બેગ / થેલી / कट्टा) into "bags"; read MT / ton / tonne / મે.ટન into "mt"; if only kg, put kg/50 into "bags"; set the fields you don't have to 0. 1 bag = 50 kg.
+- billNo: fill only if a bill/invoice number is clearly present; otherwise leave it empty – do NOT invent one. The same applies to supplier, manufacturer, type, grade.
+- A table with columns in any order (Date | Qty, or Date | Bill No | Qty, or Sr | Date | Bill | Bags) must still give one object per row.
+STEEL RECEIPTS (steelbill): same idea for reinforcement steel – a bill, or a summary of date + weight (dia-wise if given). Output weights in MT (convert kg→MT); dia in mm as the key; one object per row.`;
 const detectPrompt=()=>DETECT_PROMPT.replace(/\$\{SCHEMA\.(\w+)\}/g,(_,k)=>SCHEMA[k]);
 const b64=buf=>{let s='';const u=new Uint8Array(buf);for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s)};
 async function fileToBlocks(f){const buf=await f.arrayBuffer();
@@ -2482,11 +2488,11 @@ function undoSnap(w,s){const o=JSON.parse(s);Object.entries(o.w).forEach(([k,v])
 /* auto-apply what was detected; returns html summary */
 /* cement / steel supply bills → receipts in the Patraks (duplicates skipped by supplier + bill no. + date) */
 function applySupplyBill(w,type,d){const inv=(d.invoices||[]).filter(x=>x&&(x.date||x.billNo));if(!inv.length)return null;state.data[w.id]??={};
-  const D=id=>state.data[w.id][id]??=[];let c=Date.now();const done=[],skip=[];const key=x=>[x.supplier||x.manufacturer||'',x.billNo||x.challanNo||'',x.date||''].join('|').toUpperCase().replace(/\s+/g,'');
+  const D=id=>state.data[w.id][id]??=[];let c=Date.now();const done=[],skip=[];const qn=v=>{if(v==null||v==='')return null;const n=parseFloat(String(v).replace(/[^0-9.]/g,''));return isNaN(n)?null:n};const key=x=>[x.supplier||x.manufacturer||'',x.billNo||x.challanNo||'',x.date||'',qn(x.bags)??qn(x.mt)??qn(x.totalMT)??''].join('|').toUpperCase().replace(/\s+/g,'');
   const dd=x=>/^\d{4}-\d{2}-\d{2}$/.test(x.date||'')?x.date:'';
   inv.forEach(x=>{const k=key(x);const ref=`${x.supplier||x.manufacturer||'Supplier'} – Bill ${x.billNo||x.challanNo||'–'}${dd(x)?' dt '+fdate(dd(x)):''}`;
     if(type==='cementbill'){if(D('cement4').some(r=>r.billKey===k)){skip.push(ref);return}
-      const bags=Math.round(num(x.bags)??((num(x.mt)||0)*20));if(!bags){skip.push(ref+' (no quantity)');return}
+      const bags=Math.round(qn(x.bags)??((qn(x.mt)||0)*20));if(!bags){skip.push(ref+' (no quantity)');return}
       const br=[x.manufacturer,x.type,x.grade].filter(Boolean).join(' ');const wk=[x.weekNo&&('week '+x.weekNo),x.lotNo&&('lot '+x.lotNo)].filter(Boolean).join(', ');
       D('cement4').push({id:uid(),_c:c++,date:dd(x),receipt:String(bags),itemNo:'',item:'',workQty:'',used:'',remarks:`Receipt: ${ref}${br?' · '+br:''}${wk?' · '+wk:''}${x.vehicleNo?' · Veh. '+x.vehicleNo:''}`,src:'bill',billKey:k});
       D('cement1').push({id:uid(),_c:c++,rcvDate:dd(x),billDate:dd(x),qty:String(bags),supplier:`${x.manufacturer||''} – ${x.supplier||''} Bill ${x.billNo||x.challanNo||''}${dd(x)?' / '+fdate(dd(x)):''}`.replace(/^ – /,''),remarks:wk,src:'bill',billKey:k});
@@ -2494,8 +2500,8 @@ function applySupplyBill(w,type,d){const inv=(d.invoices||[]).filter(x=>x&&(x.da
       D('cementTest').push({id:uid(),_c:c++,type:ty,grade:gr,mfr:x.manufacturer||'',lot:[x.lotNo,x.weekNo].filter(Boolean).join(' / '),qty:`${bags} bags (${fmt(bags/20,2)} MT) – ${ref}`,result:'',remarks:'Test before use (1 per 50 MT / lot)',src:'bill',billKey:k});
       done.push(`${fdate(dd(x))||'–'}: <b>${bags} bags</b> – ${esc(ref)}${br?' · '+esc(br):''}`)}
     else{if(D('steel2').some(r=>r.billKey===k)){skip.push(ref);return}
-      const dia={};Object.entries(x.dia||{}).forEach(([dk,v])=>{const dn=+String(dk).replace(/\D/g,'');const q=num(v);if(dn&&q)dia[dn]=(dia[dn]||0)+q});
-      let tot=Object.values(dia).reduce((a,v)=>a+v,0)||num(x.totalMT)||0;if(tot>200&&!Object.keys(dia).length)tot=tot/1000;if(!tot){skip.push(ref+' (no quantity)');return}
+      const dia={};Object.entries(x.dia||{}).forEach(([dk,v])=>{const dn=+String(dk).replace(/\D/g,'');const q=qn(v);if(dn&&q)dia[dn]=(dia[dn]||0)+q});
+      let tot=Object.values(dia).reduce((a,v)=>a+v,0)||qn(x.totalMT)||0;if(tot>200&&!Object.keys(dia).length)tot=tot/1000;if(!tot){skip.push(ref+' (no quantity)');return}
       const diaTxt=Object.entries(dia).map(([dn,v])=>`${dn}ø ${fmt(v,3)}`).join(', ');
       D('steel2').push({id:uid(),_c:c++,date:dd(x),receipt:String(+tot.toFixed(3)),item:`Receipt: ${ref}${x.grade?' · '+x.grade:''}`,remarks:[diaTxt,x.heatNo&&('Heat '+x.heatNo),x.vehicleNo&&('Veh. '+x.vehicleNo)].filter(Boolean).join(' · '),src:'bill',billKey:k});
       /* dia-wise into Steel Patrak-1 as its own receipt block (kept when registers are re-generated from the MB) */
