@@ -2346,10 +2346,19 @@ function renderSettings(){const w=W();w.mix??={};w.dayAvg??={};
     M.querySelectorAll('[data-wk]').forEach(i=>{const v=num(i.value);if(v>0)w.dayAvg[i.dataset.wk]=v;else delete w.dayAvg[i.dataset.wk]});{const vv=num($('#setVar')?.value);if(vv!=null&&vv>=0)w.dayVar=Math.min(60,vv)}
     const fq={};M.querySelectorAll('[data-fq]').forEach(i=>{const v=num(i.value);if(v>0)fq[i.dataset.fq]=v});w.freq=fq;if(JSON.stringify(w.mix||{})!==mix0||JSON.stringify(w.dayAvg||{})+w.dayVar!==avg0)delete w.splitVer;persist();if(!quiet)toast('Settings saved')};
   $('#setGoP4').onclick=()=>go('cement4');
-  $('#setSave').onclick=()=>{const before={mix:JSON.stringify(w.mix||{}),avg:JSON.stringify(w.dayAvg||{}),v:w.dayVar,fq:JSON.stringify(w.freq||{})};save(true);
+  $('#setSave').onclick=()=>{const before={mix:JSON.stringify(w.mix||{}),avg:JSON.stringify(w.dayAvg||{}),v:w.dayVar,fq:JSON.stringify(w.freq||{})};
+    const b4={cem:rowsOf('cement4',w).filter(r=>r.src==='mbx').length,slump:rowsOf('slump',w).length,cube:rowsOf('cube3',w).length,sampling:rowsOf('sampling',w).length,aggTest:rowsOf('aggTest',w).length};
+    save(true);
     const after={mix:JSON.stringify(w.mix||{}),avg:JSON.stringify(w.dayAvg||{}),v:w.dayVar,fq:JSON.stringify(w.freq||{})};
     const changed=[];if(before.mix!==after.mix)changed.push('mix design');if(before.avg!==after.avg)changed.push('daily output');if(before.v!==after.v)changed.push('variation');if(before.fq!==after.fq)changed.push('test frequency');
-    delete w.splitVer;delete w.mbSig;P4CK.delete(w.id);persist();render();toast(changed.length?`Settings saved (${changed.join(', ')}) – registers regenerated.`:'Settings saved.',4500)};
+    delete w.splitVer;delete w.mbSig;P4CK.delete(w.id);persist();
+    /* force autoRefill to run NOW (before render) so toast shows real after-counts */
+    autoRefill(w);syncReceipts(w);autoOpening(w);
+    const af={cem:rowsOf('cement4',w).filter(r=>r.src==='mbx').length,slump:rowsOf('slump',w).length,cube:rowsOf('cube3',w).length,sampling:rowsOf('sampling',w).length,aggTest:rowsOf('aggTest',w).length};
+    render();
+    const impactParts=[];if(af.cem!==b4.cem)impactParts.push(`Patrak-4 ${b4.cem}→${af.cem}`);if(af.slump!==b4.slump)impactParts.push(`slump ${b4.slump}→${af.slump}`);if(af.cube!==b4.cube)impactParts.push(`cube ${b4.cube}→${af.cube}`);if(af.sampling!==b4.sampling)impactParts.push(`sampling ${b4.sampling}→${af.sampling}`);
+    const impact=impactParts.length?' · '+impactParts.join(', '):'';
+    toast(changed.length?`Settings saved (${changed.join(', ')}) – registers regenerated${impact}.`:'Settings saved.',6000)};
   $('#addG').onclick=()=>{const g=($('#newG').value||'').toUpperCase().replace(/[^M0-9]/g,'');if(!/^M\d+$/.test(g))return toast('Enter a grade such as M45.');save(true);w.mix[g]??={};persist();render()}}
 function openRegPicker(){const w=W();const on=Object.fromEntries(REGS.map(g=>[g.id,regOn(g.id,w)]));const grp=[...new Set(REGS.map(g=>g.grp))];
   openCustom('Registers for this work',`<div class="fld wide note"><div>Untick registers that are not required for this work. They are removed from the menu, the Dashboard, the "all registers" Excel export and MB filling. Existing entries are not deleted – tick again to restore them.</div></div>
