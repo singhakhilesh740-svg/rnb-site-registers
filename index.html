@@ -2414,7 +2414,7 @@ async function renderAdmin(){
 }
 
 /* ===================== CHATBOT ===================== */
-const DOCT={ts:'Technical Sanction letter',tender:'Tender approval letter',wo:'Work order',boq:'BOQ / Schedule-B',estimate:'Estimate',mix:'Mix design report',mb:'Measurement Book (Excel)',other:'Other document'};
+const DOCT={ts:'Technical Sanction letter',tender:'Tender approval letter',wo:'Work order',boq:'BOQ / Schedule-B',estimate:'Estimate',mix:'Mix design report',cementbill:'Cement receipt / incoming',steelbill:'Steel receipt / incoming',mb:'Measurement Book (Excel)',other:'Other document'};
 const chat={msgs:[],busy:false,files:[]};
 const SYS_X='You read Gujarat Roads & Buildings (PWD) government documents (English or Gujarati). Reply with ONLY one valid JSON object and nothing else. Use null when a value is not in the document. Dates as YYYY-MM-DD. Amounts as plain text exactly as written (e.g. "4,01,55,180.69").';
 const SCHEMA={
@@ -2582,8 +2582,14 @@ async function sendChat(){const w=W();const fs=[...(chat.files||[])];const text=
     /* 2. any other document → AI detects type and extracts */
     if(!aiReady()){chat.msgs.push({role:'bot',text:`${f.name}: this document needs the assistant, which is not available yet. ${!user?'Please sign in.':'Please ask the administrator to enable it.'}`});renderChat();continue}
     try{const blocks=await fileToBlocks(f);
-      const t=await callAI({system:SYS_X,max:16000,messages:[{role:'user',content:[...blocks,{type:'text',text:detectPrompt()+(text?'\nUser note: '+text:'')}]}]});
-      const res=parseJSON(t);const type=DOCT[res.type]?res.type:'other';const snap=snapW(w);const html=autoApply(w,type,res.data||{});
+      const t=await callAI({system:SYS_X,max:16000,messages:[{role:'user',content:[...blocks,{type:'text',text:detectPrompt()+'\nFile name: '+f.name+(text?'\nUser note: '+text:'')}]}]});
+      let res=parseJSON(t);let type=DOCT[res.type]?res.type:'other';
+      /* fallback: the name or note clearly says cement / steel incoming but it came back as "other" – force a receipt re-read */
+      const hint=(f.name+' '+text).toLowerCase();const wantC=/cement|સિમેન્ટ|सीमेंट/.test(hint),wantS=/steel|tmt|reinforc|સ્ટીલ|सरिया|सैरिया/.test(hint),wantIn=/incom|receipt|aavak|આવક|आवक|supply|purchase|delivery|challan|inward|stock/.test(hint);
+      if(type==='other'&&(wantC||wantS)&&(wantIn||!/consum|વપરાશ|test|મિક્સ|mix/.test(hint))){const ft=wantS&&!wantC?'steelbill':'cementbill';
+        const t2=await callAI({system:SYS_X,max:16000,messages:[{role:'user',content:[...blocks,{type:'text',text:`This document records ${wantS&&!wantC?'reinforcement steel':'cement'} RECEIVED / brought to site. Read EVERY date and quantity. Reply with ONLY this JSON: {"type":"${ft}","data":${SCHEMA[ft]}}. One object per date / row. Dates YYYY-MM-DD. For cement give bags (1 bag=50kg) and mt; for steel MT and dia in mm. Leave bill no / supplier empty if not present – do not invent.\nFile name: `+f.name}]}]});
+        const r2=parseJSON(t2);if(r2&&r2.data&&(r2.data.invoices||[]).length){res=r2;type=ft}}
+      const snap=snapW(w);const html=autoApply(w,type,res.data||{});
       if(html){persist();const i=chat.msgs.length;chat.msgs.push({role:'bot',snap,html:`<b>${esc(f.name)}</b> – detected as <b>${DOCT[type]}</b>. ${html}<div style="margin-top:6px"><button class="btn small" data-undo="${i}">Undo</button></div>`});render()}
       else chat.msgs.push({role:'bot',text:`${f.name} – detected as ${DOCT[type]}. ${type==='other'?(res.data?.summary||'')+' Nothing was filled in.':'No details could be read from it.'}`})}
     catch(e){chat.msgs.push({role:'bot',text:`${f.name}: ${e.message}`})}
