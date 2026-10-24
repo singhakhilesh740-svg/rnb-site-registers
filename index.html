@@ -311,7 +311,7 @@ const REGS=[
   C('remarks','વિશેષ નોંધ')],
  flag:r=>r.closing<0?['bad','Closing balance negative']:null},
 
-{id:'cement4',grp:'Cement & Steel',short:'Cement Patrak-4 (Daily Consumption)',gu:true,layout:'dayGroup',
+{id:'cement4',grp:'Cement & Steel',short:'Cement Patrak-4 (Daily Consumption)',gu:true,layout:'dayGroup',sort:(a,b)=>{const da=a.date||'',db=b.date||'';if(da!==db)return da<db?-1:1;const op=r=>num(r.opening)!=null?0:1;if(op(a)!==op(b))return op(a)-op(b);const rc=r=>+r.receipt>0&&!String(r.itemNo||'').trim()?0:1;if(rc(a)!==rc(b))return rc(a)-rc(b);return (a._c||0)-(b._c||0)},
  title:'સિમેન્ટના રોજ વપરાશનું પત્રક (પત્રક નં. ૪ રીવાઈઝડ)',
  note:'One line per item per day. Opening balance and total stock appear on the first line of the day; total daily consumption and closing balance appear on the last line of the day. Unit: bags.',
  sortKey:'date',
@@ -767,7 +767,7 @@ function renderReg(){
   $('#xls')?.addEventListener('click',()=>exportReg(reg));
   if(!reg.auto)document.querySelectorAll('#main tbody tr[data-id]').forEach(tr=>tr.onclick=()=>openForm(reg,rowsOf(reg.id).find(r=>r.id===tr.dataset.id)));
 }
-function render(){if(W())ensureMbImported(W(),()=>render());autoRefill(W());syncReceipts(W());renderWorks();renderShelf();view.reg==='dash'?renderDash():view.reg==='chat'?renderChat():view.reg==='works'?renderWorksList():view.reg==='admin'?renderAdmin():view.reg==='mbup'?renderMbUp():view.reg==='aavak'?renderAavak():view.reg==='settings'?renderSettings():view.reg==='tests'?renderTests():view.reg==='tforms'?renderTForms():view.reg==='ccs'?renderCCS():MBV[view.reg]?renderMB(view.reg):renderReg()}
+function render(){if(W())ensureMbImported(W(),()=>render());autoRefill(W());syncReceipts(W());autoOpening(W());renderWorks();renderShelf();view.reg==='dash'?renderDash():view.reg==='chat'?renderChat():view.reg==='works'?renderWorksList():view.reg==='admin'?renderAdmin():view.reg==='mbup'?renderMbUp():view.reg==='aavak'?renderAavak():view.reg==='settings'?renderSettings():view.reg==='tests'?renderTests():view.reg==='tforms'?renderTForms():view.reg==='ccs'?renderCCS():MBV[view.reg]?renderMB(view.reg):renderReg()}
 function go(id){view.reg=id;try{localStorage.setItem(LS_KEY+'_view',id)}catch(e){}render();window.scrollTo(0,0)}
 
 /* ===================== FORM ===================== */
@@ -817,7 +817,7 @@ function updCalc(){
 }
 $('#dlgForm').addEventListener('submit',e=>{e.preventDefault();if(formCtx?.kind==='custom')return formCtx.save();if(formCtx?.kind==='work')return saveWork();readForm();const{reg,row,draft}=formCtx;
   const arr=rowsOf(reg.id);if(row){arr[arr.findIndex(r=>r.id===row.id)]=draft}else arr.push(draft);
-  draft._u=Date.now();persist(reg.id);if(reg.id==='cement1'||reg.id==='cement4')mirrorReceiptEdit(reg.id,draft);$('#dlg').close();render();toast('Saved')});
+  draft._u=Date.now();if(reg.id==='cement4'&&row&&num(draft.opening)!=null)draft._userOpening=true;persist(reg.id);if(reg.id==='cement1'||reg.id==='cement4')mirrorReceiptEdit(reg.id,draft);$('#dlg').close();render();toast('Saved')});
 $('#dlgDel').onclick=e=>{const b=e.target;if(!b.dataset.sure){b.dataset.sure=1;b.textContent=formCtx.kind==='work'?'Confirm? All registers will be deleted':'Confirm delete?';return}
   if(formCtx.kind==='work'){dropWork(formCtx.work.id);$('#dlg').close();return}
   if(formCtx.kind==='custom'){formCtx.del?.();return}
@@ -1505,6 +1505,17 @@ const isR4=r=>+r.receipt>0&&!String(r.itemNo||'').trim()&&!(+r.used>0)&&r.src!==
 /* a Patrak-1 row is a genuine receipt (આવક) if qty>0 and rcvDate is set, AND it has no consumption filled.
    Bill-sourced receipts (src bill / rcpt) also set billDate=rcvDate; those still count as receipts. */
 const isR1=r=>+r.qty>0&&r.rcvDate&&!(+r.cons>0);
+/* Patrak-4 ki pehli line par opening balance aise set karo ki closing kabhi minus na jaye.
+   User ne khud opening daala ho (user src), to usko chedte nahi. Site register mein practical same thing hoti hai –
+   kaam shuru hone se pehle cement site par rakha hota hai. */
+function autoOpening(w){if(!w)return;const reg=REG['cement4'];const rows=rowsOf('cement4',w);if(!rows.length)return;
+  const sortedRows=sorted(reg,rows);const first=sortedRows[0];if(first._userOpening===true)return;
+  /* reset opening on all rows except what the user set, then compute cumulative balance (receipt − used), find lowest, and put that as opening on first line */
+  rows.forEach(r=>{if(r.id!==first.id&&r.opening&&!r._userOpening)delete r.opening});
+  if(first.opening&&!first._userOpening)first.opening='0';
+  let bal=0,minBal=0;sortedRows.forEach(r=>{bal+=(+r.receipt||0)-(+r.used||0);if(bal<minBal)minBal=bal});
+  const need=minBal<0?Math.ceil(-minBal):0;const row=rowsOf('cement4',w).find(r=>r.id===first.id);
+  if(row){const newOpening=String(need);if((row.opening||'0')!==newOpening){row.opening=newOpening;persist('cement4')}}}
 function syncReceipts(w){if(!w)return;state.data[w.id]??={};
   /* one-time self-heal: remove stale Patrak-1 rows that are neither genuine receipts nor RA-bill cons rows
      (e.g. leaked daily lines from older app versions) */
