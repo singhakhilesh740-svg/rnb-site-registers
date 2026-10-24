@@ -1508,14 +1508,29 @@ const isR1=r=>+r.qty>0&&r.rcvDate&&!(+r.cons>0);
 /* Patrak-4 ki pehli line par opening balance aise set karo ki closing kabhi minus na jaye.
    User ne khud opening daala ho (user src), to usko chedte nahi. Site register mein practical same thing hoti hai –
    kaam shuru hone se pehle cement site par rakha hota hai. */
-function autoOpening(w){if(!w)return;const reg=REG['cement4'];const rows=rowsOf('cement4',w);if(!rows.length)return;
-  const sortedRows=sorted(reg,rows);const first=sortedRows[0];if(first._userOpening===true)return;
-  /* reset opening on all rows except what the user set, then compute cumulative balance (receipt − used), find lowest, and put that as opening on first line */
-  rows.forEach(r=>{if(r.id!==first.id&&r.opening&&!r._userOpening)delete r.opening});
-  if(first.opening&&!first._userOpening)first.opening='0';
-  let bal=0,minBal=0;sortedRows.forEach(r=>{bal+=(+r.receipt||0)-(+r.used||0);if(bal<minBal)minBal=bal});
-  const need=minBal<0?Math.ceil(-minBal):0;const row=rowsOf('cement4',w).find(r=>r.id===first.id);
-  if(row){const newOpening=String(need);if((row.opening||'0')!==newOpening){row.opening=newOpening;persist('cement4')}}}
+/* Patrak-4 ki pehli line ki opening clear karo (user ne nahi daali to), aur jo usage line opening date se pehle hai use pehli receipt date par le aao –
+   isse closing kabhi minus mein nahi jati aur Patrak-1 (jo total vaparash se chalti hai) ke saath mel khati hai. */
+function autoOpening(w){if(!w)return;const rows=rowsOf('cement4',w);if(!rows.length)return;
+  let changed=false;
+  /* clear any auto-opening I set earlier (user-set stays) */
+  rows.forEach(r=>{if(r.opening&&!r._userOpening){delete r.opening;changed=true}});
+  const p1Rows=rowsOf('cement1',w);p1Rows.forEach(r=>{if(r.opening&&!r._userOpening&&r.src!=='mbx'){delete r.opening;changed=true}});
+  /* Shift MB-sourced usage rows forward so cumulative use never exceeds cumulative receipts.
+     For each usage row (processed in date order), find the earliest date d such that:
+       sum(receipts up to d) >= cumUsedBeforeThisRow + this row's used
+     and use that date. */
+  const recvByDate={};rows.filter(r=>+r.receipt>0&&r.date).forEach(r=>{recvByDate[r.date]=(recvByDate[r.date]||0)+(+r.receipt||0)});
+  const rDates=Object.keys(recvByDate).sort();if(!rDates.length){if(changed)persist('cement4');return}
+  const cumRecv=(d)=>{let s=0;for(const rd of rDates){if(rd<=d)s+=recvByDate[rd];else break}return s};
+  const mbUse=rows.filter(r=>+r.used>0&&r.date&&r.src==='mbx').slice().sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:(a._c||0)-(b._c||0));
+  let cumUsed=0;
+  for(const u of mbUse){const need=+u.used||0;const want=cumUsed+need;
+    if(cumRecv(u.date)>=want){cumUsed=want;continue}
+    /* find smallest receipt date d >= u.date with enough cumulative receipts */
+    const target=rDates.find(d=>d>u.date&&cumRecv(d)>=want);
+    if(target){if(u.date!==target){u.date=target;changed=true}cumUsed=want}
+    else{cumUsed=want;/* truly short – accept the negative on last day */}}
+  if(changed){persist('cement4');persist('cement1')}}
 function syncReceipts(w){if(!w)return;state.data[w.id]??={};
   /* one-time self-heal: remove stale Patrak-1 rows that are neither genuine receipts nor RA-bill cons rows
      (e.g. leaked daily lines from older app versions) */
