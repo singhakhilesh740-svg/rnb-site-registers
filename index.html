@@ -654,10 +654,10 @@ function renderShelf(){
     ${dd('Work',['works','items'],btn('works','My works',state.works.length)+btn('items','Tender Items',w0.items.length))}
     ${dd('MB',['mbCover','mbRecord','mbAbstract','mbup'],btn('mbup','Uploaded MB (Excel)',(w0.mbFiles||[]).length)+'<h4>Measurement Book</h4>'+btn('mbCover','CMB Page 1–5')+btn('mbRecord','For Record',w0.mb.entries.length)+btn('mbAbstract','Abstract'))}`;
   for(const g in groups){const rs=groups[g].map(r=>{const rows=compute(r);return {r,n:rows.length,bad:rows.some(x=>x._flag?.[0]==='bad')}});
-    h+=dd(g,groups[g].map(r=>r.id).concat(g==='Summary'?['tests','tforms','ccs']:[]),`<h4>${esc(g)}</h4>`+(g==='Summary'?btn('tests','Test Schedule (IS / CPWD)')+btn('tforms','Test Formats & Calculations')+btn('ccs','Cement Consumption Statement'):'')+rs.map(o=>btn(o.r.id,o.r.short,o.n,o.bad)).join(''),rs.some(o=>o.bad))}
+    h+=dd(g,groups[g].map(r=>r.id).concat(g==='Summary'?['tests','tforms','ccs','timeline']:[]),`<h4>${esc(g)}</h4>`+(g==='Summary'?btn('tests','Test Schedule (IS / CPWD)')+btn('tforms','Test Formats & Calculations')+btn('ccs','Cement Consumption Statement')+btn('timeline','MB Activity Timeline'):'')+rs.map(o=>btn(o.r.id,o.r.short,o.n,o.bad)).join(''),rs.some(o=>o.bad))}
   h+=` <span class="spacer"></span>${tab('settings','⚙ Settings')}<button class="tab" data-act="pickRegs" title="Choose the registers for this work">☰ Registers <span class="cnt">${myRegs().length}/${REGS.length}</span></button>${isAdmin()&&!testMode?tab('admin','Admin'):''}</div>`;
   const opt=(id,l)=>`<option value="${id}" ${view.reg===id?'selected':''}>${esc(l)}</option>`;
-  h=`<select class="mobsel" id="mobSel" aria-label="Select page">${opt('dash','Dashboard')}${opt('chat','Assistant')}${opt('aavak','Material Planning')}${opt('settings','⚙ Settings')}${opt('tests','Test Schedule')}${opt('tforms','Test Formats')}${opt('ccs','Cement Consumption Statement')}${isAdmin()&&!testMode?opt('admin','Admin'):''}<optgroup label="Work / MB">${opt('works','My works')}${opt('mbup','Uploaded MB')}${Object.entries(MBV).map(([k,v])=>opt(k,v)).join('')}</optgroup>${Object.keys(groups).map(g=>`<optgroup label="${g}">${groups[g].map(r=>opt(r.id,r.short)).join('')}</optgroup>`).join('')}<option value="__pick">☰ Choose registers…</option></select>`+h;
+  h=`<select class="mobsel" id="mobSel" aria-label="Select page">${opt('dash','Dashboard')}${opt('chat','Assistant')}${opt('aavak','Material Planning')}${opt('settings','⚙ Settings')}${opt('tests','Test Schedule')}${opt('tforms','Test Formats')}${opt('ccs','Cement Consumption Statement')}${opt('timeline','MB Activity Timeline')}${isAdmin()&&!testMode?opt('admin','Admin'):''}<optgroup label="Work / MB">${opt('works','My works')}${opt('mbup','Uploaded MB')}${Object.entries(MBV).map(([k,v])=>opt(k,v)).join('')}</optgroup>${Object.keys(groups).map(g=>`<optgroup label="${g}">${groups[g].map(r=>opt(r.id,r.short)).join('')}</optgroup>`).join('')}<option value="__pick">☰ Choose registers…</option></select>`+h;
   $('#shelf').innerHTML=h;$('#mobSel').onchange=e=>{if(e.target.value==='__pick'){e.target.value=view.reg;return openRegPicker()}go(e.target.value)};
 }
 document.addEventListener('click',e=>{const t=e.target.closest('.ddbtn');document.querySelectorAll('.dd.open').forEach(d=>{if(!t||d!==t.parentElement)d.classList.remove('open')});if(t)t.parentElement.classList.toggle('open')});
@@ -767,7 +767,7 @@ function renderReg(){
   $('#xls')?.addEventListener('click',()=>exportReg(reg));
   if(!reg.auto)document.querySelectorAll('#main tbody tr[data-id]').forEach(tr=>tr.onclick=()=>openForm(reg,rowsOf(reg.id).find(r=>r.id===tr.dataset.id)));
 }
-function render(){if(W())ensureMbImported(W(),()=>render());autoRefill(W());assignLabTypes(W());syncReceipts(W());autoOpening(W());renderWorks();renderShelf();view.reg==='dash'?renderDash():view.reg==='chat'?renderChat():view.reg==='works'?renderWorksList():view.reg==='admin'?renderAdmin():view.reg==='mbup'?renderMbUp():view.reg==='aavak'?renderAavak():view.reg==='settings'?renderSettings():view.reg==='tests'?renderTests():view.reg==='tforms'?renderTForms():view.reg==='ccs'?renderCCS():MBV[view.reg]?renderMB(view.reg):renderReg()}
+function render(){if(W())ensureMbImported(W(),()=>render());autoRefill(W());assignLabTypes(W());syncReceipts(W());autoOpening(W());renderWorks();renderShelf();view.reg==='dash'?renderDash():view.reg==='chat'?renderChat():view.reg==='works'?renderWorksList():view.reg==='admin'?renderAdmin():view.reg==='mbup'?renderMbUp():view.reg==='aavak'?renderAavak():view.reg==='settings'?renderSettings():view.reg==='tests'?renderTests():view.reg==='tforms'?renderTForms():view.reg==='ccs'?renderCCS():view.reg==='timeline'?renderTimeline():MBV[view.reg]?renderMB(view.reg):renderReg()}
 function go(id){view.reg=id;try{localStorage.setItem(LS_KEY+'_view',id)}catch(e){}render();window.scrollTo(0,0)}
 
 /* ===================== FORM ===================== */
@@ -2289,6 +2289,56 @@ function ccsHTML(w,D,print){const f2=v=>fmt(v,2);const cls=print?'p':'reg';
      <tr><td>Used</td><td class="n">${f2(D.say)}</td><td>Bag</td></tr>
      <tr><td>Balance</td><td class="n" style="${bal<0?'color:var(--bad);font-weight:700':''}">${f2(bal)}</td><td>Bag</td></tr></tbody></table></div>`;
   return `${head}<div class="tablewrap"><table class="${cls}">${th}<tbody>${body}${tot}</tbody></table></div>${foot}`}
+/* ===================== MB ACTIVITY TIMELINE ===================== */
+function renderTimeline(){const w=W();ensureMbImported(w,()=>{if(view.reg==='timeline'&&W()===w)renderTimeline()});
+  /* collect every MB entry (date, item, qty, unit, bill, location/desc, page) */
+  const mb=mbOf(w);const bills=mb.bills;const byBill={};bills.forEach(b=>byBill[b.id]=b.name);
+  const L=mbLayout(w).entries.filter(e=>e.date);
+  if(!L.length){$('#main').innerHTML=`<div class="sheethead"><div><h2>MB Activity Timeline</h2><div class="sub">${esc(w.name)}</div></div></div><div class="empty">No MB entries yet. Upload the MB first.</div>`;return}
+  /* group by (bill, item) for rows; per-row bars = each date entry */
+  const rows={};L.forEach(e=>{const it=itemOf(w,e);const key=(e.bill||'_')+'|'+e.itemNo;const r=rows[key]??={bill:byBill[e.bill]||'RA bill',itemNo:e.itemNo,desc:(it.desc||e.desc||'').replace(/\s+/g,' ').trim(),unit:it.unit||e._calc.unit||'',bars:[],total:0,kind:e._calc.steel?'steel':'other'};
+    const qty=e._calc.steel?e._calc.kg:e._calc.qty;if(!qty)return;r.bars.push({date:e.date,qty,page:e._page,desc:((e.lines||[]).map(l=>l.desc).filter(Boolean).slice(0,2).join('; ')||r.desc).slice(0,120),fid:e.fid});r.total+=qty});
+  const rowArr=Object.values(rows).sort((a,b)=>(a.bill!==b.bill?(a.bill<b.bill?-1:1):(parseFloat(a.itemNo)||0)-(parseFloat(b.itemNo)||0))).filter(r=>r.bars.length);
+  if(!rowArr.length){$('#main').innerHTML=`<div class="sheethead"><div><h2>MB Activity Timeline</h2><div class="sub">${esc(w.name)}</div></div></div><div class="empty">No dated MB entries.</div>`;return}
+  /* date axis */
+  const allDates=rowArr.flatMap(r=>r.bars.map(b=>b.date)).sort();const d0=new Date(allDates[0]+'T00:00:00'),d1=new Date(allDates[allDates.length-1]+'T00:00:00');
+  const spanDays=Math.max(1,Math.round((d1-d0)/864e5)+1);
+  const w0=12,h0=18,lblW=360,rowH=40,chartW=1120,plotW=chartW-lblW-20,plotH=rowArr.length*rowH+30;
+  const xOf=d=>{const t=new Date(d+'T00:00:00');return lblW+Math.round((t-d0)/864e5)*(plotW-20)/Math.max(1,spanDays-1)+10};
+  /* colors by kind + consistent per item */
+  const COL=['#1F4E8C','#D97706','#059669','#B91C1C','#6D28D9','#0E7490','#B45309','#4D7C0F','#A21CAF','#1D4ED8'];
+  const colorOf=(itemNo)=>COL[(parseInt(itemNo,10)||0)%COL.length];
+  const maxQty=Math.max(...rowArr.flatMap(r=>r.bars.map(b=>b.qty)));
+  /* month ticks */
+  const months=[];let m=new Date(d0.getFullYear(),d0.getMonth(),1);while(m<=d1){months.push(new Date(m));m=new Date(m.getFullYear(),m.getMonth()+1,1)}
+  const svg=`<svg viewBox="0 0 ${chartW} ${plotH+40}" style="width:100%;height:auto;font-family:-apple-system,sans-serif;font-size:11px">
+    <defs><clipPath id="plot"><rect x="${lblW}" y="20" width="${plotW}" height="${plotH-20}"/></clipPath></defs>
+    <!-- axis -->
+    <line x1="${lblW}" y1="${plotH}" x2="${lblW+plotW}" y2="${plotH}" stroke="#333" stroke-width="1"/>
+    ${months.map(m=>{const x=xOf(isoD(m));return `<g><line x1="${x}" y1="20" x2="${x}" y2="${plotH}" stroke="#ddd" stroke-dasharray="2,3"/><text x="${x}" y="${plotH+16}" text-anchor="middle" fill="#555">${m.toLocaleString('en-IN',{month:'short',year:'2-digit'})}</text></g>`}).join('')}
+    <!-- rows -->
+    ${rowArr.map((r,i)=>{const y=30+i*rowH;const c=colorOf(r.itemNo);
+      return `<g>
+        <!-- row label -->
+        <text x="4" y="${y+12}" fill="#222" font-weight="700" font-size="11">${esc(r.bill)} · Item ${esc(r.itemNo)}</text>
+        <text x="4" y="${y+26}" fill="#555" font-size="10">${esc(r.desc.slice(0,70))}</text>
+        <text x="${lblW-4}" y="${y+12}" text-anchor="end" fill="#333" font-size="10">${fmt(r.total,2)} ${esc(r.unit)}</text>
+        <!-- bars -->
+        ${r.bars.map(bar=>{const x=xOf(bar.date);const hgt=Math.max(4,Math.round(bar.qty/maxQty*(rowH-14)));return `<g><title>${esc(r.bill)} – Item ${esc(r.itemNo)} – ${esc(bar.date)} – ${fmt(bar.qty,2)} ${esc(r.unit)}&#10;Page ${esc(bar.page||'?')}: ${esc(bar.desc)}</title><rect x="${x-3}" y="${y+rowH-10-hgt}" width="6" height="${hgt}" fill="${c}" opacity="0.9"/><circle cx="${x}" cy="${y+rowH-10-hgt}" r="2" fill="${c}"/></g>`}).join('')}
+      </g>`}).join('')}
+  </svg>`;
+  /* detail list below chart */
+  const list=`<div class="list" style="margin-top:12px"><h3>Entries by bill</h3>
+    ${bills.filter(b=>rowArr.some(r=>r.bill===b.name)).map(b=>{const bRows=rowArr.filter(r=>r.bill===b.name);const bEntries=bRows.flatMap(r=>r.bars.map(bar=>({r,bar}))).sort((a,b)=>a.bar.date<b.bar.date?-1:1);return `<h4 style="margin:10px 0 4px">${esc(b.name)} <span class="note">(${bEntries.length} entries, ${bRows.length} items)</span></h4>
+      <div class="tablewrap"><table class="reg"><thead><tr><th>Date</th><th>Item</th><th>Description / Location</th><th>Page</th><th class="n">Quantity</th><th>Unit</th></tr></thead><tbody>
+        ${bEntries.map(e=>`<tr><td class="d">${fdate(e.bar.date)}</td><td class="n">${esc(e.r.itemNo)}</td><td>${esc(e.bar.desc||e.r.desc.slice(0,100))}</td><td class="n">P.${esc(e.bar.page||'?')}</td><td class="n">${fmt(e.bar.qty,2)}</td><td>${esc(e.r.unit)}</td></tr>`).join('')}
+      </tbody></table></div>`}).join('')}</div>`;
+  $('#main').innerHTML=`<div class="sheethead"><div><h2>MB Activity Timeline</h2><div class="sub">${esc(w.name)} · ${allDates.length} MB entries · ${fdate(allDates[0])} – ${fdate(allDates[allDates.length-1])}</div></div>
+    <div class="actions"><button class="btn" id="tlPdf">PDF</button></div></div>
+    <p class="note">Each bar is one measurement. Bar <b>height</b> = quantity relative to the biggest entry; row label shows the RA bill and tender item. Hover a bar for date, quantity and location.</p>
+    <div style="background:var(--surface);padding:12px;border:1px solid var(--rule);border-radius:10px;overflow-x:auto">${svg}</div>
+    ${list}`;
+  $('#tlPdf').onclick=()=>printNow(`<div class="pg"><div class="ph"><h2>MB Activity Timeline – ${esc(w.name)}</h2></div><div style="padding:10px">${svg}</div>${list}</div>`,`Timeline - ${w.name}`)}
 function renderCCS(){const w=W();ensureMbImported(w,()=>{if(view.reg==='ccs'&&W()===w)renderCCS()});const mb=mbOf(w);
   if(!ccsBill||!mb.bills.some(b=>b.id===ccsBill)){const used=mb.bills.filter(b=>mb.entries.some(e=>e.bill===b.id));ccsBill=(used[used.length-1]||mb.bills[mb.bills.length-1])?.id}
   const D=ccsData(w,ccsBill);
@@ -2716,7 +2766,7 @@ async function sendChat(){const w=W();const fs=[...(chat.files||[])];const text=
 function applyResult(i){const m=chat.msgs[i];if(m.type==='mb')return openMbFillAll()}
 
 /* ===================== BOOT ===================== */
-try{const v=localStorage.getItem(LS_KEY+'_view');if(v&&(v==='dash'||v==='chat'||v==='works'||v==='mbup'||v==='aavak'||v==='settings'||v==='tests'||v==='tforms'||v==='ccs'||REG[v]||MBV[v]))view.reg=v}catch(e){}
+try{const v=localStorage.getItem(LS_KEY+'_view');if(v&&(v==='dash'||v==='chat'||v==='works'||v==='mbup'||v==='aavak'||v==='settings'||v==='tests'||v==='tforms'||v==='ccs'||v==='timeline'||REG[v]||MBV[v]))view.reg=v}catch(e){}
 document.getElementById('shelf').addEventListener('click',e=>{if(e.target.closest('[data-act="pickRegs"]'))return openRegPicker();const b=e.target.closest('[data-reg]');if(b)go(b.dataset.reg)});
 render();initFirebase();
 if(!EMBED&&'serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
