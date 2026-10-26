@@ -1407,21 +1407,38 @@ function steelEntries(plan){const out=[];let c=Date.now();
     sp.forEach((x,k)=>{const last=k===sp.length-1;const r={id:uid(),_c:c++,date:x.d,item:`Item ${p.itemNo} – TMT steel${(/Fe[-\s]?\d+\s*D?/i.exec(p.desc||'')||[''])[0]?' '+(/Fe[-\s]?\d+\s*D?/i.exec(p.desc)[0]):''}`,remarks:`From ${mbRef(p)}`,src:'mbx'};
       Object.keys(p.dia).forEach(d=>{const v=last?Math.round(left[d]*1000)/1000:Math.round(p.dia[d]/1000*x.f*1000)/1000;left[d]-=v;if(DIAS.includes(+d))r['d'+d]=String(+v.toFixed(3))});out.push(r)})});
   return out}
+/* Returns a floor label ("GF","FF","1F","Plinth",…) IF this item is a Beam or Slab; otherwise '' (not grouped). */
+function beamSlabFloor(p){const d=(p.desc||'').toLowerCase();const n=(p.name||'').toLowerCase();const t=d+' '+n;
+  const isBeam=/\bbeam\b/.test(t)&&!/plinth\s*beam/.test(t);const isSlab=/\bslab\b/.test(t);
+  if(!(isBeam||isSlab))return '';
+  /* Floor cue – from description. First match wins. */
+  const m=t.match(/\b(ground|basement|plinth|terrace|first|second|third|fourth|fifth|sixth|roof|gf|ff|sf|tf|first\s*floor|second\s*floor|third\s*floor|1\s*(st|f)|2\s*(nd|f)|3\s*(rd|f)|4\s*(th|f))\b/);
+  if(!m)return 'all-floor';/* no cue → treat all beams/slabs as 'all-floor' bucket per day */
+  const w=m[1].replace(/\s+/g,'').toUpperCase();
+  const map={GROUND:'GF',BASEMENT:'B',PLINTH:'Plinth',TERRACE:'Terrace',FIRST:'1F',SECOND:'2F',THIRD:'3F',FOURTH:'4F',FIFTH:'5F',SIXTH:'6F',ROOF:'Roof',GF:'GF',FF:'1F',SF:'2F',TF:'3F','1ST':'1F','1F':'1F','2ND':'2F','2F':'2F','3RD':'3F','3F':'3F','4TH':'4F','4F':'4F'};
+  return map[w]||w}
 const slumpReq=desc=>/foundation|footing|mass concrete|1\s*:\s*[34]\s*:\s*[68]/i.test(desc)?'25-75':'50-100';
 function slumpEntries(plan){const out=[];let c=Date.now();
-  /* Same-day + same-grade concreting counts as one pour → one slump entry */
-  const groups={};plan.filter(p=>p.use&&p.kind==='conc').forEach(p=>splitDays(p).forEach(x=>{const key=x.d+'|'+p.grade;const g=groups[key]??={date:x.d,grade:p.grade,parts:[],qty:0,desc:p.desc};g.parts.push({p,q:x.q});g.qty+=x.q}));
+  /* One slump per pour. Only beam + slab of the same floor on the same day are combined; everything else = one per item. */
+  const groups={};plan.filter(p=>p.use&&p.kind==='conc').forEach(p=>splitDays(p).forEach(x=>{
+    const f=beamSlabFloor(p);const k=f?(x.d+'|'+p.grade+'|'+f):(x.d+'|'+p.grade+'|__'+p.itemNo);
+    const g=groups[k]??={date:x.d,grade:p.grade,floor:f,parts:[],qty:0,desc:p.desc};g.parts.push({p,q:x.q});g.qty+=x.q}));
   Object.values(groups).forEach(g=>{const label=g.parts.map(x=>`${x.p.name.split(' – ')[0]} (Item ${x.p.itemNo}) ${fmt(x.q,2)} ${x.p.unit}`).join(' + ');
-    out.push({id:uid(),_c:c++,date:g.date,grade:GRADES.includes(g.grade)?g.grade:'',structure:label,req:slumpReq(g.desc||''),remarks:`From MB ${fdate(g.date)} – pour ${fmt(g.qty,2)} cum (${g.parts.length} item${g.parts.length===1?'':'s'}). Enter slump measured at site`,src:'mbx'})});
+    const combined=g.parts.length>1;
+    out.push({id:uid(),_c:c++,date:g.date,grade:GRADES.includes(g.grade)?g.grade:'',structure:label+(combined?' ('+(g.floor||'same-floor')+' beam + slab)':''),req:slumpReq(g.desc||''),remarks:`From MB ${fdate(g.date)}${combined?` – ${g.floor||'same-floor'} beam + slab pour (${fmt(g.qty,2)} cum)`:''}. Enter slump measured at site`,src:'mbx'})});
   return out}
 function cubeEntries(plan){const out=[];let c=Date.now();
-  /* Site reality: on a given day, all concrete items of the SAME grade (e.g. 1F slab + 1F beam, both M-20) are usually poured together,
-     so they count as ONE pour for cube sampling. Group by (date + grade), sum the quantity, and compute samples on the combined total. */
-  const groups={};plan.filter(p=>p.use&&p.kind==='conc'&&fck(p.grade)).forEach(p=>splitDays(p).forEach(x=>{const key=x.d+'|'+p.grade;const g=groups[key]??={date:x.d,grade:p.grade,qty:0,parts:[]};g.qty+=x.q;g.parts.push({p,q:x.q})}));
-  Object.values(groups).forEach(g=>{const n=Math.max(1,reqSamples(g.qty));const label=g.parts.map(x=>`${x.p.name.split(' – ')[0]} (Item ${x.p.itemNo}) ${fmt(x.q,2)}`).join(' + ');
+  /* Group only BEAM + SLAB of the SAME floor + same date + same grade (poured together). Everything else stays separate per item. */
+  const key=(d,p)=>d+'|'+p.grade+'|'+beamSlabFloor(p);
+  const groups={};plan.filter(p=>p.use&&p.kind==='conc'&&fck(p.grade)).forEach(p=>splitDays(p).forEach(x=>{
+    const f=beamSlabFloor(p);const k=f?key(x.d,p):(x.d+'|'+p.grade+'|__'+p.itemNo);/* unique key per item if not beam/slab */
+    const g=groups[k]??={date:x.d,grade:p.grade,floor:f,qty:0,parts:[]};g.qty+=x.q;g.parts.push({p,q:x.q})}));
+  Object.values(groups).forEach(g=>{const n=Math.max(1,reqSamples(g.qty));const label=g.parts.length===1?`${g.parts[0].p.name.split(' – ')[0]} (Item ${g.parts[0].p.itemNo})`:g.parts.map(x=>`${x.p.name.split(' – ')[0]} (Item ${x.p.itemNo}) ${fmt(x.q,2)}`).join(' + ');
+    const combined=g.parts.length>1;
     for(let k=1;k<=n;k++)out.push({id:uid(),_c:c++,date:g.date,grade:g.grade,
-      mark:`${label}${n>1?` – Set ${k}/${n}`:''}`,qty:k===1?String(+g.qty.toFixed(2)):'',setN:k,setTot:n,cubesN:'6',cubeSize:'15 સે.મી.',
-      remarks:`From MB ${fdate(g.date)} – pour of ${g.parts.length} item${g.parts.length===1?'':'s'} (${g.grade}, ${fmt(g.qty,2)} cum). Set ${k} of ${n}; enter readings from lab report`,src:'mbx'})});
+      mark:`${label}${combined?' ('+(g.floor||'same floor')+' beam + slab)':''}${n>1?` – Set ${k}/${n}`:''}`,
+      qty:k===1?String(+g.qty.toFixed(2)):'',setN:k,setTot:n,cubesN:'6',cubeSize:'15 સે.મી.',
+      remarks:`From MB ${fdate(g.date)}${combined?` – ${g.floor||'same-floor'} beam + slab pour (${g.grade}, ${fmt(g.qty,2)} cum)`:''}. Set ${k} of ${n}; enter readings from lab report`,src:'mbx'})});
   return out}
 /* ---------- MB se baaki registers (sirf MB ke data se: tarikh, item, jaththo; test results kabhi nahi) ---------- */
 /* testing frequency – defaults as per CPWD Specifications 2019 (Vol. 1) / IS 456; editable in Settings */
