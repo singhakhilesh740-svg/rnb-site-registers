@@ -506,7 +506,7 @@ const REGS=[
  sortKey:'date',
  cols:[C('_sr','અનુક્રમ નંબર','sr'),C('date','ક્યુબ લીધાની તારીખ','date'),
   C('grade','Grade (M20/M25...)','sel',{options:['',...GRADES],formOnly:true}),
-  C('mark','ક્યુબ ઉપરનું નિશાન તથા કોન્ક્રીટના વપરાશનું સ્થળ'),
+  C('mark','ક્યુબ ઉપરનું નિશાન તથા કોન્ક્રીટના વપરાશનું સ્થળ'),C('labType','લેબ','sel',{options:['Field','GERI (Govt lab)','Govt-approved lab']}),
   C('qty','ટેન્ડર મુજબ થયેલ કામનો રોજિંદો જથ્થો (ઘ.મી.)','num',{dp:2}),
   C('cps','Cubes per sample','sel',{options:['6 (3 – 7 days + 3 – 28 days)','3 (28 days only)'],formOnly:true}),
   C('reqNos','કામની નિર્દિષ્ઠ વિગતો પ્રમાણે ક્યુબ લેવાની સંખ્યા','calc',{dp:0,fn:r=>r.setN?cpsOf(r):(reqSamples(r.qty)*cpsOf(r)||null),xf:x=>{if(x.c&&x.c.setN)return String(cpsOf(x.c));const q=x.R('qty');return `IF(${q}="","",${cpsOf(x.c)}*IF(${q}<=5,1,IF(${q}<=15,2,IF(${q}<=30,3,IF(${q}<=50,4,4+ROUNDUP((${q}-50)/50,0))))))`}}),
@@ -767,7 +767,7 @@ function renderReg(){
   $('#xls')?.addEventListener('click',()=>exportReg(reg));
   if(!reg.auto)document.querySelectorAll('#main tbody tr[data-id]').forEach(tr=>tr.onclick=()=>openForm(reg,rowsOf(reg.id).find(r=>r.id===tr.dataset.id)));
 }
-function render(){if(W())ensureMbImported(W(),()=>render());autoRefill(W());syncReceipts(W());autoOpening(W());renderWorks();renderShelf();view.reg==='dash'?renderDash():view.reg==='chat'?renderChat():view.reg==='works'?renderWorksList():view.reg==='admin'?renderAdmin():view.reg==='mbup'?renderMbUp():view.reg==='aavak'?renderAavak():view.reg==='settings'?renderSettings():view.reg==='tests'?renderTests():view.reg==='tforms'?renderTForms():view.reg==='ccs'?renderCCS():MBV[view.reg]?renderMB(view.reg):renderReg()}
+function render(){if(W())ensureMbImported(W(),()=>render());autoRefill(W());assignLabTypes(W());syncReceipts(W());autoOpening(W());renderWorks();renderShelf();view.reg==='dash'?renderDash():view.reg==='chat'?renderChat():view.reg==='works'?renderWorksList():view.reg==='admin'?renderAdmin():view.reg==='mbup'?renderMbUp():view.reg==='aavak'?renderAavak():view.reg==='settings'?renderSettings():view.reg==='tests'?renderTests():view.reg==='tforms'?renderTForms():view.reg==='ccs'?renderCCS():MBV[view.reg]?renderMB(view.reg):renderReg()}
 function go(id){view.reg=id;try{localStorage.setItem(LS_KEY+'_view',id)}catch(e){}render();window.scrollTo(0,0)}
 
 /* ===================== FORM ===================== */
@@ -2485,7 +2485,7 @@ async function renderAdmin(){
 }
 
 /* ===================== CHATBOT ===================== */
-const DOCT={ts:'Technical Sanction letter',tender:'Tender approval letter',wo:'Work order',boq:'BOQ / Schedule-B',estimate:'Estimate',mix:'Mix design report',cementbill:'Cement receipt / incoming',steelbill:'Steel receipt / incoming',mb:'Measurement Book (Excel)',other:'Other document'};
+const DOCT={ts:'Technical Sanction letter',tender:'Tender approval letter',wo:'Work order',boq:'BOQ / Schedule-B',estimate:'Estimate',mix:'Mix design report',cementbill:'Cement receipt / incoming',steelbill:'Steel receipt / incoming',cubelab:'Cube test result',mb:'Measurement Book (Excel)',other:'Other document'};
 const chat={msgs:[],busy:false,files:[]};
 const SYS_X='You read Gujarat Roads & Buildings (PWD) government documents (English or Gujarati). Reply with ONLY one valid JSON object and nothing else. Use null when a value is not in the document. Dates as YYYY-MM-DD. Amounts as plain text exactly as written (e.g. "4,01,55,180.69").';
 const SCHEMA={
@@ -2495,7 +2495,8 @@ const SCHEMA={
  mix:'{"lab":"laboratory name","reportDate":"YYYY-MM-DD","mixes":[{"grade":"M25 / M20 / M15 ...","cement":0,"cementType":"OPC 53 / PPC ...","flyash":0,"ggbs":0,"sand":0,"a20":0,"a10":0,"a40":0,"water":0,"admixture":0,"wc":0,"slump":"design slump mm","target":"target mean strength N/mm2","str7":"7-day trial strength","str28":"28-day trial strength","approved":"yes / no / not stated","labRef":"lab report no. / date"}]}',
  boq:'{"items":[{"no":"item number as printed","qty":0,"unit":"Cum/Sq.m./Kg./Rmt/Nos","rate":0,"desc":"full item description"}]}',
  estimate:'{"items":[{"no":"item number as printed","sor":"SOR item code if any","qty":0,"unit":"","rate":0,"amount":0,"desc":"full item description"}]}',
- cementbill:'{"invoices":[{"date":"date cement was received, YYYY-MM-DD","billNo":"bill / invoice number if any, else empty","challanNo":"challan no. if any","supplier":"dealer / supplier if any","manufacturer":"cement brand / company if any","type":"OPC / PPC / PSC if any","grade":"33 / 43 / 53 if any","bags":0,"mt":0,"weekNo":"","lotNo":"","vehicleNo":""}]}',
+ cubelab:'{"lab":"GERI / name of lab","letterNo":"GERI letter / vide no.","letterDate":"YYYY-MM-DD","results":[{"grade":"M-20 / M-25 / M-30 ...","castDate":"date of casting YYYY-MM-DD","testDate":"actual date of testing YYYY-MM-DD","age":28,"ageDays":28,"specimens":3,"nMm2":[0,0,0],"avgNMm2":0,"labNo":"GERI lab no.","identificationMark":"identification mark on cube"}]}',
+ cementbill:'{"invoices":[[{"date":"date cement was received, YYYY-MM-DD","billNo":"bill / invoice number if any, else empty","challanNo":"challan no. if any","supplier":"dealer / supplier if any","manufacturer":"cement brand / company if any","type":"OPC / PPC / PSC if any","grade":"33 / 43 / 53 if any","bags":0,"mt":0,"weekNo":"","lotNo":"","vehicleNo":""}]}',
  steelbill:'{"invoices":[{"date":"invoice / delivery date YYYY-MM-DD","billNo":"","challanNo":"","supplier":"","manufacturer":"brand / mill","grade":"Fe 500D etc.","heatNo":"heat / cast numbers","vehicleNo":"","dia":{"8":0,"10":0,"12":0,"16":0,"20":0,"25":0,"32":0},"totalMT":0}]}',
  other:'{"summary":"one or two sentences describing the document"}'};
 const DETECT_PROMPT=`First identify what this document is. Choose exactly one type:
@@ -2504,13 +2505,14 @@ const DETECT_PROMPT=`First identify what this document is. Choose exactly one ty
 - "wo": work order letter
 - "boq": BOQ / Schedule-B (list of tender items with quantity and rate)
 - "estimate": estimate (abstract of cost)
+- "cubelab": a concrete-cube test-result sheet from GERI / Government Engineering Research Institute, a private test lab, or a summary / list of cube test results. Each row = one cube sample (grade + casting date + 7-day or 28-day average strength N/mm²).
 - "cementbill": anything recording cement RECEIVED at site – a purchase invoice, tax invoice, delivery challan, OR a plain handwritten / typed note or list of dates with cement quantities (e.g. "5/3 – 672 bags, 10/6 – 840 bags" or a page photo). One entry per date / line.
 - "steelbill": anything recording reinforcement steel (TMT) RECEIVED at site – an invoice, delivery challan, OR a plain handwritten / typed note or list of dates with steel weights (dia-wise if given). One entry per date / line.
 - "mix": concrete mix design report (quantities in kg per 1 cum for each grade; use the final / adopted (field-corrected SSD) values if given; sand = fine aggregate (crushed or natural), a20 = 20 mm, a10 = 10 mm, a40 = 40 mm coarse aggregate; if only a ratio by weight per bag is given, convert to kg per cum using the cement content; one entry per grade)
 - "other": anything else
 Then extract its data. Reply with ONLY this JSON: {"type":"<type>","data":<object>}
 The "data" object must follow the schema for that type:
-${Object.entries({ts:1,tender:1,wo:1,mix:1,boq:1,estimate:1,cementbill:1,steelbill:1,other:1}).map(([k])=>`${k}: ${'${SCHEMA.'+k+'}'}`).join('\n')}
+${Object.entries({ts:1,tender:1,wo:1,mix:1,boq:1,estimate:1,cementbill:1,steelbill:1,cubelab:1,other:1}).map(([k])=>`${k}: ${'${SCHEMA.'+k+'}'}`).join('\n')}
 For boq and estimate list every item without skipping; keep item numbers exactly as printed.
 CEMENT RECEIPTS (cementbill): classify as "cementbill" ANY of these – (a) a cement purchase invoice / tax invoice / delivery challan; (b) a summary with just DATE and QUANTITY; (c) a summary with DATE, BILL NO and QUANTITY; (d) a handwritten page or photo listing cement received. Give ONE invoice object per date / row, in the order given. Rules:
 - Dates: accept any format (5/3/26, 05-03-2026, 5.3.26, 5 March 2026, 5 માર્ચ) and OUTPUT as YYYY-MM-DD; assume 20xx for a 2-digit year; if only day/month, use the current year.
@@ -2583,6 +2585,38 @@ function applySupplyBill(w,type,d){const inv=(d.invoices||[]).filter(x=>x&&(x.da
   ['cement4','cement1','cementTest','steel1','steel2'].forEach(id=>persist(id));persist();
   const where=type==='cementbill'?'Cement Patrak-1 and Cement Patrak-2/4 (new receipt – આવક) and the Cement Testing Register':'Steel Patrak-2 (receipt) and Steel Patrak-1 (dia-wise receipt)';
   return `${done.length?`Saved to <b>${where}</b>:<ul style="margin:4px 0 0 18px">${done.map(t=>`<li>${t}</li>`).join('')}</ul>`:''}${skip.length?`<div class="note">Already entered / skipped: ${skip.map(esc).join('; ')}</div>`:''}`||null}
+/* GERI / private-lab result sheet → fill matching cube3 rows (by grade + casting date) */
+function applyCubeLab(w,d){const results=(d.results||[]).filter(r=>r&&(r.castDate||r.testDate));if(!results.length)return null;
+  state.data[w.id]??={};const p3=rowsOf('cube3',w);let changed=0;const done=[],skip=[];
+  const toKey=(g,dt)=>mixKey(g)+'|'+(dt||'');
+  /* group P3 rows by grade+castDate */
+  const byKey={};p3.forEach(r=>{(byKey[toKey(r.grade,r.date)]??=[]).push(r)});
+  results.forEach(r=>{const key=toKey(r.grade,r.castDate);const slot=byKey[key];
+    const age=+(r.age??r.ageDays)||28;const avg=+(r.avgNMm2)||((r.nMm2||[]).filter(v=>+v).reduce((a,v)=>a+ +v,0)/((r.nMm2||[]).filter(v=>+v).length||1));
+    const trio=(r.nMm2||[]).filter(v=>+v).slice(0,3).map(v=>String(+v));
+    if(!slot||!slot.length){skip.push(`${r.grade||'?'} cast ${r.castDate||'?'} – no matching row in cube register`);return}
+    /* find a row of this group that doesn't yet have the matching result */
+    const target=slot.find(x=>age===7?!(x.r7||[]).some(v=>num(v)!=null):!(x.r28||[]).some(v=>num(v)!=null))||slot[0];
+    const field=age===7?'r7':'r28';if(trio.length)target[field]=trio;else target[field]=['','',''];
+    target.labType=/geri|government engineering|north gujarat/i.test(d.lab||'')?'GERI (Govt lab)':/govt.?approved|approved lab|private/i.test(d.lab||'')?'Govt-approved lab':target.labType||'';
+    target.unit='N/mm²';target.lab=[d.lab,d.letterNo,d.letterDate&&fdate(d.letterDate),r.labNo&&('Lab No '+r.labNo),r.identificationMark].filter(Boolean).join(' · ');
+    changed++;done.push(`${r.grade||''} cast ${fdate(r.castDate)||'?'} – ${age}-day ${avg?avg.toFixed(2):'?'} N/mm²`)});
+  if(changed)persist('cube3');
+  return `${done.length?`Updated <b>${done.length}</b> cube test row${done.length===1?'':'s'} in Patrak-3 from <b>${esc(d.lab||'lab result')}</b>${d.letterNo?` (${esc(d.letterNo)})`:''}:<ul style="margin:4px 0 0 18px">${done.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`:''}${skip.length?`<div class="note">Could not match: ${skip.map(esc).join('; ')}</div>`:''}`||null}
+/* Har cube sample ko lab assign karo: ~10 % GERI, ~10 % Govt-approved lab, baaki Field. Samay ke saath spread. */
+function assignLabTypes(w){if(!w)return;const rows=rowsOf('cube3',w);if(!rows.length)return;
+  /* ek sample = ek "set" (setN=1 wali row, ya non-split row) */
+  const samples=rows.filter(r=>!r.setN||r.setN===1).sort((a,b)=>(a.date||'')<(b.date||'')?-1:(a.date||'')>(b.date||'')?1:(a._c||0)-(b._c||0));
+  const N=samples.length;if(!N)return;const nG=Math.max(0,Math.round(N*0.10)),nA=Math.max(0,Math.round(N*0.10));
+  if(nG+nA>N)return;
+  const geriIdx=new Set(),appIdx=new Set();
+  for(let k=0;k<nG;k++){let idx=Math.min(N-1,Math.floor((k+0.5)*N/Math.max(1,nG)));while(geriIdx.has(idx))idx=(idx+1)%N;geriIdx.add(idx)}
+  for(let k=0;k<nA;k++){let idx=Math.min(N-1,Math.floor((k+0.5)*N/Math.max(1,nA)));while(geriIdx.has(idx)||appIdx.has(idx))idx=(idx+1)%N;appIdx.add(idx)}
+  let changed=false;samples.forEach((s,i)=>{if(s.labType)return;const want=geriIdx.has(i)?'GERI (Govt lab)':appIdx.has(i)?'Govt-approved lab':'Field';
+    s.labType=want;changed=true;
+    /* propagate same labType to Set 2/N, Set 3/N rows of this sample so one day = one lab */
+    rows.forEach(r=>{if(r.date===s.date&&r.grade===s.grade&&r.setN&&r.setN>1&&!r.labType){r.labType=want;changed=true}})});
+  if(changed)persist('cube3')}
 function autoApply(w,type,d){
   if(type==='mix'){const mx=(d.mixes||[]).filter(x=>x&&x.grade);w.mix??={};delete w.splitVer;
     /* cement per cum of every MB item before the change, to show the effect */
@@ -2604,6 +2638,7 @@ function autoApply(w,type,d){
     w.items.sort((a,b)=>(parseFloat(a.no)||0)-(parseFloat(b.no)||0));
     return items.length?`<b>${items.length} items</b> saved to <b>Work → Tender Items</b>:${itemsTable(items)}`:null}
   if(type==='cementbill'||type==='steelbill')return applySupplyBill(w,type,d);
+  if(type==='cubelab')return applyCubeLab(w,d);
   if(type==='estimate'){const items=(d.items||[]).filter(x=>x&&x.desc);w.estItems=items;return items.length?`<b>${items.length} estimate items</b> saved:${itemsTable(items)}`:null}
   if(['ts','tender','wo'].includes(type)){const ch=applyFields(w,type,d);ch.forEach(x=>x.o[x.k]=x.v);
     return ch.length?`Saved to <b>Work details</b>:<table class="kv">${ch.map(x=>`<tr><td>${esc(x.label)}</td><td><b>${esc(x.k.match(/date/i)?fdS(x.v):x.v)}</b>${x.old&&x.old!==x.v?`<div class="note">previously: ${esc(x.k.match(/date/i)?fdS(x.old):x.old)}</div>`:''}</td></tr>`).join('')}</table>`:null}
@@ -2614,7 +2649,7 @@ function renderChat(){const w=W();
   const why=!FIREBASE_CONFIG||EMBED?'The assistant is available in the online app after Google sign-in and Worker setup.':!user?'Please sign in first.':testMode&&!testAI?'In test mode the Assistant is OFF, exactly as it is for a brand-new user until the admin enables it. Turn it ON above to try it (uses your admin API key).':!canAI()?'The administrator has not enabled the assistant for your account yet.':!appCfg.workerUrl?'The administrator has not configured the Worker URL yet (Admin → Assistant settings).':'';
   $('#main').innerHTML=`<div class="sheethead"><div><h2>Assistant</h2><div class="sub">${esc(w.name)}</div></div></div>
   ${why?`<div class="banner"><span>${esc(why)} Measurement Book (Excel) uploads still work without it.</span></div>`:''}
-  <div class="chatlog" id="chatlog">${chat.msgs.length?'':`<div class="empty">Upload any document – TS letter, tender approval, work order, BOQ, estimate, mix design report, cement / steel supply bill or Measurement Book (Excel). The document type is detected automatically and the details are filled in.<br>You can also ask a question, e.g. "What is the up-to-date MB quantity of item 5?" or "How much cement is in stock?"</div>`}</div>
+  <div class="chatlog" id="chatlog">${chat.msgs.length?'':`<div class="empty">Upload any document – TS letter, tender approval, work order, BOQ, estimate, mix design report, cement / steel supply bill, cube test result (GERI letter or private lab) or Measurement Book (Excel). The document type is detected automatically and the details are filled in.<br>You can also ask a question, e.g. "What is the up-to-date MB quantity of item 5?" or "How much cement is in stock?"</div>`}</div>
   <form class="composer" id="chatForm">
    <div class="crow"><label class="btn" for="c_file">Attach files</label><input type="file" id="c_file" accept=".pdf,.png,.jpg,.jpeg,.webp,.xlsx,.txt,.csv" multiple hidden>
     <span class="note">or drag &amp; drop files here, or paste (Ctrl+V) files / screenshots</span></div>
